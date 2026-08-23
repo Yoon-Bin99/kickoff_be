@@ -70,7 +70,7 @@ public class MatchPost extends BaseTimeEntity {
     private Integer depositAmount;
 
     /*
-     * 입금받을 계좌. 목록/상세 어디에도 실리지 않고, 수락된 신청 팀에게만
+     * 입금받을 계좌. 평문 필드로 나가는 응답은 없다. 수락된 신청 팀과 작성자 본인에게만
      * PaymentInfo 로 내려간다. 새 응답 DTO 를 만들 때 이 세 필드를 무심코 넣지 말 것.
      */
     @Column(length = 20)

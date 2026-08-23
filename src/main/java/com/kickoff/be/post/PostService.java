@@ -173,7 +173,7 @@ public class PostService {
         MatchRequest accepted = requestRepository.findAcceptedByPostId(post.getId()).orElse(null);
         return PostDetail.of(post, requestCount, viewerId, myRequestStatus,
                 contactFor(post, accepted, viewerId, viewerTeamId),
-                paymentFor(post, accepted, viewerTeamId));
+                paymentFor(post, accepted, viewerId, viewerTeamId));
     }
 
     /** 매칭이 성사된 두 팀만 서로의 연락처를 본다. */
@@ -191,15 +191,24 @@ public class PostService {
         return null;
     }
 
-    /** 계좌는 돈을 보낼 쪽, 즉 수락된 신청 팀에게만. 작성자가 봐도 null 이다. */
-    private PaymentInfo paymentFor(MatchPost post, MatchRequest accepted, Long viewerTeamId) {
-        if (accepted == null || viewerTeamId == null
-                || !accepted.getApplicantTeam().getId().equals(viewerTeamId)
-                || !post.hasDepositAccount()) {
+    /**
+     * 계좌를 볼 수 있는 사람은 둘뿐이다 (계약서 §5).
+     * 수락된 신청 팀은 어디로 입금할지 알아야 하고, 작성자 본인은 자기가 등록한 계좌를
+     * 확인·수정해야 한다. 비로그인·제3자·수락 전 신청 팀은 전부 null.
+     */
+    private PaymentInfo paymentFor(MatchPost post, MatchRequest accepted, Long viewerId,
+                                   Long viewerTeamId) {
+        if (!post.hasDepositAccount()) {
+            return null;
+        }
+        boolean acceptedApplicant = accepted != null && viewerTeamId != null
+                && accepted.getApplicantTeam().getId().equals(viewerTeamId);
+        if (!post.isWrittenBy(viewerId) && !acceptedApplicant) {
             return null;
         }
         return new PaymentInfo(post.getDepositAmount(), post.getBankName(),
-                post.getAccountNumber(), post.getAccountHolder(), accepted.isDepositPaid());
+                post.getAccountNumber(), post.getAccountHolder(),
+                accepted != null && accepted.isDepositPaid());
     }
 
     private PageResponse<PostSummary> toSummaryPage(Page<MatchPost> posts) {

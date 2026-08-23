@@ -64,11 +64,16 @@ public class MatchRequestService {
         return toResponses(requestRepository.findByPostIdOrdered(postId), user);
     }
 
-    /** 내 팀이 쓴 모든 글에 온 신청을 한 번에 (계약서 §6). */
+    /**
+     * 내 팀이 쓴 모든 글에 온 신청을 한 번에 (계약서 §6).
+     * 팀이 없으면 받은 신청도 없다 — 조회성 API 라 에러가 아니라 빈 목록이다.
+     */
     @Transactional(readOnly = true)
     public List<RequestResponse> getReceived(User user) {
-        Team myTeam = teamRepository.findByOwnerId(user.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_REQUIRED));
+        Team myTeam = teamRepository.findByOwnerId(user.getId()).orElse(null);
+        if (myTeam == null) {
+            return List.of();
+        }
         return toResponses(requestRepository.findReceivedByTeamId(myTeam.getId()), user);
     }
 

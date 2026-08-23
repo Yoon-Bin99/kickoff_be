@@ -12,8 +12,8 @@ import com.kickoff.be.team.dto.TeamResponse;
 import java.time.OffsetDateTime;
 
 /**
- * 글 상세. 계좌 정보는 평문 필드로 노출하지 않고, 수락된 신청 팀에게만
- * payment 안에 담아 내려간다. 작성자가 봐도 payment 는 null 이다 (계약서 §5).
+ * 글 상세. 계좌는 평문 필드로 노출하지 않고 payment 안에 담아 내려가며,
+ * 수락된 신청 팀과 작성자 본인에게만 채워진다 (계약서 §5).
  */
 public record PostDetail(
         Long id,
