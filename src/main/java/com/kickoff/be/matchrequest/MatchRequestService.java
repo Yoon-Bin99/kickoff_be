@@ -36,7 +36,8 @@ public class MatchRequestService {
         if (post.getTeam().getId().equals(myTeam.getId())) {
             throw new BusinessException(ErrorCode.SELF_REQUEST_NOT_ALLOWED);
         }
-        if (!post.isOpen()) {
+        // 지난 경기는 status 가 OPEN 이어도 신청을 받지 않는다 (계약서 §5 지난 경기 규칙).
+        if (!post.acceptsRequests()) {
             throw new BusinessException(ErrorCode.POST_NOT_OPEN);
         }
         // 취소·거절 이력은 재신청을 막지 않는다 (계약서 §6).

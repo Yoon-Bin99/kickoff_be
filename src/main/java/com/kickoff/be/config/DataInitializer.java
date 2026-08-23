@@ -221,11 +221,14 @@ public class DataInitializer implements ApplicationRunner {
         );
         postRepository.saveAll(posts);
 
-        // 지난 경기 중 둘은 마감 처리 — 목록 기본 필터(OPEN)에서 빠진다.
-        // posts.get(4)는 일부러 OPEN 으로 남긴다. 아무도 매칭하지 않은 채 날짜가 지난 글이라
-        // matchAt 오름차순 정렬에서 맨 위로 올라온다. FE 가 실제로 만나는 상황이라 시드에 포함한다.
         posts.get(14).close();
         posts.get(29).close();
+        // 지난 경기는 목록에서 통째로 빠지므로, 위 둘만 마감하면 FE 가 마감 뱃지를 볼 수 없다.
+        // 미래 글 하나를 마감 상태로 둬서 status=CLOSED 목록이 비지 않게 한다.
+        posts.get(3).close();
+
+        // posts.get(4)는 일부러 OPEN 인 채로 지난 경기다. 목록에서는 빠지고, id 로 상세는 열리고,
+        // 신청하면 409 가 나는 "지난 경기 규칙"(계약서 §5) 검증용이다.
 
         // 카드에 "신청 N팀"이 보이도록 대기 중 신청을 깔아둔다
         applyPending(posts.get(0), mapo, "저희도 서울이라 가깝습니다!");

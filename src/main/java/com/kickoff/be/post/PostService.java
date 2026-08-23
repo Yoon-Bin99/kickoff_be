@@ -18,6 +18,7 @@ import com.kickoff.be.team.SkillLevel;
 import com.kickoff.be.team.Team;
 import com.kickoff.be.team.TeamRepository;
 import com.kickoff.be.user.User;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,10 @@ public class PostService {
     private final TeamRepository teamRepository;
     private final MatchRequestRepository requestRepository;
 
-    /** 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5). */
+    /**
+     * 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5).
+     * 지난 경기는 status 필터와 무관하게 빠진다.
+     */
     @Transactional(readOnly = true)
     public PageResponse<PostSummary> search(String region, FieldType fieldType, SkillLevel skillLevel,
                                             PostStatus status, String keyword, int page, int size) {
@@ -50,7 +54,7 @@ public class PostService {
                 Math.max(page, 0),
                 clampSize(size),
                 Sort.by(Sort.Direction.ASC, "matchAt"));
-        Page<MatchPost> posts = postRepository.search(
+        Page<MatchPost> posts = postRepository.search(OffsetDateTime.now(),
                 blankToNull(region), fieldType, skillLevel, status, blankToNull(keyword), pageable);
         return toSummaryPage(posts);
     }

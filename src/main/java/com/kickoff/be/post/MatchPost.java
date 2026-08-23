@@ -182,6 +182,16 @@ public class MatchPost extends BaseTimeEntity {
         return this.status == PostStatus.OPEN;
     }
 
+    /** 경기 시각이 이미 지났는지. 지난 경기는 status 와 무관하게 매칭 대상이 아니다. */
+    public boolean hasPassed() {
+        return matchAt.isBefore(OffsetDateTime.now());
+    }
+
+    /** 지금 신청을 받을 수 있는 글인지 (계약서 §5 지난 경기 규칙). */
+    public boolean acceptsRequests() {
+        return isOpen() && !hasPassed();
+    }
+
     /** 작성 팀의 소유자인지. */
     public boolean isWrittenBy(Long userId) {
         return team.isOwnedBy(userId);
