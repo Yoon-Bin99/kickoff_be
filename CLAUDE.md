@@ -40,19 +40,31 @@ Boot 4.x는 스타터 이름이 3.x와 다르다. `spring-boot-starter-web`이 �
 - **레코드의 boolean 필드**: `isMine`/`isAuthor`/`hasTeam`처럼 `is`로 시작하는 필드는 직렬화 이름이
   `mine`으로 깎일 수 있어 `@JsonProperty("isMine")`을 명시했다. 계약서 필드명이라 지울 것.
 
-## 패키지 구조
+## 패키지 구조 (사용자 확정 — 도메인 안을 레이어별 하위 패키지로)
 
-`com.kickoff.be` 아래 도메인별로 나눈다.
+`com.kickoff.be` 아래 도메인별로 나누고, **각 도메인 안은 레이어별 하위 패키지**로
+정리한다. 도메인 패키지 바로 아래에 클래스를 두지 말 것.
 
 ```
 com.kickoff.be
-├── common      공통 응답/에러 (ErrorCode, BusinessException, ApiExceptionHandler, PageResponse, BaseTimeEntity)
-├── config      SecurityConfig, CorsConfig, JpaAuditingConfig, DataInitializer
-├── auth        JwtTokenProvider, JwtAuthenticationFilter, AuthController/Service, @LoginUser
-├── user        User 엔티티, Repository
-├── team        Team 엔티티, Repository, Service, Controller, DTO
-├── post        MatchPost 엔티티 + 열거형, Repository, Service, Controller, DTO
-└── matchrequest  MatchRequest 엔티티, Repository, Service, Controller, DTO
+├── common      공통 응답/에러 (ErrorCode, BusinessException, ApiExceptionHandler, PageResponse, BaseTimeEntity ...) — 평면 유지
+├── config      SecurityConfig, CorsConfig, JpaAuditingConfig, DataInitializer — 평면 유지
+├── auth        인증 (특성상 entity 없음)
+│   ├── controller / service / dto
+│   └── jwt     인증 인프라 — 토큰·필터·@LoginUser·리졸버, 인증/인가 실패 응답까지
+├── user
+│   ├── entity      User
+│   ├── repository  UserRepository
+│   └── dto         UserResponse
+├── team
+│   ├── entity      Team, SkillLevel, AgeGroup (엔티티에 붙는 열거형은 entity에)
+│   ├── repository / service / controller / dto
+├── post
+│   ├── entity      MatchPost, PostStatus, FieldType
+│   ├── repository / service / controller / dto
+└── matchrequest
+    ├── entity      MatchRequest, RequestStatus
+    ├── repository / service / controller / dto  (PostRequestCount 같은 조회 프로젝션은 repository에)
 ```
 
 ## 작업 규칙

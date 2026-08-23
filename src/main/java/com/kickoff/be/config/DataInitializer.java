@@ -1,16 +1,16 @@
 package com.kickoff.be.config;
 
-import com.kickoff.be.matchrequest.MatchRequest;
-import com.kickoff.be.matchrequest.MatchRequestRepository;
-import com.kickoff.be.post.FieldType;
-import com.kickoff.be.post.MatchPost;
-import com.kickoff.be.post.MatchPostRepository;
-import com.kickoff.be.team.AgeGroup;
-import com.kickoff.be.team.SkillLevel;
-import com.kickoff.be.team.Team;
-import com.kickoff.be.team.TeamRepository;
-import com.kickoff.be.user.User;
-import com.kickoff.be.user.UserRepository;
+import com.kickoff.be.matchrequest.entity.MatchRequest;
+import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
+import com.kickoff.be.post.entity.FieldType;
+import com.kickoff.be.post.entity.MatchPost;
+import com.kickoff.be.post.repository.MatchPostRepository;
+import com.kickoff.be.team.entity.AgeGroup;
+import com.kickoff.be.team.entity.SkillLevel;
+import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.team.repository.TeamRepository;
+import com.kickoff.be.user.entity.User;
+import com.kickoff.be.user.repository.UserRepository;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;

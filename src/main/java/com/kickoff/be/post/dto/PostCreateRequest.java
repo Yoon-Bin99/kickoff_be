@@ -1,7 +1,7 @@
 package com.kickoff.be.post.dto;
 
-import com.kickoff.be.post.FieldType;
-import com.kickoff.be.team.SkillLevel;
+import com.kickoff.be.post.entity.FieldType;
+import com.kickoff.be.team.entity.SkillLevel;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

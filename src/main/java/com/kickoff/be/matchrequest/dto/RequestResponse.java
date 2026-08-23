@@ -3,10 +3,10 @@ package com.kickoff.be.matchrequest.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kickoff.be.common.ContactInfo;
 import com.kickoff.be.common.PaymentInfo;
-import com.kickoff.be.matchrequest.MatchRequest;
-import com.kickoff.be.matchrequest.RequestStatus;
-import com.kickoff.be.post.MatchPost;
-import com.kickoff.be.post.PostStatus;
+import com.kickoff.be.matchrequest.entity.MatchRequest;
+import com.kickoff.be.matchrequest.entity.RequestStatus;
+import com.kickoff.be.post.entity.MatchPost;
+import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.team.dto.TeamSummary;
 import java.time.OffsetDateTime;
 

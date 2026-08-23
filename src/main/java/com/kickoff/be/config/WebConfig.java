@@ -1,6 +1,6 @@
 package com.kickoff.be.config;
 
-import com.kickoff.be.auth.LoginUserArgumentResolver;
+import com.kickoff.be.auth.jwt.LoginUserArgumentResolver;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;

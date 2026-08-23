@@ -3,12 +3,12 @@ package com.kickoff.be.post.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kickoff.be.common.ContactInfo;
 import com.kickoff.be.common.PaymentInfo;
-import com.kickoff.be.matchrequest.RequestStatus;
-import com.kickoff.be.post.FieldType;
-import com.kickoff.be.post.MatchPost;
-import com.kickoff.be.post.PostStatus;
-import com.kickoff.be.team.SkillLevel;
+import com.kickoff.be.matchrequest.entity.RequestStatus;
+import com.kickoff.be.post.entity.FieldType;
+import com.kickoff.be.post.entity.MatchPost;
+import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.team.dto.TeamResponse;
+import com.kickoff.be.team.entity.SkillLevel;
 import java.time.OffsetDateTime;
 
 /**

@@ -1,8 +1,8 @@
 package com.kickoff.be.user.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.kickoff.be.team.Team;
-import com.kickoff.be.user.User;
+import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.user.entity.User;
 
 public record UserResponse(
         Long id,

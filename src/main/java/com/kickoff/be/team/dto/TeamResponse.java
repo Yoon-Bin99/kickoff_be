@@ -1,9 +1,9 @@
 package com.kickoff.be.team.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.kickoff.be.team.AgeGroup;
-import com.kickoff.be.team.SkillLevel;
-import com.kickoff.be.team.Team;
+import com.kickoff.be.team.entity.AgeGroup;
+import com.kickoff.be.team.entity.SkillLevel;
+import com.kickoff.be.team.entity.Team;
 import java.time.OffsetDateTime;
 
 public record TeamResponse(

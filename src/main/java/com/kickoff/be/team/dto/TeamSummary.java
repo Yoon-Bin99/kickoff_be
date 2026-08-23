@@ -1,8 +1,8 @@
 package com.kickoff.be.team.dto;
 
-import com.kickoff.be.team.AgeGroup;
-import com.kickoff.be.team.SkillLevel;
-import com.kickoff.be.team.Team;
+import com.kickoff.be.team.entity.AgeGroup;
+import com.kickoff.be.team.entity.SkillLevel;
+import com.kickoff.be.team.entity.Team;
 
 /** 목록/카드에 박히는 축약형 (계약서 §2). owner 를 건드리지 않는다. */
 public record TeamSummary(

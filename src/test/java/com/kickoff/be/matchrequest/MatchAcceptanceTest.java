@@ -7,11 +7,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.kickoff.be.post.MatchPost;
-import com.kickoff.be.post.PostStatus;
+import com.kickoff.be.matchrequest.entity.RequestStatus;
+import com.kickoff.be.post.entity.MatchPost;
+import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.support.IntegrationTestSupport;
-import com.kickoff.be.team.Team;
-import com.kickoff.be.user.User;
+import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

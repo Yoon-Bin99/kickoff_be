@@ -1,8 +1,8 @@
 package com.kickoff.be.config;
 
-import com.kickoff.be.auth.JwtAuthenticationFilter;
-import com.kickoff.be.auth.JwtTokenProvider;
-import com.kickoff.be.auth.SecurityErrorResponder;
+import com.kickoff.be.auth.jwt.JwtAuthenticationFilter;
+import com.kickoff.be.auth.jwt.JwtTokenProvider;
+import com.kickoff.be.auth.jwt.SecurityErrorResponder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

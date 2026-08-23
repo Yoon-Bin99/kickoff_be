@@ -1,7 +1,7 @@
 package com.kickoff.be.team.dto;
 
-import com.kickoff.be.team.AgeGroup;
-import com.kickoff.be.team.SkillLevel;
+import com.kickoff.be.team.entity.AgeGroup;
+import com.kickoff.be.team.entity.SkillLevel;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
