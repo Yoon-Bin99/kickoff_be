@@ -1,0 +1,82 @@
+package com.kickoff.be.matchrequest.dto;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.kickoff.be.common.ContactInfo;
+import com.kickoff.be.common.PaymentInfo;
+import com.kickoff.be.matchrequest.MatchRequest;
+import com.kickoff.be.matchrequest.RequestStatus;
+import com.kickoff.be.post.MatchPost;
+import com.kickoff.be.post.PostStatus;
+import com.kickoff.be.team.dto.TeamSummary;
+import java.time.OffsetDateTime;
+
+public record RequestResponse(
+        Long id,
+        Long postId,
+        String postTitle,
+        PostStatus postStatus,
+        OffsetDateTime matchAt,
+        TeamSummary applicantTeam,
+        String message,
+        RequestStatus status,
+        ContactInfo contact,
+        PaymentInfo payment,
+        @JsonProperty("depositPaid") boolean depositPaid,
+        OffsetDateTime createdAt
+) {
+
+    public static RequestResponse of(MatchRequest request, Long viewerId) {
+        MatchPost post = request.getPost();
+        return new RequestResponse(
+                request.getId(),
+                post.getId(),
+                post.getTitle(),
+                post.getStatus(),
+                post.getMatchAt(),
+                TeamSummary.from(request.getApplicantTeam()),
+                request.getMessage(),
+                request.getStatus(),
+                contactFor(request, viewerId),
+                paymentFor(request, viewerId),
+                request.isDepositPaid(),
+                request.getCreatedAt()
+        );
+    }
+
+    /**
+     * 수락된 신청에 한해, 매칭된 두 팀에게만 상대 연락처를 준다.
+     * 글 작성자가 보면 신청 팀 연락처, 신청 팀이 보면 글 작성 팀 연락처.
+     */
+    private static ContactInfo contactFor(MatchRequest request, Long viewerId) {
+        if (viewerId == null || !request.isAccepted()) {
+            return null;
+        }
+        MatchPost post = request.getPost();
+        if (post.isWrittenBy(viewerId)) {
+            return ContactInfo.from(request.getApplicantTeam().getOwner());
+        }
+        if (request.getApplicantTeam().isOwnedBy(viewerId)) {
+            return ContactInfo.from(post.getTeam().getOwner());
+        }
+        return null;
+    }
+
+    /**
+     * 계좌는 <b>돈을 보낼 쪽</b>, 즉 수락된 신청 팀에게만 보인다.
+     * 작성자는 payment 가 null 이고 depositPaid 로 입금 확인 상태만 본다 (계약서 §6).
+     */
+    private static PaymentInfo paymentFor(MatchRequest request, Long viewerId) {
+        if (viewerId == null || !request.isAccepted()) {
+            return null;
+        }
+        if (!request.getApplicantTeam().isOwnedBy(viewerId)) {
+            return null;
+        }
+        MatchPost post = request.getPost();
+        if (!post.hasDepositAccount()) {
+            return null;
+        }
+        return new PaymentInfo(post.getDepositAmount(), post.getBankName(),
+                post.getAccountNumber(), post.getAccountHolder(), request.isDepositPaid());
+    }
+}

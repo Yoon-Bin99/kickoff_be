@@ -25,6 +25,7 @@ public enum ErrorCode {
     DUPLICATE_REQUEST(HttpStatus.CONFLICT, "이미 신청한 글입니다."),
     REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신청입니다."),
     REQUEST_NOT_PENDING(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
+    REQUEST_NOT_ACCEPTED(HttpStatus.CONFLICT, "수락된 신청이 아닙니다."),
 
     /** 계약서 표에는 없지만 5xx 도 같은 형식으로 나가야 해서 둔다. */
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
