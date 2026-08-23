@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: be
+  profiles:
+    active: dev
+  jackson:
+    time-zone: Asia/Seoul
+    # 계약서가 null 필드(contact, myRequestStatus 등)도 키를 유지하길 기대한다
+    default-property-inclusion: always
+    datatype:
+      # Jackson 3 에서 날짜 플래그는 SerializationFeature 가 아니라 DateTimeFeature 로 옮겨졌다
+      datetime:
+        write-dates-as-timestamps: false
+        adjust-dates-to-context-time-zone: false
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        timezone:
+          default_storage: NORMALIZE
+
+server:
+  port: 8080
+  address: 0.0.0.0
+
+jwt:
+  # 운영에서는 반드시 JWT_SECRET 환경변수로 덮어쓸 것 (HS256이라 32바이트 이상 필요)
+  secret: ${JWT_SECRET:kickoff-local-dev-secret-key-change-me-in-production-0123456789}
+  expiration-days: 7
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:h2:mem:kickoff;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
