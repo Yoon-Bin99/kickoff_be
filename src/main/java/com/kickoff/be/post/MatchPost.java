@@ -170,6 +170,10 @@ public class MatchPost extends BaseTimeEntity {
         this.status = PostStatus.MATCHED;
     }
 
+    public void close() {
+        this.status = PostStatus.CLOSED;
+    }
+
     public void increaseViewCount() {
         this.viewCount++;
     }
