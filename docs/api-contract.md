@@ -51,6 +51,7 @@
 | `DUPLICATE_REQUEST` | 409 | 같은 글에 중복 신청 |
 | `REQUEST_NOT_FOUND` | 404 | |
 | `REQUEST_NOT_PENDING` | 409 | 이미 처리된 신청을 또 처리 |
+| `REQUEST_NOT_ACCEPTED` | 409 | 수락되지 않은 신청에 입금 확인 시도 |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
 참고 사항:
@@ -186,9 +187,14 @@ POST와 같은 필드, 전부 optional. 200 → `TeamResponse`
 ```json
 { "id": 12, "title": "토요일 아침 풋살 상대 구합니다", "matchAt": "2026-08-30T07:00:00+09:00",
   "location": "강서구민운동장 A구장", "region": "서울 강서구", "fieldType": "FUTSAL",
-  "preferredSkillLevel": "INTERMEDIATE", "costPerTeam": 50000, "status": "OPEN",
-  "requestCount": 3, "team": "<TeamSummary>", "createdAt": "2026-08-23T09:00:00+09:00" }
+  "preferredSkillLevel": "INTERMEDIATE", "rentalFee": 100000, "depositAmount": 50000,
+  "status": "OPEN", "requestCount": 3, "team": "<TeamSummary>",
+  "createdAt": "2026-08-23T09:00:00+09:00" }
 ```
+
+비용 필드 의미 (v1.1에서 `costPerTeam` 대체):
+- `rentalFee`: 글 작성 팀이 낸 **총 구장 대여료** (optional, 정보 표시용)
+- `depositAmount`: **매칭 확정 시 상대 팀이 작성 팀에게 보낼 금액** (optional, 0 이상. null이면 "협의")
 
 ### POST /api/posts — 인증 필요, 팀 보유 필수
 
@@ -196,10 +202,13 @@ POST와 같은 필드, 전부 optional. 200 → `TeamResponse`
 { "title": "토요일 아침 풋살 상대 구합니다", "content": "6인제로 2시간 뛸 팀 찾습니다. 매너 중요.",
   "matchAt": "2026-08-30T07:00:00+09:00", "location": "강서구민운동장 A구장",
   "region": "서울 강서구", "fieldType": "FUTSAL", "preferredSkillLevel": "INTERMEDIATE",
-  "costPerTeam": 50000 }
+  "rentalFee": 100000, "depositAmount": 50000,
+  "bankName": "카카오뱅크", "accountNumber": "3333-01-1234567", "accountHolder": "김주장" }
 ```
 
-- `title` 2~60자 필수 / `content` 최대 2000자 필수 / `matchAt` 미래 시각 필수 / `location`, `region` 필수 / `fieldType` 필수 / `preferredSkillLevel` optional(null이면 무관) / `costPerTeam` 0 이상 optional
+- `title` 2~60자 필수 / `content` 최대 2000자 필수 / `matchAt` 미래 시각 필수 / `location`, `region` 필수 / `fieldType` 필수 / `preferredSkillLevel` optional(null이면 무관) / `rentalFee`, `depositAmount` 0 이상 optional
+- `bankName`(최대 20자), `accountNumber`(최대 30자), `accountHolder`(최대 20자): **입금받을 계좌** — 전부 optional이지만 `depositAmount`를 넣으면 세 필드 모두 필수 (400 `VALIDATION_FAILED`)
+- 계좌 3필드는 **절대 목록/상세에 공개되지 않는다.** 오직 수락된 신청 팀에게만 `payment` 오브젝트로 내려간다 (아래 참고)
 - 팀 없으면 400 `TEAM_REQUIRED`
 - 201 → `PostDetail`
 
@@ -208,9 +217,9 @@ POST와 같은 필드, 전부 optional. 200 → `TeamResponse`
 ```json
 { "id": 12, "title": "...", "content": "...", "matchAt": "2026-08-30T07:00:00+09:00",
   "location": "강서구민운동장 A구장", "region": "서울 강서구", "fieldType": "FUTSAL",
-  "preferredSkillLevel": "INTERMEDIATE", "costPerTeam": 50000, "status": "OPEN",
-  "viewCount": 42, "requestCount": 3, "team": "<TeamResponse>",
-  "isAuthor": false, "myRequestStatus": null, "contact": null,
+  "preferredSkillLevel": "INTERMEDIATE", "rentalFee": 100000, "depositAmount": 50000,
+  "status": "OPEN", "viewCount": 42, "requestCount": 3, "team": "<TeamResponse>",
+  "isAuthor": false, "myRequestStatus": null, "contact": null, "payment": null,
   "createdAt": "2026-08-23T09:00:00+09:00" }
 ```
 
@@ -225,6 +234,16 @@ POST와 같은 필드, 전부 optional. 200 → `TeamResponse`
 - 글 작성자가 볼 때 → 수락한 상대 팀의 연락처
 - 신청 팀이 볼 때 → 글 작성 팀의 연락처
 
+- `payment`: **수락된 신청 팀에게만** 공개되는 입금 안내. 그 외(작성자 포함) 전부 `null`
+
+```json
+{ "depositAmount": 50000, "bankName": "카카오뱅크", "accountNumber": "3333-01-1234567",
+  "accountHolder": "김주장", "depositPaid": false }
+```
+
+`depositPaid`는 글 작성자가 입금 확인을 눌렀는지 여부. 작성자가 보는 PostDetail에서는
+`payment` 대신 수락된 신청의 `depositPaid`를 매칭관리 화면(§6)에서 확인한다.
+
 ### PATCH /api/posts/{postId} — 인증 필요, 작성자만
 
 POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
@@ -234,6 +253,12 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
 ### GET /api/posts/me — 인증 필요
 
 내 팀이 작성한 글 목록. 200 → `PageResponse<PostSummary>`
+- 정렬: `createdAt` DESC (방금 쓴 글이 위로 — 홈 목록과 다름)
+- 팀이 없으면 에러가 아니라 **빈 페이지** 반환
+
+### requestCount 정의 (PostSummary/PostDetail 공통)
+
+살아 있는 신청(`PENDING` + `ACCEPTED`)만 센다. 취소·거절된 신청은 제외.
 
 ## 6. 매칭 신청
 
@@ -243,12 +268,22 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
 { "id": 7, "postId": 12, "postTitle": "토요일 아침 풋살 상대 구합니다",
   "postStatus": "OPEN", "matchAt": "2026-08-30T07:00:00+09:00",
   "applicantTeam": "<TeamSummary>", "message": "저희도 강서구라 가깝습니다!",
-  "status": "PENDING", "contact": null, "createdAt": "2026-08-23T11:00:00+09:00" }
+  "status": "PENDING", "contact": null, "payment": null, "depositPaid": false,
+  "createdAt": "2026-08-23T11:00:00+09:00" }
 ```
 
 `contact`는 `status`가 `ACCEPTED`일 때만 채워진다. 규칙은 PostDetail과 동일.
 `postStatus`는 신청이 걸린 글의 현재 상태 — FE가 받은/보낸 신청 목록에서 글 상태
 뱃지를 그리는 데 쓴다 (별도 글 조회 없이).
+`payment`는 **신청 팀이 볼 때 + ACCEPTED일 때만** 채워진다 (§5의 payment와 동일 형태).
+글 작성자가 볼 때는 `payment: null`이고 `depositPaid`로 입금 확인 상태만 본다.
+
+### POST /api/requests/{requestId}/confirm-deposit — 인증 필요, 글 작성자만
+
+상대 팀의 입금을 확인했다고 표시한다. `depositPaid` → `true`.
+- 신청이 `ACCEPTED` 상태가 아니면 409 `REQUEST_NOT_ACCEPTED`
+- 200 → `RequestResponse`
+- 입금 확인 후에도 글/신청 상태는 변하지 않는다 (기록용 플래그)
 
 ### POST /api/posts/{postId}/requests — 인증 필요, 팀 보유 필수
 
