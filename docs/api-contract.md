@@ -234,15 +234,18 @@ POST와 같은 필드, 전부 optional. 200 → `TeamResponse`
 - 글 작성자가 볼 때 → 수락한 상대 팀의 연락처
 - 신청 팀이 볼 때 → 글 작성 팀의 연락처
 
-- `payment`: **수락된 신청 팀에게만** 공개되는 입금 안내. 그 외(작성자 포함) 전부 `null`
+- `payment`: 입금 안내 오브젝트. **두 경우에만** 채워진다 — ① 수락된 신청 팀이 볼 때
+  (입금해야 할 정보), ② **글 작성자 본인**이 볼 때 (자기가 등록한 계좌 확인·수정용).
+  비로그인, 제3자, 수락 전 신청 팀은 전부 `null`
 
 ```json
 { "depositAmount": 50000, "bankName": "카카오뱅크", "accountNumber": "3333-01-1234567",
   "accountHolder": "김주장", "depositPaid": false }
 ```
 
-`depositPaid`는 글 작성자가 입금 확인을 눌렀는지 여부. 작성자가 보는 PostDetail에서는
-`payment` 대신 수락된 신청의 `depositPaid`를 매칭관리 화면(§6)에서 확인한다.
+`depositPaid`는 글 작성자가 입금 확인을 눌렀는지 여부. 수락된 신청이 없으면 `false`.
+PATCH의 `depositAmount` 검증("있으면 계좌 3필드 필수")은 요청 본문이 아니라
+**병합된 결과** 기준 — 이미 계좌가 저장돼 있으면 금액만 보내도 된다.
 
 ### PATCH /api/posts/{postId} — 인증 필요, 작성자만
 
@@ -304,11 +307,12 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
 `GET /api/posts/{postId}/requests`를 반복 호출하지 않도록 하기 위한 집계 엔드포인트.
 
 200 → `RequestResponse[]` (PENDING 먼저, 그다음 최신순). FE가 `postId`로 그룹핑한다.
-팀이 없으면 400 `TEAM_REQUIRED`.
+팀이 없으면 **빈 배열** (에러 아님 — 조회성 API는 팀 미보유를 에러로 취급하지 않는다.
+`/sent`, `/posts/me`와 동일 규칙).
 
 ### GET /api/requests/sent — 인증 필요
 
-내 팀이 보낸 신청 목록. 200 → `RequestResponse[]` (최신순)
+내 팀이 보낸 신청 목록. 200 → `RequestResponse[]` (최신순). 팀이 없으면 빈 배열.
 
 ### POST /api/requests/{requestId}/accept — 인증 필요, 글 작성자만
 
@@ -325,7 +329,11 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
 
 ### DELETE /api/requests/{requestId} — 인증 필요, 신청한 팀만
 
-PENDING 신청 취소 → `CANCELED`. 204
+PENDING 신청 취소 → `CANCELED`. 204. PENDING이 아니면 409 `REQUEST_NOT_PENDING`.
+
+### myRequestStatus 규칙 (PostDetail)
+
+재신청 이력이 있으면 **가장 최근** 신청의 상태를 반환한다.
 
 ## 7. v1 범위 밖 (구현하지 말 것)
 
