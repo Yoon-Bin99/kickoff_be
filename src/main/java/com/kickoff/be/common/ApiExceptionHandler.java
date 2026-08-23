@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 모든 예외를 계약서의 에러 응답 형식으로 변환한다.
@@ -62,6 +63,15 @@ public class ApiExceptionHandler {
                 List.of(new ErrorResponse.FieldError(e.getParameterName(), "필수 파라미터입니다."));
         return respond(ErrorResponse.of(ErrorCode.VALIDATION_FAILED,
                 ErrorCode.VALIDATION_FAILED.getMessage(), fieldErrors));
+    }
+
+    /**
+     * 매핑되지 않은 경로. 아래 catch-all 이 먼저 잡아 500 으로 바꿔버리면
+     * FE 가 경로 오타를 서버 장애로 오인하므로 따로 받아 404 로 내린다.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException e) {
+        return respond(ErrorResponse.of(ErrorCode.NOT_FOUND));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

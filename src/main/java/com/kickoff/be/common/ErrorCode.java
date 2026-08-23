@@ -27,7 +27,8 @@ public enum ErrorCode {
     REQUEST_NOT_PENDING(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
     REQUEST_NOT_ACCEPTED(HttpStatus.CONFLICT, "수락된 신청이 아닙니다."),
 
-    /** 계약서 표에는 없지만 5xx 도 같은 형식으로 나가야 해서 둔다. */
+    /** 아래 둘은 계약서 표에는 없지만, 모든 4xx/5xx 가 같은 형식으로 나가야 해서 둔다. */
+    NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
     private final HttpStatus status;
