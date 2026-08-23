@@ -52,16 +52,29 @@ public class MatchRequest extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private RequestStatus status;
 
+    /** 글 작성자가 상대 팀의 입금을 확인했는지. 기록용 플래그라 글/신청 상태는 건드리지 않는다. */
+    @Column(nullable = false)
+    private boolean depositPaid;
+
     @Builder
     private MatchRequest(MatchPost post, Team applicantTeam, String message) {
         this.post = post;
         this.applicantTeam = applicantTeam;
         this.message = message;
         this.status = RequestStatus.PENDING;
+        this.depositPaid = false;
     }
 
     public boolean isPending() {
         return this.status == RequestStatus.PENDING;
+    }
+
+    public boolean isAccepted() {
+        return this.status == RequestStatus.ACCEPTED;
+    }
+
+    public void confirmDeposit() {
+        this.depositPaid = true;
     }
 
     public void accept() {

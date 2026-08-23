@@ -24,7 +24,7 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
         ErrorCode code = e.getErrorCode();
         return ResponseEntity.status(code.getStatus())
-                .body(ErrorResponse.of(code, e.getMessage()));
+                .body(ErrorResponse.of(code, e.getMessage(), e.getFieldErrors()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

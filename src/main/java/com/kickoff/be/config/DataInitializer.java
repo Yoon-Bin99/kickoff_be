@@ -39,6 +39,10 @@ public class DataInitializer implements ApplicationRunner {
     private final MatchPostRepository postRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /** 입금받을 계좌. depositAmount 를 넣는 글에만 붙는다. */
+    private record SeedAccount(String bankName, String accountNumber, String accountHolder) {
+    }
+
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
@@ -50,106 +54,113 @@ public class DataInitializer implements ApplicationRunner {
                 "FC 새벽", "서울 강서구", "강서구민운동장",
                 SkillLevel.INTERMEDIATE, AgeGroup.THIRTIES, 18,
                 "매주 토요일 오전 7시에 모입니다. 매너 있는 경기 지향합니다.");
+        SeedAccount kimAcc = new SeedAccount("카카오뱅크", "3333-01-1234567", "김주장");
 
         Team mapo = createTeam("lee@example.com", "이감독", "010-2345-6789",
                 "마포 유나이티드", "서울 마포구", "마포구립축구장",
                 SkillLevel.ADVANCED, AgeGroup.TWENTIES, 22,
                 "실력 있는 팀 환영합니다. 주말 오전 위주로 뜁니다.");
+        SeedAccount leeAcc = new SeedAccount("신한은행", "110-234-567890", "이감독");
 
         Team songpa = createTeam("park@example.com", "박캡틴", "010-3456-7890",
                 "송파 FC", "서울 송파구", "올림픽공원 축구장",
                 SkillLevel.BEGINNER, AgeGroup.MIXED, 15,
                 "이제 막 시작한 팀입니다. 즐겁게 뛰실 분들 구해요.");
+        SeedAccount parkAcc = new SeedAccount("국민은행", "123456-04-567890", "박캡틴");
 
         Team goyang = createTeam("choi@example.com", "최총무", "010-4567-8901",
                 "고양 킥커스", "경기 고양시", "고양종합운동장 보조구장",
                 SkillLevel.AMATEUR, AgeGroup.FORTIES, 20,
                 "40대 위주 팀입니다. 부상 없는 경기가 최우선.");
+        SeedAccount choiAcc = new SeedAccount("우리은행", "1002-345-678901", "최총무");
 
         Team seongnam = createTeam("jung@example.com", "정주장", "010-5678-9012",
                 "성남 레인저스", "경기 성남시", "탄천종합운동장",
                 SkillLevel.INTERMEDIATE, AgeGroup.THIRTIES, 24,
                 "매주 일요일 아침에 모입니다. 풋살, 11인제 다 합니다.");
+        SeedAccount jungAcc = new SeedAccount("하나은행", "352-0123-4567-89", "정주장");
 
         Team incheon = createTeam("yoon@example.com", "윤코치", "010-6789-0123",
                 "인천 스트라이커즈", "인천 남동구", "남동체육관 풋살장",
                 SkillLevel.ADVANCED, AgeGroup.FIFTIES_PLUS, 16,
                 "연령대는 높지만 실력은 자신 있습니다.");
+        SeedAccount yoonAcc = new SeedAccount("토스뱅크", "1000-1234-5678", "윤코치");
 
         OffsetDateTime base = OffsetDateTime.now().truncatedTo(ChronoUnit.DAYS);
 
+        // depositAmount 가 null 인 글은 "협의" 케이스 — 계좌도 붙이지 않는다.
         List<MatchPost> posts = List.of(
-                post(saebyeok, "토요일 아침 풋살 상대 구합니다",
+                post(saebyeok, kimAcc, "토요일 아침 풋살 상대 구합니다",
                         "6인제로 2시간 뛸 팀 찾습니다. 매너 중요합니다.",
                         base.plusDays(2).with(LocalTime.of(7, 0)),
                         "강서구민운동장 A구장", "서울 강서구",
-                        FieldType.FUTSAL, SkillLevel.INTERMEDIATE, 50000),
+                        FieldType.FUTSAL, SkillLevel.INTERMEDIATE, 100000, 50000),
 
-                post(saebyeok, "평일 저녁 11인제 한 판",
+                post(saebyeok, kimAcc, "평일 저녁 11인제 한 판",
                         "수요일 저녁에 풀피치로 뛸 팀 구합니다. 조명 있습니다.",
                         base.plusDays(5).with(LocalTime.of(20, 0)),
                         "강서구민운동장 주경기장", "서울 강서구",
-                        FieldType.SOCCER_11, null, 120000),
+                        FieldType.SOCCER_11, null, 240000, 120000),
 
-                post(mapo, "일요일 오전 9인제 매칭",
+                post(mapo, leeAcc, "일요일 오전 9인제 매칭",
                         "실력 있는 팀 환영합니다. 심판비 포함 금액입니다.",
                         base.plusDays(3).with(LocalTime.of(9, 0)),
                         "마포구립축구장", "서울 마포구",
-                        FieldType.SOCCER_9, SkillLevel.ADVANCED, 90000),
+                        FieldType.SOCCER_9, SkillLevel.ADVANCED, 180000, 90000),
 
-                post(mapo, "주말 풋살 정기전 상대 구해요",
-                        "매주 하실 팀이면 더 좋습니다. 우선 한 번 붙어보시죠.",
+                post(mapo, null, "주말 풋살 정기전 상대 구해요",
+                        "매주 하실 팀이면 더 좋습니다. 비용은 만나서 협의하시죠.",
                         base.plusDays(9).with(LocalTime.of(10, 0)),
                         "마포 실내풋살장 B", "서울 마포구",
-                        FieldType.FUTSAL, null, 40000),
+                        FieldType.FUTSAL, null, 80000, null),
 
-                post(songpa, "초보팀끼리 즐겁게 한 경기",
+                post(songpa, parkAcc, "초보팀끼리 즐겁게 한 경기",
                         "입문 수준입니다. 살살 해주실 팀 찾아요. 커피 쏘겠습니다.",
                         base.plusDays(4).with(LocalTime.of(8, 0)),
                         "올림픽공원 축구장 2번", "서울 송파구",
-                        FieldType.SOCCER_6, SkillLevel.BEGINNER, 30000),
+                        FieldType.SOCCER_6, SkillLevel.BEGINNER, 60000, 30000),
 
-                post(songpa, "송파 일요일 오후 6인제",
+                post(songpa, parkAcc, "송파 일요일 오후 6인제",
                         "오후 시간대 선호하는 팀 있으면 연락 주세요.",
                         base.plusDays(10).with(LocalTime.of(15, 0)),
                         "송파구민체육관 풋살장", "서울 송파구",
-                        FieldType.SOCCER_6, null, 35000),
+                        FieldType.SOCCER_6, null, 70000, 35000),
 
-                post(goyang, "고양 토요일 오전 11인제",
+                post(goyang, choiAcc, "고양 토요일 오전 11인제",
                         "40대 위주 팀입니다. 비슷한 연령대면 더 좋습니다.",
                         base.plusDays(2).with(LocalTime.of(10, 0)),
                         "고양종합운동장 보조구장", "경기 고양시",
-                        FieldType.SOCCER_11, SkillLevel.AMATEUR, 110000),
+                        FieldType.SOCCER_11, SkillLevel.AMATEUR, 220000, 110000),
 
-                post(goyang, "평일 낮 풋살 하실 팀",
+                post(goyang, choiAcc, "평일 낮 풋살 하실 팀",
                         "자영업자 팀이라 평일 낮이 편합니다. 같은 사정인 팀 환영.",
                         base.plusDays(7).with(LocalTime.of(14, 0)),
                         "일산 풋살파크 1구장", "경기 고양시",
-                        FieldType.FUTSAL, SkillLevel.AMATEUR, 45000),
+                        FieldType.FUTSAL, SkillLevel.AMATEUR, 90000, 45000),
 
-                post(seongnam, "성남 일요일 아침 9인제",
+                post(seongnam, jungAcc, "성남 일요일 아침 9인제",
                         "탄천에서 뜁니다. 주차 편합니다.",
                         base.plusDays(3).with(LocalTime.of(7, 30)),
                         "탄천종합운동장 축구장", "경기 성남시",
-                        FieldType.SOCCER_9, SkillLevel.INTERMEDIATE, 80000),
+                        FieldType.SOCCER_9, SkillLevel.INTERMEDIATE, 160000, 80000),
 
-                post(seongnam, "다음 주 토요일 11인제 상대 구합니다",
-                        "정기전 상대가 펑크나서 급하게 구합니다.",
+                post(seongnam, null, "다음 주 토요일 11인제 상대 구합니다",
+                        "정기전 상대가 펑크나서 급하게 구합니다. 비용은 반반 협의.",
                         base.plusDays(9).with(LocalTime.of(6, 30)),
                         "탄천종합운동장 주경기장", "경기 성남시",
-                        FieldType.SOCCER_11, null, 130000),
+                        FieldType.SOCCER_11, null, 260000, null),
 
-                post(incheon, "인천 풋살 고수팀 구합니다",
+                post(incheon, yoonAcc, "인천 풋살 고수팀 구합니다",
                         "제대로 붙어볼 팀 찾습니다. 실력 자신 있는 팀만.",
                         base.plusDays(6).with(LocalTime.of(19, 0)),
                         "남동체육관 풋살장", "인천 남동구",
-                        FieldType.FUTSAL, SkillLevel.ADVANCED, 60000),
+                        FieldType.FUTSAL, SkillLevel.ADVANCED, 120000, 60000),
 
-                post(incheon, "인천 주말 6인제 친선경기",
+                post(incheon, yoonAcc, "인천 주말 6인제 친선경기",
                         "가볍게 몸 풀 겸 한 경기 하실 팀 구해요.",
                         base.plusDays(13).with(LocalTime.of(11, 0)),
                         "송도 축구장 3번", "인천 남동구",
-                        FieldType.SOCCER_6, SkillLevel.BEGINNER, 25000)
+                        FieldType.SOCCER_6, SkillLevel.BEGINNER, 50000, 25000)
         );
 
         postRepository.saveAll(posts);
@@ -177,9 +188,10 @@ public class DataInitializer implements ApplicationRunner {
                 .build());
     }
 
-    private MatchPost post(Team team, String title, String content, OffsetDateTime matchAt,
-                           String location, String region, FieldType fieldType,
-                           SkillLevel preferredSkillLevel, Integer costPerTeam) {
+    private MatchPost post(Team team, SeedAccount account, String title, String content,
+                           OffsetDateTime matchAt, String location, String region,
+                           FieldType fieldType, SkillLevel preferredSkillLevel,
+                           Integer rentalFee, Integer depositAmount) {
         return MatchPost.builder()
                 .team(team)
                 .title(title)
@@ -189,7 +201,11 @@ public class DataInitializer implements ApplicationRunner {
                 .region(region)
                 .fieldType(fieldType)
                 .preferredSkillLevel(preferredSkillLevel)
-                .costPerTeam(costPerTeam)
+                .rentalFee(rentalFee)
+                .depositAmount(depositAmount)
+                .bankName(account == null ? null : account.bankName())
+                .accountNumber(account == null ? null : account.accountNumber())
+                .accountHolder(account == null ? null : account.accountHolder())
                 .build();
     }
 }

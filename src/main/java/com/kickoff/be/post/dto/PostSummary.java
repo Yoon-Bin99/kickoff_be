@@ -7,6 +7,9 @@ import com.kickoff.be.team.SkillLevel;
 import com.kickoff.be.team.dto.TeamSummary;
 import java.time.OffsetDateTime;
 
+/**
+ * 목록 카드. 계좌 정보(bankName/accountNumber/accountHolder)는 절대 여기 들어가지 않는다.
+ */
 public record PostSummary(
         Long id,
         String title,
@@ -15,7 +18,8 @@ public record PostSummary(
         String region,
         FieldType fieldType,
         SkillLevel preferredSkillLevel,
-        Integer costPerTeam,
+        Integer rentalFee,
+        Integer depositAmount,
         PostStatus status,
         long requestCount,
         TeamSummary team,
@@ -31,7 +35,8 @@ public record PostSummary(
                 post.getRegion(),
                 post.getFieldType(),
                 post.getPreferredSkillLevel(),
-                post.getCostPerTeam(),
+                post.getRentalFee(),
+                post.getDepositAmount(),
                 post.getStatus(),
                 requestCount,
                 TeamSummary.from(post.getTeam()),

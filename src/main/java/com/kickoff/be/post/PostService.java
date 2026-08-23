@@ -1,10 +1,15 @@
 package com.kickoff.be.post;
 
 import com.kickoff.be.common.BusinessException;
+import com.kickoff.be.common.ContactInfo;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.common.PageResponse;
+import com.kickoff.be.common.PaymentInfo;
+import com.kickoff.be.matchrequest.MatchRequest;
 import com.kickoff.be.matchrequest.MatchRequestRepository;
 import com.kickoff.be.matchrequest.PostRequestCount;
+import com.kickoff.be.matchrequest.RequestStatus;
 import com.kickoff.be.post.dto.PostCreateRequest;
 import com.kickoff.be.post.dto.PostDetail;
 import com.kickoff.be.post.dto.PostSummary;
@@ -13,6 +18,7 @@ import com.kickoff.be.team.SkillLevel;
 import com.kickoff.be.team.Team;
 import com.kickoff.be.team.TeamRepository;
 import com.kickoff.be.user.User;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -67,6 +73,8 @@ public class PostService {
     public PostDetail create(User user, PostCreateRequest request) {
         Team team = teamRepository.findWithOwnerByOwnerId(user.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_REQUIRED));
+        requireAccountWhenDepositSet(request.depositAmount(), request.bankName(),
+                request.accountNumber(), request.accountHolder());
         MatchPost post = postRepository.save(MatchPost.builder()
                 .team(team)
                 .title(request.title())
@@ -76,9 +84,13 @@ public class PostService {
                 .region(request.region())
                 .fieldType(request.fieldType())
                 .preferredSkillLevel(request.preferredSkillLevel())
-                .costPerTeam(request.costPerTeam())
+                .rentalFee(request.rentalFee())
+                .depositAmount(request.depositAmount())
+                .bankName(request.bankName())
+                .accountNumber(request.accountNumber())
+                .accountHolder(request.accountHolder())
                 .build());
-        return toDetail(post, user.getId());
+        return toDetail(post, user);
     }
 
     /** 인증 불필요 — viewer 가 null 이면 isAuthor 는 false. 조회할 때마다 조회수가 오른다. */
@@ -86,7 +98,7 @@ public class PostService {
     public PostDetail get(Long postId, User viewer) {
         MatchPost post = findPost(postId);
         post.increaseViewCount();
-        return toDetail(post, viewer == null ? null : viewer.getId());
+        return toDetail(post, viewer);
     }
 
     @Transactional
@@ -95,8 +107,13 @@ public class PostService {
         requireAuthor(post, user);
         post.update(request.title(), request.content(), request.matchAt(), request.location(),
                 request.region(), request.fieldType(), request.preferredSkillLevel(),
-                request.costPerTeam(), request.status());
-        return toDetail(post, user.getId());
+                request.rentalFee(), request.depositAmount(), request.bankName(),
+                request.accountNumber(), request.accountHolder(), request.status());
+        // 병합된 결과를 기준으로 본다. 계좌는 작성자도 다시 읽을 수 없어서,
+        // PATCH 본문만 보고 판단하면 금액만 고치는 정상 요청이 막혀버린다.
+        requireAccountWhenDepositSet(post.getDepositAmount(), post.getBankName(),
+                post.getAccountNumber(), post.getAccountHolder());
+        return toDetail(post, user);
     }
 
     @Transactional
@@ -104,6 +121,27 @@ public class PostService {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
         postRepository.delete(post);
+    }
+
+    /** depositAmount 를 받으려면 보낼 곳이 있어야 한다 (계약서 §5). */
+    private void requireAccountWhenDepositSet(Integer depositAmount, String bankName,
+                                              String accountNumber, String accountHolder) {
+        if (depositAmount == null) {
+            return;
+        }
+        List<ErrorResponse.FieldError> missing = new ArrayList<>();
+        if (bankName == null || bankName.isBlank()) {
+            missing.add(new ErrorResponse.FieldError("bankName", "입금액을 입력하면 은행명은 필수입니다."));
+        }
+        if (accountNumber == null || accountNumber.isBlank()) {
+            missing.add(new ErrorResponse.FieldError("accountNumber", "입금액을 입력하면 계좌번호는 필수입니다."));
+        }
+        if (accountHolder == null || accountHolder.isBlank()) {
+            missing.add(new ErrorResponse.FieldError("accountHolder", "입금액을 입력하면 예금주는 필수입니다."));
+        }
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, missing);
+        }
     }
 
     private MatchPost findPost(Long postId) {
@@ -117,10 +155,51 @@ public class PostService {
         }
     }
 
-    private PostDetail toDetail(MatchPost post, Long viewerId) {
+    private PostDetail toDetail(MatchPost post, User viewer) {
         long requestCount = requestCounts(List.of(post)).getOrDefault(post.getId(), 0L);
-        // myRequestStatus / contact 는 매칭 신청 기능이 붙는 3단계에서 채운다.
-        return PostDetail.of(post, requestCount, viewerId, null, null);
+        if (viewer == null) {
+            return PostDetail.of(post, requestCount, null, null, null, null);
+        }
+
+        Long viewerId = viewer.getId();
+        Long viewerTeamId = teamRepository.findByOwnerId(viewerId).map(Team::getId).orElse(null);
+
+        RequestStatus myRequestStatus = viewerTeamId == null ? null
+                : requestRepository
+                        .findFirstByPostIdAndApplicantTeamIdOrderByIdDesc(post.getId(), viewerTeamId)
+                        .map(MatchRequest::getStatus)
+                        .orElse(null);
+
+        MatchRequest accepted = requestRepository.findAcceptedByPostId(post.getId()).orElse(null);
+        return PostDetail.of(post, requestCount, viewerId, myRequestStatus,
+                contactFor(post, accepted, viewerId, viewerTeamId),
+                paymentFor(post, accepted, viewerTeamId));
+    }
+
+    /** 매칭이 성사된 두 팀만 서로의 연락처를 본다. */
+    private ContactInfo contactFor(MatchPost post, MatchRequest accepted, Long viewerId,
+                                   Long viewerTeamId) {
+        if (accepted == null) {
+            return null;
+        }
+        if (post.isWrittenBy(viewerId)) {
+            return ContactInfo.from(accepted.getApplicantTeam().getOwner());
+        }
+        if (accepted.getApplicantTeam().getId().equals(viewerTeamId)) {
+            return ContactInfo.from(post.getTeam().getOwner());
+        }
+        return null;
+    }
+
+    /** 계좌는 돈을 보낼 쪽, 즉 수락된 신청 팀에게만. 작성자가 봐도 null 이다. */
+    private PaymentInfo paymentFor(MatchPost post, MatchRequest accepted, Long viewerTeamId) {
+        if (accepted == null || viewerTeamId == null
+                || !accepted.getApplicantTeam().getId().equals(viewerTeamId)
+                || !post.hasDepositAccount()) {
+            return null;
+        }
+        return new PaymentInfo(post.getDepositAmount(), post.getBankName(),
+                post.getAccountNumber(), post.getAccountHolder(), accepted.isDepositPaid());
     }
 
     private PageResponse<PostSummary> toSummaryPage(Page<MatchPost> posts) {

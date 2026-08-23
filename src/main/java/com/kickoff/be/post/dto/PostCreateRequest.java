@@ -37,7 +37,21 @@ public record PostCreateRequest(
         /** null 이면 상대 실력 무관. */
         SkillLevel preferredSkillLevel,
 
-        @PositiveOrZero(message = "팀당 비용은 0 이상이어야 합니다.")
-        Integer costPerTeam
+        /** 작성 팀이 이미 낸 총 구장 대여료. */
+        @PositiveOrZero(message = "대여료는 0 이상이어야 합니다.")
+        Integer rentalFee,
+
+        /** 상대 팀이 보낼 금액. 이 값을 넣으면 계좌 세 필드가 전부 필수다. */
+        @PositiveOrZero(message = "입금액은 0 이상이어야 합니다.")
+        Integer depositAmount,
+
+        @Size(max = 20, message = "은행명은 20자를 넘을 수 없습니다.")
+        String bankName,
+
+        @Size(max = 30, message = "계좌번호는 30자를 넘을 수 없습니다.")
+        String accountNumber,
+
+        @Size(max = 20, message = "예금주는 20자를 넘을 수 없습니다.")
+        String accountHolder
 ) {
 }

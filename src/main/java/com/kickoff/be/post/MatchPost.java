@@ -63,7 +63,24 @@ public class MatchPost extends BaseTimeEntity {
     @Column(length = 20)
     private SkillLevel preferredSkillLevel;
 
-    private Integer costPerTeam;
+    /** 글 작성 팀이 이미 낸 총 구장 대여료. 정보 표시용. */
+    private Integer rentalFee;
+
+    /** 매칭 확정 시 상대 팀이 작성 팀에게 보낼 금액. null 이면 "협의". */
+    private Integer depositAmount;
+
+    /*
+     * 입금받을 계좌. 목록/상세 어디에도 실리지 않고, 수락된 신청 팀에게만
+     * PaymentInfo 로 내려간다. 새 응답 DTO 를 만들 때 이 세 필드를 무심코 넣지 말 것.
+     */
+    @Column(length = 20)
+    private String bankName;
+
+    @Column(length = 30)
+    private String accountNumber;
+
+    @Column(length = 20)
+    private String accountHolder;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -75,7 +92,8 @@ public class MatchPost extends BaseTimeEntity {
     @Builder
     private MatchPost(Team team, String title, String content, OffsetDateTime matchAt, String location,
                       String region, FieldType fieldType, SkillLevel preferredSkillLevel,
-                      Integer costPerTeam) {
+                      Integer rentalFee, Integer depositAmount, String bankName,
+                      String accountNumber, String accountHolder) {
         this.team = team;
         this.title = title;
         this.content = content;
@@ -84,18 +102,24 @@ public class MatchPost extends BaseTimeEntity {
         this.region = region;
         this.fieldType = fieldType;
         this.preferredSkillLevel = preferredSkillLevel;
-        this.costPerTeam = costPerTeam;
+        this.rentalFee = rentalFee;
+        this.depositAmount = depositAmount;
+        this.bankName = bankName;
+        this.accountNumber = accountNumber;
+        this.accountHolder = accountHolder;
         this.status = PostStatus.OPEN;
         this.viewCount = 0;
     }
 
     /**
      * PATCH — null 인 항목은 그대로 둔다.
-     * preferredSkillLevel/costPerTeam 은 원래 null 이 "무관/미정"이라 이 방식으로는 되돌릴 수 없다.
+     * preferredSkillLevel/rentalFee/depositAmount 는 원래 null 이 "무관/미정"이라
+     * 이 방식으로는 다시 null 로 되돌릴 수 없다.
      */
     public void update(String title, String content, OffsetDateTime matchAt, String location,
                        String region, FieldType fieldType, SkillLevel preferredSkillLevel,
-                       Integer costPerTeam, PostStatus status) {
+                       Integer rentalFee, Integer depositAmount, String bankName,
+                       String accountNumber, String accountHolder, PostStatus status) {
         if (title != null) {
             this.title = title;
         }
@@ -117,12 +141,29 @@ public class MatchPost extends BaseTimeEntity {
         if (preferredSkillLevel != null) {
             this.preferredSkillLevel = preferredSkillLevel;
         }
-        if (costPerTeam != null) {
-            this.costPerTeam = costPerTeam;
+        if (rentalFee != null) {
+            this.rentalFee = rentalFee;
+        }
+        if (depositAmount != null) {
+            this.depositAmount = depositAmount;
+        }
+        if (bankName != null) {
+            this.bankName = bankName;
+        }
+        if (accountNumber != null) {
+            this.accountNumber = accountNumber;
+        }
+        if (accountHolder != null) {
+            this.accountHolder = accountHolder;
         }
         if (status != null) {
             this.status = status;
         }
+    }
+
+    /** 입금 안내를 만들 수 있는 상태인지 — 계좌가 다 채워져 있어야 한다. */
+    public boolean hasDepositAccount() {
+        return bankName != null && accountNumber != null && accountHolder != null;
     }
 
     public void markMatched() {
