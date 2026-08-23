@@ -52,6 +52,7 @@
 | `REQUEST_NOT_FOUND` | 404 | |
 | `REQUEST_NOT_PENDING` | 409 | 이미 처리된 신청을 또 처리 |
 | `REQUEST_NOT_ACCEPTED` | 409 | 수락되지 않은 신청에 입금 확인 시도 |
+| `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
 참고 사항:
@@ -181,6 +182,11 @@ POST와 같은 필드, 전부 optional. 200 → `TeamResponse`
 | `size` | number | 기본 20, 최대 50 |
 
 정렬은 `matchAt` 오름차순(가까운 경기 먼저) 고정.
+
+**지난 경기 규칙**: `matchAt`이 현재보다 과거인 글은 이 목록에서 **제외**한다
+(status 필터와 무관 — 지난 경기는 매칭 대상이 아니다). `GET /api/posts/me`는
+과거 글도 전부 보여준다 (내 기록). 지난 경기의 상세 조회는 가능하지만
+신청은 409 `POST_NOT_OPEN`으로 거절한다 (status가 OPEN이어도).
 
 200 → `PageResponse<PostSummary>`
 
