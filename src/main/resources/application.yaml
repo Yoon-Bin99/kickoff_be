@@ -33,6 +33,14 @@ spring:
   config:
     activate:
       on-profile: dev
+  devtools:
+    restart:
+      # 끄는 이유: bootRun 이 떠 있는 채로 gradle 이 build/classes 를 다시 쓰면,
+      # devtools 가 절반만 쓰인 클래스 디렉터리를 보고 재시작해버린다. 그러면 앱은
+      # "Started" 를 찍고 살아 있는데 일부 컨트롤러가 매핑되지 않은 채로 뜬다.
+      # 실제로 이 상태에서 GET /api/posts 가 500, GET /api/teams/1 이 404 로 나갔다.
+      # 코드를 고치면 서버를 명시적으로 재시작할 것.
+      enabled: false
   datasource:
     url: jdbc:h2:mem:kickoff;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
