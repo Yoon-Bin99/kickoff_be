@@ -111,6 +111,13 @@ spring:
       ddl-auto: validate
     show-sql: false
 
+server:
+  # PaaS 는 TLS 를 프록시에서 끊고 앱에는 평문 HTTP 로 넘긴다. 이 설정이 없으면
+  # request.getScheme() 이 http, 호스트도 내부 값이라 요청에서 만들어내는 주소가 전부
+  # 틀린다 — 소셜 로그인 콜백 URI 가 그렇다. X-Forwarded-* 를 믿게 해서 바로잡는다.
+  # OAUTH_CALLBACK_BASE_URL 이 있으면 그 값이 우선이고, 이건 빠뜨렸을 때의 안전망이다.
+  forward-headers-strategy: framework
+
 # 운영 기본값은 앱 스킴만 — 넓은 기본값을 두면 나중에 좁히는 걸 잊는다.
 # Expo Go 로 붙는 동안은 배포 시점에 OAUTH_ALLOWED_REDIRECTS 로 exp:// 를 명시적으로 더한다.
 # 예) OAUTH_ALLOWED_REDIRECTS=kickoff://*,exp://*
