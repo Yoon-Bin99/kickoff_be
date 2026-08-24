@@ -28,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 개발 프로파일 시드 데이터. FE 가 목록/필터/무한스크롤/매칭·입금 화면을 바로 붙여볼 수 있게
- * 팀 6개, 모집글 33개, 신청 몇 건, 리뷰 4건을 넣는다. 비밀번호는 전부 pass1234.
+ * 팀 6개, 모집글 34개, 신청 몇 건, 리뷰 4건을 넣는다. 비밀번호는 전부 pass1234.
  */
 @Slf4j
 @Component
@@ -236,7 +236,11 @@ public class DataInitializer implements ApplicationRunner {
                 post(goyang, choiAcc, "지난 주 일산 풋살 (리뷰 대기)",
                         "끝난 경기입니다. 상대 팀이 아직 리뷰를 안 썼습니다.",
                         -5, LocalTime.of(14, 0), "일산 풋살파크 1구장", "경기 고양시",
-                        FieldType.FUTSAL, SkillLevel.BEGINNER, 90000, 45000)
+                        FieldType.FUTSAL, SkillLevel.BEGINNER, 90000, 45000),
+                post(seongnam, jungAcc, "지난 주 성남 풋살 (양 팀 미작성)",
+                        "끝난 경기입니다. 아직 아무도 리뷰를 안 썼습니다.",
+                        -3, LocalTime.of(20, 0), "분당 풋살장", "경기 성남시",
+                        FieldType.FUTSAL, SkillLevel.BEGINNER, 80000, 40000)
         );
         postRepository.saveAll(posts);
 
@@ -267,6 +271,9 @@ public class DataInitializer implements ApplicationRunner {
         MatchRequest doneWithSaebyeok = matchWith(posts.get(30), songpa, "강서까지 원정 갑니다.", true);
         MatchRequest doneWithMapo = matchWith(posts.get(31), songpa, "마포 가겠습니다.", true);
         MatchRequest doneWithGoyang = matchWith(posts.get(32), songpa, "일산 가겠습니다.", true);
+        // 리뷰가 한 건도 안 달린 끝난 매칭 하나 — 양 팀이 각각 처음부터 써 보는 경로가
+        // 없으면 FE 가 "서로 한 번씩" 규칙을 빈 상태에서 확인할 수 없다.
+        matchWith(posts.get(33), songpa, "성남 가겠습니다.", true);
 
         // 양쪽 다 쓴 매칭 하나, 작성 팀만 쓴 매칭 둘 — 송파 FC 로 로그인하면 남은 리뷰가 두 건 보인다.
         review(doneWithSaebyeok, saebyeok, songpa, 5, "시간 약속 정확하고 매너 좋았습니다.");
