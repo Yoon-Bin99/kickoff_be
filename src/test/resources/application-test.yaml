@@ -6,9 +6,13 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
+  # 스키마를 운영과 같은 마이그레이션으로 만들고 validate 로 대조한다.
+  # V1 이 엔티티와 어긋나면 통합 테스트 전체가 기동 단계에서 실패한다.
+  flyway:
+    enabled: true
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
     show-sql: false
 
 jwt:

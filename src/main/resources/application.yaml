@@ -1,10 +1,6 @@
 spring:
   application:
     name: be
-  config:
-    # 로컬 전용 키 파일. optional 이라 없으면 조용히 건너뛴다 (CI·운영에는 없다).
-    # .gitignore 에 걸려 있으니 커밋되지 않는다.
-    import: "optional:file:./local.yaml"
   profiles:
     active: dev
   jackson:
@@ -24,8 +20,14 @@ spring:
           default_storage: NORMALIZE
 
 server:
-  port: 8080
+  # Railway 같은 PaaS 는 PORT 를 주입한다. 없으면 로컬 기본값.
+  port: ${PORT:8080}
   address: 0.0.0.0
+
+kickoff:
+  # 시드 데이터 투입 여부. 배포 환경 기본값은 off — 운영 DB 에 예제 데이터가 들어가면 안 된다.
+  # 첫 배포 직후 화면 확인용으로만 SEED_DATA=true 로 한 번 켠다.
+  seed-data: ${SEED_DATA:false}
 
 jwt:
   # 운영에서는 반드시 JWT_SECRET 환경변수로 덮어쓸 것 (HS256이라 32바이트 이상 필요)
@@ -50,6 +52,10 @@ spring:
   config:
     activate:
       on-profile: dev
+    # 로컬 전용 키 파일. dev 에서만 읽는다 — 루트에 두면 테스트까지 이 파일을 집어와
+    # 실제 키가 스텁을 밀어내고, CI 에는 파일이 없어 동작이 갈린다. optional 이라 없어도 뜬다.
+    # .gitignore 에 걸려 있으니 커밋되지 않는다.
+    import: "optional:file:./local.yaml"
   devtools:
     restart:
       # 끄는 이유: bootRun 이 떠 있는 채로 gradle 이 build/classes 를 다시 쓰면,
@@ -65,14 +71,23 @@ spring:
     password: ""
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # 스키마는 Flyway 가 만든다. validate 로 엔티티와 어긋나면 기동을 실패시킨다 —
+      # 운영과 같은 마이그레이션을 개발에서도 매번 돌려 드리프트를 즉시 잡는다.
+      ddl-auto: validate
     show-sql: true
   h2:
     console:
       enabled: true
       path: /h2-console
+  flyway:
+    enabled: true
 
-# 로그인 완료 후 돌아갈 수 있는 주소 (계약서 §3-1). 운영에서는 앱 스킴만 남기고 좁힐 것.
+# 개발은 시드가 기본 on 이다. 끄고 싶으면 SEED_DATA=false.
+kickoff:
+  seed-data: ${SEED_DATA:true}
+
+# 로그인 완료 후 돌아갈 수 있는 주소 (계약서 §3-1).
+# 개발 기본값은 넓다 — Expo Go 가 exp:// 로 돌아오기 때문. 운영은 아래 prod 블록 참고.
 oauth:
   allowed-redirects:
     - "exp://*"
@@ -88,7 +103,17 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    # 스키마를 만드는 유일한 경로. 배포마다 새 마이그레이션만 적용된다.
+    enabled: true
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: false
+
+# 운영 기본값은 앱 스킴만 — 넓은 기본값을 두면 나중에 좁히는 걸 잊는다.
+# Expo Go 로 붙는 동안은 배포 시점에 OAUTH_ALLOWED_REDIRECTS 로 exp:// 를 명시적으로 더한다.
+# 예) OAUTH_ALLOWED_REDIRECTS=kickoff://*,exp://*
+oauth:
+  allowed-redirects: ${OAUTH_ALLOWED_REDIRECTS:kickoff://*}
+  callback-base-url: ${OAUTH_CALLBACK_BASE_URL:}

@@ -1,0 +1,27 @@
+# 빌드 컨텍스트에서 뺄 것들. 이미지 크기보다 중요한 건 첫 줄이다.
+
+# 소셜 로그인 키가 들어 있는 로컬 전용 파일. 이미지에 들어가면 운영 환경변수를
+# 덮어써서(import 가 나중에 얹힌다) 개발 키로 운영이 돌아간다.
+local.yaml
+
+.git
+.gitignore
+.gradle
+build
+out
+bin
+
+.idea
+*.iml
+*.ipr
+*.iws
+.vscode
+.settings
+.classpath
+.project
+
+HELP.md
+README.md
+docs
+Dockerfile
+.dockerignore

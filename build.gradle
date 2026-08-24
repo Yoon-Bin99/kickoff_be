@@ -24,6 +24,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // Boot 4 는 자동설정이 모듈로 쪼개져 있다. flyway-core 만 넣으면 라이브러리는 있는데
+    // 스프링이 마이그레이션을 돌려주지 않는다 — 이 모듈이 그 연결을 담당한다.
+    implementation 'org.springframework.boot:spring-boot-flyway'
+    implementation 'org.flywaydb:flyway-core'
+    // Flyway 10 부터 DB 별 지원이 모듈로 쪼개졌다. H2 는 core 에 있고 PostgreSQL 은 별도다.
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'

@@ -203,30 +203,86 @@ JDBC URL은 기본값이 아니라 위 값으로 바꿔 넣어야 붙는다.
 소셜 로그인을 다룬다. 소셜 로그인은 제공자 호출을 스텁으로 갈아끼워 **실제 키 없이** 돈다.
 테스트는 별도 `test` 프로파일과 별도 DB를 쓰므로 실행 중인 개발 서버에 영향을 주지 않는다.
 
-## 운영 배포
+## 스키마 마이그레이션
 
-`prod` 프로파일로 띄우고 아래 환경변수를 준다.
+스키마는 **Flyway**가 만든다. `src/main/resources/db/migration/`의 SQL이 유일한 경로이고,
+Hibernate는 `ddl-auto: validate`로 대조만 한다 — 개발·테스트·운영이 모두 그렇다.
 
-| 변수 | 설명 |
-|---|---|
-| `DB_URL` | PostgreSQL JDBC URL |
-| `DB_USERNAME` | DB 사용자 |
-| `DB_PASSWORD` | DB 비밀번호 |
-| `JWT_SECRET` | JWT 서명 키. HS256이라 **32바이트 이상** 필요 |
-| `KAKAO_CLIENT_ID` 등 | 소셜 로그인 키. 없으면 해당 제공자만 비활성 (위 참고) |
+엔티티를 바꾸면 **마이그레이션도 같이 추가**해야 한다(`V2__...sql`). 안 그러면 기동이
+`Schema validation` 오류로 실패한다. 통합 테스트도 같은 마이그레이션 위에서 돌기 때문에,
+빠뜨리면 배포가 아니라 테스트에서 먼저 걸린다.
+
+마이그레이션 SQL을 손으로 지어내지 말 것. Hibernate가 기대하는 DDL을 뽑아 쓰면 어긋나지 않는다.
 
 ```bash
-./gradlew build   # build/libs/be-0.0.1-SNAPSHOT.jar 생성
+./gradlew bootRun --args='--server.port=8098 --spring.jpa.hibernate.ddl-auto=none \
+  --spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect \
+  --spring.jpa.properties.jakarta.persistence.schema-generation.scripts.action=create \
+  --spring.jpa.properties.jakarta.persistence.schema-generation.scripts.create-source=metadata \
+  --spring.jpa.properties.jakarta.persistence.schema-generation.scripts.create-target=build/schema-pg.sql'
+```
 
-SPRING_PROFILES_ACTIVE=prod \
-DB_URL=jdbc:postgresql://... DB_USERNAME=... DB_PASSWORD=... JWT_SECRET=... \
-java -jar build/libs/be-0.0.1-SNAPSHOT.jar
+## 운영 배포
+
+`Dockerfile`이 있다. 멀티스테이지로 `bootJar`까지 만들고 JRE 이미지에 얹는다.
+`SPRING_PROFILES_ACTIVE=prod`가 이미지에 박혀 있다 — 프로파일을 안 줘서 dev(H2)로 뜨는
+사고를 막기 위해서다.
+
+```bash
+docker build -t kickoff-be .
+docker run -p 8080:8080 -e DB_URL=... -e DB_USERNAME=... -e DB_PASSWORD=... -e JWT_SECRET=... kickoff-be
+```
+
+| 변수 | 필수 | 설명 |
+|---|---|---|
+| `DB_URL` | O | PostgreSQL JDBC URL (`jdbc:postgresql://host:5432/db`) |
+| `DB_USERNAME` | O | DB 사용자 |
+| `DB_PASSWORD` | O | DB 비밀번호 |
+| `JWT_SECRET` | O | JWT 서명 키. HS256이라 **32바이트 이상**. 안 주면 개발용 기본값이 그대로 쓰인다 |
+| `PORT` | | 없으면 8080. Railway 같은 PaaS가 주입한다 |
+| `OAUTH_ALLOWED_REDIRECTS` | △ | 로그인 후 복귀 허용 주소. 기본 `kickoff://*` — **아래 경고 참고** |
+| `OAUTH_CALLBACK_BASE_URL` | △ | 콜백 오리진 고정 (`https://<도메인>`). 비우면 요청 오리진에서 만든다 |
+| `KAKAO_CLIENT_ID` 등 | | 소셜 로그인 키 4종. 없으면 해당 제공자만 비활성 |
+| `SEED_DATA` | | `true`면 시드 투입. **기본 off** — 첫 배포 직후 화면 확인용으로만 켠다 |
+
+> **`OAUTH_ALLOWED_REDIRECTS`에 `exp://*`를 빠뜨리면 증상이 보이지 않는다.**
+> 허용 목록 밖 주소는 302가 아니라 JSON 400으로 끊긴다(계약서 §3-1, v1.3.1). 그런데 이
+> 엔드포인트는 인앱 브라우저가 여는 자리라 **JSON이 앱까지 가지 않는다.** 사용자에게는
+> "버튼을 눌러도 아무 일이 없다"로 보이고 FE 로그에도 안 남는다. Expo Go로 접속하는 동안은
+> `OAUTH_ALLOWED_REDIRECTS=kickoff://*,exp://*`처럼 명시적으로 넣을 것.
+> 기동 로그의 `허용된 복귀 주소: [...]` 한 줄로 눈으로 확인할 수 있다.
+
+배포 후 로그에서 확인할 세 줄:
+
+```
+Successfully applied N migration(s)      ← Flyway 적용
+허용된 복귀 주소: [kickoff://*, exp://*]   ← 복귀 주소 설정
+활성 소셜 제공자: [KAKAO, NAVER]           ← 키 주입
 ```
 
 주의할 점 두 가지.
 
-- `JWT_SECRET`을 주지 않으면 `application.yaml`의 개발용 기본값이 그대로 쓰인다. 반드시 넘길 것
-- `prod`는 `ddl-auto: validate`라 **스키마가 미리 만들어져 있어야** 기동된다. dev처럼 테이블을 자동 생성하지 않는다
+- **`local.yaml`을 배포 환경에 올리지 말 것.** 환경변수를 이긴다(위 소셜 로그인 절 참고).
+  `.dockerignore` 첫 줄에서 빼고 있다
+- CORS는 개발에서 모든 오리진을 허용한다. 운영에 올리기 전에
+  [CorsConfig](src/main/java/com/kickoff/be/config/CorsConfig.java)에서 좁힐 것
 
-CORS는 개발에서 모든 오리진을 허용하고 있다. 운영에 올리기 전에
-[CorsConfig](src/main/java/com/kickoff/be/config/CorsConfig.java)에서 좁힐 것.
+### PostgreSQL로 한 번은 띄워보고 배포할 것
+
+테스트는 H2에서 돈다. **H2가 통과시키는 SQL을 PostgreSQL이 거부하는 경우가 있다.**
+실제로 `lower(concat('%', :region, '%'))`가 그랬다 — `region`이 `null`이면 PostgreSQL은
+타입을 `bytea`로 추론해 `function lower(bytea) does not exist`로 죽는데, H2는 그냥 넘어가서
+테스트 91개가 전부 통과했다. 목록 API 전체가 500이 되는 문제였다.
+
+JPQL에 함수를 쓰는 쿼리를 추가했다면 배포 전에 한 번 확인한다.
+
+```bash
+docker run -d --name pg-check -e POSTGRES_PASSWORD=pw -e POSTGRES_USER=kickoff \
+  -e POSTGRES_DB=kickoff -p 55432:5432 postgres:16-alpine
+
+SPRING_PROFILES_ACTIVE=prod PORT=8097 SEED_DATA=true \
+DB_URL=jdbc:postgresql://localhost:55432/kickoff DB_USERNAME=kickoff DB_PASSWORD=pw \
+JWT_SECRET=check-only-secret-0123456789-0123456789 ./gradlew bootRun
+
+docker rm -f pg-check   # 확인 끝나면 정리
+```

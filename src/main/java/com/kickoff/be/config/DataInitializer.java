@@ -21,18 +21,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 개발 프로파일 시드 데이터. FE 가 목록/필터/무한스크롤/매칭·입금 화면을 바로 붙여볼 수 있게
+ * 시드 데이터. FE 가 목록/필터/무한스크롤/매칭·입금 화면을 바로 붙여볼 수 있게
  * 팀 6개, 모집글 34개, 신청 몇 건, 리뷰 4건을 넣는다. 비밀번호는 전부 pass1234.
+ *
+ * 프로파일이 아니라 kickoff.seed-data 로 켠다. 개발에서는 기본 on 이고, 배포 환경에서는
+ * SEED_DATA=true 를 줄 때만 돈다 — 첫 배포 직후 볼 게 아무것도 없는 상태를 피하려는 것이고,
+ * 실제 사용자가 쓰기 시작하면 꺼야 한다. 이미 데이터가 있으면 어느 쪽이든 건너뛴다.
  */
 @Slf4j
 @Component
-@Profile("dev")
+@ConditionalOnProperty(name = "kickoff.seed-data", havingValue = "true")
 @RequiredArgsConstructor
 public class DataInitializer implements ApplicationRunner {
 
