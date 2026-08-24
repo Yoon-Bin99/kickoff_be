@@ -5,6 +5,8 @@ import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.repository.MatchPostRepository;
+import com.kickoff.be.review.entity.Review;
+import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
@@ -26,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 개발 프로파일 시드 데이터. FE 가 목록/필터/무한스크롤/매칭·입금 화면을 바로 붙여볼 수 있게
- * 팀 6개, 모집글 30개, 신청 몇 건을 넣는다. 비밀번호는 전부 pass1234.
+ * 팀 6개, 모집글 33개, 신청 몇 건, 리뷰 4건을 넣는다. 비밀번호는 전부 pass1234.
  */
 @Slf4j
 @Component
@@ -40,6 +42,7 @@ public class DataInitializer implements ApplicationRunner {
     private final TeamRepository teamRepository;
     private final MatchPostRepository postRepository;
     private final MatchRequestRepository requestRepository;
+    private final ReviewRepository reviewRepository;
     private final PasswordEncoder passwordEncoder;
 
     /** 입금받을 계좌. depositAmount 를 넣는 글에만 붙는다. */
@@ -217,7 +220,23 @@ public class DataInitializer implements ApplicationRunner {
                 post(incheon, yoonAcc, "지난 주 인천 풋살 (종료)",
                         "지난 경기입니다.",
                         -2, LocalTime.of(19, 0), "남동체육관 풋살장", "인천 남동구",
-                        FieldType.FUTSAL, SkillLevel.ADVANCED, 110000, 55000)
+                        FieldType.FUTSAL, SkillLevel.ADVANCED, 110000, 55000),
+
+                // 아래 3개는 리뷰용이다. 리뷰는 "끝난 경기의 수락된 매칭"에만 달 수 있는데
+                // (계약서 §7) 위 30개에는 그 조합이 없다. 지난 경기이므로 목록에는 안 잡히고,
+                // 매칭관리/팀 상세에서만 보인다.
+                post(saebyeok, kimAcc, "지난 달 강서 정기전 (리뷰 완료)",
+                        "끝난 경기입니다. 양 팀이 서로 리뷰를 남겼습니다.",
+                        -12, LocalTime.of(7, 0), "강서구민운동장 A구장", "서울 강서구",
+                        FieldType.FUTSAL, SkillLevel.BEGINNER, 100000, 50000),
+                post(mapo, leeAcc, "지난 주 마포 9인제 (리뷰 대기)",
+                        "끝난 경기입니다. 상대 팀이 아직 리뷰를 안 썼습니다.",
+                        -6, LocalTime.of(9, 0), "마포구립축구장", "서울 마포구",
+                        FieldType.SOCCER_9, SkillLevel.BEGINNER, 180000, 90000),
+                post(goyang, choiAcc, "지난 주 일산 풋살 (리뷰 대기)",
+                        "끝난 경기입니다. 상대 팀이 아직 리뷰를 안 썼습니다.",
+                        -5, LocalTime.of(14, 0), "일산 풋살파크 1구장", "경기 고양시",
+                        FieldType.FUTSAL, SkillLevel.BEGINNER, 90000, 45000)
         );
         postRepository.saveAll(posts);
 
@@ -243,6 +262,18 @@ public class DataInitializer implements ApplicationRunner {
         matchWith(posts.get(24), mapo, "성남까지 가겠습니다!", false);   // 수락됐고 입금 전
         matchWith(posts.get(28), songpa, "인천 가겠습니다.", true);      // 입금까지 확인됨
 
+        // 리뷰 시나리오. 끝난 경기 셋을 전부 송파 FC 와 붙여서, 한 팀에 리뷰가 여러 건 쌓인
+        // 평균(5·4·4 → 4.3)과 "아직 안 쓴 리뷰"가 같은 계정에서 동시에 보이게 한다.
+        MatchRequest doneWithSaebyeok = matchWith(posts.get(30), songpa, "강서까지 원정 갑니다.", true);
+        MatchRequest doneWithMapo = matchWith(posts.get(31), songpa, "마포 가겠습니다.", true);
+        MatchRequest doneWithGoyang = matchWith(posts.get(32), songpa, "일산 가겠습니다.", true);
+
+        // 양쪽 다 쓴 매칭 하나, 작성 팀만 쓴 매칭 둘 — 송파 FC 로 로그인하면 남은 리뷰가 두 건 보인다.
+        review(doneWithSaebyeok, saebyeok, songpa, 5, "시간 약속 정확하고 매너 좋았습니다.");
+        review(doneWithSaebyeok, songpa, saebyeok, 4, "좋은 경기였습니다. 다음에 또 뵈어요.");
+        review(doneWithMapo, mapo, songpa, 4, "즐겁게 뛰었습니다. 추천합니다.");
+        review(doneWithGoyang, goyang, songpa, 4, "매너 좋은 팀입니다.");
+
         long teamCount = teamRepository.count();
         long postCount = postRepository.count();
         long requestCount = requestRepository.count();
@@ -252,8 +283,8 @@ public class DataInitializer implements ApplicationRunner {
                     "시드 데이터가 저장되지 않았다 — 팀 %d, 모집글 %d".formatted(teamCount, postCount));
         }
         long openCount = posts.stream().filter(MatchPost::isOpen).count();
-        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개), 신청 {}건",
-                teamCount, postCount, openCount, requestCount);
+        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개), 신청 {}건, 리뷰 {}건",
+                teamCount, postCount, openCount, requestCount, reviewRepository.count());
     }
 
     private Team createTeam(String email, String nickname, String phone, String teamName,
@@ -311,12 +342,26 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /** 실제 수락 흐름과 같은 결과를 만든다 — 신청 ACCEPTED + 글 MATCHED. */
-    private void matchWith(MatchPost post, Team applicant, String message, boolean depositPaid) {
+    private MatchRequest matchWith(MatchPost post, Team applicant, String message,
+                                   boolean depositPaid) {
         MatchRequest accepted = applyPending(post, applicant, message);
         accepted.accept();
         if (depositPaid) {
             accepted.confirmDeposit();
         }
         post.markMatched();
+        return accepted;
+    }
+
+    /** 대상 팀은 서비스가 매칭 관계로 정하지만, 시드는 엔티티를 직접 만들어 넣는다. */
+    private void review(MatchRequest request, Team reviewer, Team target, int rating,
+                        String comment) {
+        reviewRepository.save(Review.builder()
+                .request(request)
+                .reviewerTeam(reviewer)
+                .targetTeam(target)
+                .rating(rating)
+                .comment(comment)
+                .build());
     }
 }
