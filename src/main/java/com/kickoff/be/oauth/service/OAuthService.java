@@ -36,17 +36,25 @@ public class OAuthService {
     /**
      * 사용자를 제공자 로그인 화면으로 보낸다.
      *
-     * <b>복귀 주소를 제공자보다 먼저 검증한다.</b> 신뢰할 수 없는 입력을 먼저 걸러내는 게
-     * 순서로도 맞고, 제공자 검사가 앞서면 키가 없는 동안 허용 목록 위반이 전부
-     * UNSUPPORTED_PROVIDER 로 덮여 FE 가 그 실패를 관측할 수 없다.
+     * 검사 순서가 계약이다 (§3-1, v1.3.3). <b>복귀 주소를 먼저 검증하고</b>, 실패하면
+     * 400 JSON 으로 끊는다 — 신뢰하지 않는 주소로 302 하면 검사한 의미가 없다.
+     * <b>그 뒤의 실패는 전부 302</b>로 되돌린다. 이 API 는 인앱 브라우저가 여는 자리라
+     * JSON 을 내면 FE 코드에 닿지 않고 사용자가 날것의 에러 본문을 보게 된다.
      */
     public URI authorizeUri(String providerPath, String redirect, String requestBaseUrl) {
         String safeRedirect = redirectAllowList.require(redirect);
-        AuthProvider provider = AuthProvider.fromPath(providerPath);
-        OAuthClient client = clients.get(provider);
-        String callbackUri = callbackUri(provider, requestBaseUrl);
-        String state = stateStore.issue(provider, safeRedirect, callbackUri);
-        return URI.create(client.authorizeUrl(state, callbackUri));
+        try {
+            AuthProvider provider = AuthProvider.fromPath(providerPath);
+            OAuthClient client = clients.get(provider);
+            String callbackUri = callbackUri(provider, requestBaseUrl);
+            String state = stateStore.issue(provider, safeRedirect, callbackUri);
+            return URI.create(client.authorizeUrl(state, callbackUri));
+        } catch (BusinessException e) {
+            return failure(safeRedirect, e.getErrorCode());
+        } catch (RuntimeException e) {
+            log.warn("authorize 실패 — provider={}", providerPath, e);
+            return failure(safeRedirect, ErrorCode.OAUTH_FAILED);
+        }
     }
 
     /**

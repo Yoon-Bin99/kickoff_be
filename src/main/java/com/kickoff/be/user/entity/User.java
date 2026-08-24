@@ -22,7 +22,12 @@ public class User extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    /**
+     * 이메일을 주지 않는 제공자(카카오)로 가입하면 null 이다 (계약서 §2, v1.3.2).
+     * 유니크 제약은 유지한다 — H2·PostgreSQL 모두 유니크 인덱스에서 null 은 여러 개
+     * 허용하므로, 이메일 없는 계정이 늘어도 서로 충돌하지 않는다.
+     */
+    @Column(unique = true, length = 100)
     private String email;
 
     /** 소셜로만 가입한 계정은 비밀번호가 없다 (계약서 §3-1). */

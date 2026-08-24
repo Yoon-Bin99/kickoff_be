@@ -9,8 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.kickoff.be.oauth.entity.AuthProvider;
 import com.kickoff.be.support.IntegrationTestSupport;
+import com.kickoff.be.support.StubOAuthClient;
 import com.kickoff.be.user.entity.User;
 import java.util.Map;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -19,24 +21,28 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
- * 소셜 로그인 (계약서 §3-1). 제공자 통신은 스텁으로 대체하고, BE 가 책임지는 부분만 본다 —
- * 계정 결정 4규칙, state, 복귀 주소 허용 목록.
+ * 소셜 로그인 (계약서 §3-1). 제공자 통신은 스텁으로 대체하고 BE 가 책임지는 부분만 본다.
+ *
+ * v1.3.4 부터 계정 결정은 두 규칙뿐이다 — 연동 이력이 있으면 그 계정, 없으면 무조건 신규.
+ * 이메일 자동 연동은 폐지됐고 소셜 계정의 email 은 언제나 null 이다.
  */
 class SocialLoginTest extends IntegrationTestSupport {
 
     private static final String REDIRECT = "exp://192.168.0.10:8081/--/auth";
 
     @Test
-    @DisplayName("연동도 같은 이메일도 없으면 새 계정을 만든다 — 비밀번호도 전화번호도 없이 (규칙 3)")
-    void createsNewAccountWhenNothingMatches() throws Exception {
-        kakaoStub.willReturn("kakao-1", "new@example.com", "카카오사용자");
+    @DisplayName("연동 이력이 없으면 무조건 새 계정을 만든다 — email·비밀번호·전화번호 전부 없이 (규칙 2)")
+    void createsNewAccountWhenNotLinked() throws Exception {
+        kakaoStub.willReturn("kakao-1", "카카오사용자");
 
         Map<String, String> params = login();
 
         assertThat(params.get("isNewUser")).isEqualTo("true");
         assertThat(params.get("token")).isNotBlank();
 
-        User created = userRepository.findByEmail("new@example.com").orElseThrow();
+        User created = userRepository.findById(tokenProvider.parseUserId(params.get("token")))
+                .orElseThrow();
+        assertThat(created.getEmail()).isNull();
         assertThat(created.getNickname()).isEqualTo("카카오사용자");
         assertThat(created.hasPassword()).isFalse();
         assertThat(created.hasPhone()).isFalse();
@@ -47,131 +53,132 @@ class SocialLoginTest extends IntegrationTestSupport {
     @Test
     @DisplayName("연동 이력이 있으면 그 계정으로 로그인한다 — 두 번째부터는 신규가 아니다 (규칙 1)")
     void reusesLinkedAccount() throws Exception {
-        kakaoStub.willReturn("kakao-1", "new@example.com", "카카오사용자");
-        login();
-        long userId = userRepository.findByEmail("new@example.com").orElseThrow().getId();
+        kakaoStub.willReturn("kakao-1", "카카오사용자");
+        Long userId = tokenProvider.parseUserId(login().get("token"));
 
-        kakaoStub.willReturn("kakao-1", "new@example.com", "카카오사용자");
+        kakaoStub.willReturn("kakao-1", "카카오사용자");
         Map<String, String> params = login();
 
         assertThat(params.get("isNewUser")).isEqualTo("false");
+        assertThat(tokenProvider.parseUserId(params.get("token"))).isEqualTo(userId);
         assertThat(userRepository.count()).isEqualTo(1);
         assertThat(socialAccountRepository.count()).isEqualTo(1);
-        assertThat(tokenProvider.parseUserId(params.get("token"))).isEqualTo(userId);
     }
 
     @Test
-    @DisplayName("이메일이 같은 기존 계정이 있으면 자동 연동한다 — 새 계정을 만들지 않는다 (규칙 2)")
-    void linksToExistingAccountWithSameEmail() throws Exception {
+    @DisplayName("이메일이 같은 기존 계정이 있어도 합치지 않는다 — 자동 연동 폐지 (v1.3.4)")
+    void neverLinksToExistingEmailAccount() throws Exception {
         User existing = createUser("kim@example.com", "김주장", "010-1111-1111");
-        kakaoStub.willReturn("kakao-9", "kim@example.com", "카카오김주장");
+        kakaoStub.willReturn("kakao-9", "김주장");
 
         Map<String, String> params = login();
 
-        assertThat(params.get("isNewUser")).isEqualTo("false");
-        assertThat(userRepository.count()).isEqualTo(1);
-        assertThat(tokenProvider.parseUserId(params.get("token"))).isEqualTo(existing.getId());
-        // 기존 닉네임과 전화번호는 소셜 프로필로 덮이지 않는다
+        assertThat(params.get("isNewUser")).isEqualTo("true");
+        assertThat(tokenProvider.parseUserId(params.get("token"))).isNotEqualTo(existing.getId());
+        assertThat(userRepository.count()).isEqualTo(2);
+
+        // 기존 계정은 아무 영향도 받지 않는다 — 비번 로그인도 그대로 된다
         User after = userRepository.findById(existing.getId()).orElseThrow();
-        assertThat(after.getNickname()).isEqualTo("김주장");
-        assertThat(after.getPhone()).isEqualTo("010-1111-1111");
-        assertThat(socialAccountRepository.findProvidersByUserId(existing.getId()))
+        assertThat(after.getEmail()).isEqualTo("kim@example.com");
+        assertThat(socialAccountRepository.findProvidersByUserId(existing.getId())).isEmpty();
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"kim@example.com\",\"password\":\"pass1234\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("같은 사람이 카카오와 네이버로 들어오면 서로 다른 계정이 된다 (v1.3.4)")
+    void eachProviderGetsItsOwnAccount() throws Exception {
+        kakaoStub.willReturn("kakao-x", "같은사람");
+        Long kakaoUser = tokenProvider.parseUserId(login().get("token"));
+
+        naverStub.willReturn("naver-x", "같은사람");
+        Long naverUser = tokenProvider.parseUserId(login("naver", naverStub).get("token"));
+
+        assertThat(kakaoUser).isNotEqualTo(naverUser);
+        assertThat(userRepository.count()).isEqualTo(2);
+        assertThat(socialAccountRepository.findProvidersByUserId(kakaoUser))
                 .containsExactly(AuthProvider.KAKAO);
+        assertThat(socialAccountRepository.findProvidersByUserId(naverUser))
+                .containsExactly(AuthProvider.NAVER);
     }
 
     @Test
-    @DisplayName("제공자가 이메일을 주지 않으면 EMAIL_CONSENT_REQUIRED 로 되돌린다 (규칙 4)")
-    void failsWhenProviderGivesNoEmail() throws Exception {
-        kakaoStub.willReturn("kakao-2", null, "이메일없음");
+    @DisplayName("email 이 null 인 계정이 여러 개여도 유니크 제약에 걸리지 않는다")
+    void multipleAccountsCanHaveNullEmail() throws Exception {
+        kakaoStub.willReturn("kakao-a", "가나");
+        Long first = tokenProvider.parseUserId(login().get("token"));
+        kakaoStub.willReturn("kakao-b", "다라");
+        Long second = tokenProvider.parseUserId(login().get("token"));
+        naverStub.willReturn("naver-c", "마바");
+        Long third = tokenProvider.parseUserId(login("naver", naverStub).get("token"));
 
-        Map<String, String> params = login();
-
-        assertThat(params.get("error")).isEqualTo("EMAIL_CONSENT_REQUIRED");
-        assertThat(params).doesNotContainKey("token");
-        assertThat(userRepository.count()).isZero();
+        assertThat(userRepository.count()).isEqualTo(3);
+        for (Long id : new Long[]{first, second, third}) {
+            assertThat(userRepository.findById(id).orElseThrow().getEmail()).isNull();
+        }
     }
 
     @Test
-    @DisplayName("이미 연동된 계정은 이메일 동의를 거둬도 계속 로그인된다 — 규칙 1이 규칙 4보다 앞선다")
-    void linkedAccountSurvivesEmailConsentWithdrawal() throws Exception {
-        kakaoStub.willReturn("kakao-3", "keep@example.com", "유지");
-        login();
-
-        kakaoStub.willReturn("kakao-3", null, "유지");
-        Map<String, String> params = login();
-
-        assertThat(params.get("error")).isNull();
-        assertThat(params.get("isNewUser")).isEqualTo("false");
-    }
-
-    @Test
-    @DisplayName("닉네임이 겹치면 뒤에 숫자를 붙인다 (규칙 3)")
+    @DisplayName("닉네임이 겹치면 뒤에 숫자를 붙인다")
     void appendsNumberWhenNicknameTaken() throws Exception {
         createUser("other@example.com", "김주장", "010-2222-2222");
-        kakaoStub.willReturn("kakao-4", "new@example.com", "김주장");
+        kakaoStub.willReturn("kakao-4", "김주장");
 
-        login();
+        Long userId = tokenProvider.parseUserId(login().get("token"));
 
-        assertThat(userRepository.findByEmail("new@example.com").orElseThrow().getNickname())
+        assertThat(userRepository.findById(userId).orElseThrow().getNickname())
                 .isEqualTo("김주장2");
     }
 
     @Test
     @DisplayName("제공자가 닉네임을 안 주면 기본 닉네임으로 만든다")
     void fallsBackWhenProviderGivesNoNickname() throws Exception {
-        kakaoStub.willReturn("kakao-5", "noname@example.com", null);
+        kakaoStub.willReturn("kakao-5", null);
 
-        login();
+        Long userId = tokenProvider.parseUserId(login().get("token"));
 
-        assertThat(userRepository.findByEmail("noname@example.com").orElseThrow().getNickname())
+        assertThat(userRepository.findById(userId).orElseThrow().getNickname())
                 .isEqualTo("킥오프사용자");
     }
 
     @Test
-    @DisplayName("키가 없는 제공자와 예약만 된 제공자는 400 UNSUPPORTED_PROVIDER")
-    void inactiveProvidersAreRejected() throws Exception {
-        // 네이버는 키가 없어 등록되지 않았다
-        mockMvc.perform(get("/api/auth/oauth/naver/authorize").param("redirect", REDIRECT))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("UNSUPPORTED_PROVIDER"));
-
-        // 구글은 계약서에 값만 예약돼 있다
-        mockMvc.perform(get("/api/auth/oauth/google/authorize").param("redirect", REDIRECT))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("UNSUPPORTED_PROVIDER"));
-
-        // 아예 없는 이름
-        mockMvc.perform(get("/api/auth/oauth/facebook/authorize").param("redirect", REDIRECT))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("UNSUPPORTED_PROVIDER"));
+    @DisplayName("복귀 주소가 정상이면 비활성 제공자도 302 로 되돌린다 — 인앱 브라우저는 JSON 을 못 읽는다 (v1.3.3)")
+    void inactiveProviderRedirectsWithError() throws Exception {
+        // 구글은 계약서에 값만 예약돼 있고(§8), facebook 은 아예 없는 이름이다.
+        // 둘 다 복귀 주소는 멀쩡하므로 FE 가 읽을 수 있는 형태로 돌려보내야 한다.
+        for (String provider : new String[]{"google", "facebook"}) {
+            String location = mockMvc.perform(get("/api/auth/oauth/{p}/authorize", provider)
+                            .param("redirect", REDIRECT))
+                    .andExpect(status().isFound())
+                    .andReturn().getResponse().getHeader(HttpHeaders.LOCATION);
+            assertThat(location).startsWith(REDIRECT + "?");
+            assertThat(location).contains("error=UNSUPPORTED_PROVIDER");
+        }
     }
 
     @Test
-    @DisplayName("허용 목록에 없는 복귀 주소는 거부한다 — 토큰을 남의 서버로 보내는 통로가 된다")
-    void rejectsRedirectOutsideAllowList() throws Exception {
-        mockMvc.perform(get("/api/auth/oauth/kakao/authorize")
+    @DisplayName("복귀 주소가 목록 밖이면 제공자를 보기도 전에 400 이다 — 302 할 곳이 없다 (v1.3.3)")
+    void redirectIsValidatedBeforeProvider() throws Exception {
+        // 제공자까지 비활성인 조합이라도 redirect 쪽이 먼저 걸린다.
+        mockMvc.perform(get("/api/auth/oauth/google/authorize")
                         .param("redirect", "https://evil.example/steal"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("redirect"));
+
+        // 활성 제공자여도 마찬가지다 — 토큰을 남의 서버로 보내는 통로가 된다
+        mockMvc.perform(get("/api/auth/oauth/kakao/authorize")
+                        .param("redirect", "https://evil.example/steal"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 
         // 허용 목록의 앞부분만 흉내 낸 주소도 막힌다
         mockMvc.perform(get("/api/auth/oauth/kakao/authorize")
                         .param("redirect", "https://evil.example/?x=exp://"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
-    }
-
-    @Test
-    @DisplayName("복귀 주소를 제공자보다 먼저 본다 — 둘 다 틀리면 redirect 쪽이 나간다")
-    void redirectIsValidatedBeforeProvider() throws Exception {
-        // 키가 없는 동안 제공자 검사가 앞서면 허용 목록 위반이 UNSUPPORTED_PROVIDER 로
-        // 덮여버려, FE 가 이 실패를 볼 방법이 없어진다.
-        mockMvc.perform(get("/api/auth/oauth/naver/authorize")
-                        .param("redirect", "https://evil.example/steal"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("redirect"));
     }
 
     @Test
@@ -189,7 +196,7 @@ class SocialLoginTest extends IntegrationTestSupport {
             mockMvc.perform(get("/api/auth/oauth/kakao/authorize").param("redirect", allowed))
                     .andExpect(status().isFound())
                     .andExpect(header().string(HttpHeaders.LOCATION,
-                            org.hamcrest.Matchers.containsString("state=")));
+                            Matchers.containsString("state=")));
         }
         assertThat(kakaoStub.lastState()).isNotBlank();
         // 콜백 URI 는 요청 오리진에서 만들어져 제공자에게 넘어간다
@@ -209,7 +216,7 @@ class SocialLoginTest extends IntegrationTestSupport {
     @Test
     @DisplayName("같은 state 는 두 번 쓸 수 없다 — 일회용이다")
     void stateCannotBeReplayed() throws Exception {
-        kakaoStub.willReturn("kakao-6", "replay@example.com", "리플레이");
+        kakaoStub.willReturn("kakao-6", "리플레이");
         String state = authorize(REDIRECT);
 
         callback(state).andExpect(status().isFound());
@@ -237,11 +244,12 @@ class SocialLoginTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("소셜로만 가입한 계정은 이메일/비번 로그인이 401 LOGIN_FAILED — 존재를 알려주지 않는다")
-    void socialOnlyAccountCannotLoginWithPassword() throws Exception {
-        kakaoStub.willReturn("kakao-7", "social@example.com", "소셜");
+    @DisplayName("소셜 계정은 비밀번호가 없어 이메일/비번 로그인 경로로 들어올 수 없다")
+    void socialAccountCannotLoginWithPassword() throws Exception {
+        kakaoStub.willReturn("kakao-7", "소셜");
         login();
 
+        // email 이 null 이라 애초에 지목할 수단이 없고, 존재를 알려주지도 않는다
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"social@example.com\",\"password\":\"pass1234\"}"))
@@ -250,14 +258,15 @@ class SocialLoginTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("발급된 토큰으로 /api/auth/me 가 열리고 authProviders 가 채워진다")
+    @DisplayName("발급된 토큰으로 /api/auth/me 가 열린다 — email·phone 은 null, authProviders 는 채워진다")
     void issuedTokenWorksAndExposesProviders() throws Exception {
-        kakaoStub.willReturn("kakao-8", "me@example.com", "미");
+        kakaoStub.willReturn("kakao-8", "미가입자");
         String token = login().get("token");
 
         mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value("me@example.com"))
+                .andExpect(jsonPath("$.email").isEmpty())
+                .andExpect(jsonPath("$.nickname").value("미가입자"))
                 .andExpect(jsonPath("$.phone").isEmpty())
                 .andExpect(jsonPath("$.hasTeam").value(false))
                 .andExpect(jsonPath("$.authProviders[0]").value("KAKAO"));
@@ -268,9 +277,9 @@ class SocialLoginTest extends IntegrationTestSupport {
     void worksWithRealExpoRedirectUrl() throws Exception {
         // FE 가 실제로 넘기는 형태. 허용 목록이 정확 일치였다면 여기서 막혔을 것이다.
         String expoRedirect = "exp://192.168.35.95:8081/--/oauth";
-        kakaoStub.willReturn("kakao-expo", "expo@example.com", "엑스포");
+        kakaoStub.willReturn("kakao-expo", "엑스포");
 
-        String state = authorize(expoRedirect);
+        String state = authorize("kakao", kakaoStub, expoRedirect);
         String location = callback(state).andExpect(status().isFound())
                 .andReturn().getResponse().getHeader(HttpHeaders.LOCATION);
 
@@ -280,24 +289,36 @@ class SocialLoginTest extends IntegrationTestSupport {
         Map<String, String> params = UriComponentsBuilder.fromUriString(location).build()
                 .getQueryParams().toSingleValueMap();
         assertThat(params.get("token")).isNotBlank();
-        assertThat(userRepository.findByEmail("expo@example.com").orElseThrow().getPhone())
-                .isNull();
     }
 
     /** authorize → callback 한 바퀴를 돌고 복귀 URL 의 쿼리를 돌려준다. */
     private Map<String, String> login() throws Exception {
-        String state = authorize(REDIRECT);
-        return queryOf(callback(state).andExpect(status().isFound()));
+        return login("kakao", kakaoStub);
+    }
+
+    private Map<String, String> login(String provider, StubOAuthClient stub) throws Exception {
+        String state = authorize(provider, stub, REDIRECT);
+        return queryOf(callback(provider, state).andExpect(status().isFound()));
     }
 
     private String authorize(String redirect) throws Exception {
-        mockMvc.perform(get("/api/auth/oauth/kakao/authorize").param("redirect", redirect))
+        return authorize("kakao", kakaoStub, redirect);
+    }
+
+    private String authorize(String provider, StubOAuthClient stub, String redirect)
+            throws Exception {
+        mockMvc.perform(get("/api/auth/oauth/{p}/authorize", provider)
+                        .param("redirect", redirect))
                 .andExpect(status().isFound());
-        return kakaoStub.lastState();
+        return stub.lastState();
     }
 
     private ResultActions callback(String state) throws Exception {
-        return mockMvc.perform(get("/api/auth/oauth/kakao/callback")
+        return callback("kakao", state);
+    }
+
+    private ResultActions callback(String provider, String state) throws Exception {
+        return mockMvc.perform(get("/api/auth/oauth/{p}/callback", provider)
                 .param("code", "code-" + state.hashCode())
                 .param("state", state));
     }

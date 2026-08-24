@@ -68,7 +68,7 @@ public class NaverOAuthClient implements OAuthClient {
         if (nickname == null || nickname.isBlank()) {
             nickname = (String) profile.get("name");
         }
-        return new OAuthProfile(String.valueOf(id), (String) profile.get("email"), nickname);
+        return new OAuthProfile(String.valueOf(id), nickname);
     }
 
     private String exchangeToken(String code, String state) {

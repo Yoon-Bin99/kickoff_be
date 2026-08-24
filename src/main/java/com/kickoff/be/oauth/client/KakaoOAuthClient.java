@@ -15,7 +15,7 @@ import org.springframework.web.client.RestClient;
 
 /**
  * 카카오 로그인. 키가 없으면 {@link #isConfigured()} 가 false 라 레지스트리에 등록되지 않는다.
- * 응답 구조: 프로필이 {@code kakao_account.email}, {@code kakao_account.profile.nickname} 에 있다.
+ * 응답 구조: 닉네임이 {@code kakao_account.profile.nickname} 에 있다.
  */
 @Slf4j
 @Component
@@ -24,8 +24,11 @@ public class KakaoOAuthClient implements OAuthClient {
     private static final String AUTHORIZE_URL = "https://kauth.kakao.com/oauth/authorize";
     private static final String TOKEN_URL = "https://kauth.kakao.com/oauth/token";
     private static final String PROFILE_URL = "https://kapi.kakao.com/v2/user/me";
-    /** 이메일이 없으면 계정을 만들 수 없어 동의 항목에 넣는다 (계약서 §3-1 규칙 4). */
-    private static final String SCOPE = "account_email,profile_nickname";
+    /**
+     * 닉네임만 요청한다. v1.3.4 에서 이메일을 쓰지 않게 돼 동의 항목에서 뺐다 —
+     * 사용자에게 필요 없는 동의를 요구하지 않고, 비즈 앱 전환도 필요 없어진다.
+     */
+    private static final String SCOPE = "profile_nickname";
 
     private final OAuthProperties.Provider config;
     private final RestClient restClient;
@@ -67,10 +70,7 @@ public class KakaoOAuthClient implements OAuthClient {
         }
         Map<String, Object> account = asMap(body.get("kakao_account"));
         Map<String, Object> profile = asMap(account.get("profile"));
-        return new OAuthProfile(
-                String.valueOf(id),
-                (String) account.get("email"),
-                (String) profile.get("nickname"));
+        return new OAuthProfile(String.valueOf(id), (String) profile.get("nickname"));
     }
 
     private String exchangeToken(String code, String callbackUri) {

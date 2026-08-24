@@ -48,19 +48,14 @@ public class SocialAccount extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private AuthProvider provider;
 
-    /** 제공자가 준 고유 식별자. 이메일과 달리 바뀌지 않아 연동의 기준이 된다. */
+    /** 제공자가 준 고유 식별자. 연동의 기준이 되는 유일한 값이다. */
     @Column(name = "provider_user_id", nullable = false, length = 100)
     private String providerUserId;
 
-    /** 연동 시점의 제공자 이메일. 기록용이라 이후 계정 판별에는 쓰지 않는다. */
-    @Column(length = 100)
-    private String email;
-
     @Builder
-    private SocialAccount(User user, AuthProvider provider, String providerUserId, String email) {
+    private SocialAccount(User user, AuthProvider provider, String providerUserId) {
         this.user = user;
         this.provider = provider;
         this.providerUserId = providerUserId;
-        this.email = email;
     }
 }

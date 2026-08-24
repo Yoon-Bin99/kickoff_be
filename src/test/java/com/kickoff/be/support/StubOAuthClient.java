@@ -16,7 +16,7 @@ public class StubOAuthClient implements OAuthClient {
 
     private final AuthProvider provider;
 
-    private OAuthProfile nextProfile = new OAuthProfile("stub-1", "stub@example.com", "스텁");
+    private OAuthProfile nextProfile = new OAuthProfile("stub-1", "스텁");
     private boolean failNext;
     private String lastState;
     private String lastCallbackUri;
@@ -26,8 +26,8 @@ public class StubOAuthClient implements OAuthClient {
     }
 
     /** 다음 로그인에서 제공자가 돌려줄 프로필. */
-    public void willReturn(String providerUserId, String email, String nickname) {
-        this.nextProfile = new OAuthProfile(providerUserId, email, nickname);
+    public void willReturn(String providerUserId, String nickname) {
+        this.nextProfile = new OAuthProfile(providerUserId, nickname);
         this.failNext = false;
     }
 
@@ -37,7 +37,7 @@ public class StubOAuthClient implements OAuthClient {
     }
 
     public void reset() {
-        this.nextProfile = new OAuthProfile("stub-1", "stub@example.com", "스텁");
+        this.nextProfile = new OAuthProfile("stub-1", "스텁");
         this.failNext = false;
         this.lastState = null;
         this.lastCallbackUri = null;

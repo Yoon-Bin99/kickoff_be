@@ -63,6 +63,8 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected StubOAuthClient kakaoStub;
     @Autowired
+    protected StubOAuthClient naverStub;
+    @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
     protected JwtTokenProvider tokenProvider;
@@ -78,6 +80,7 @@ public abstract class IntegrationTestSupport {
         socialAccountRepository.deleteAll();
         userRepository.deleteAll();
         kakaoStub.reset();
+        naverStub.reset();
     }
 
     /** 소셜 가입 직후처럼 전화번호가 없는 사용자. */

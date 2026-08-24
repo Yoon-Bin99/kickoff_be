@@ -30,6 +30,7 @@ public enum ErrorCode {
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 리뷰를 작성했습니다."),
     UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인입니다."),
     OAUTH_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다."),
+    /** v1.3.4 에서 자동 연동이 폐지돼 지금은 쓰지 않는다. 연동 기능이 생기는 v2 를 위해 남긴다. */
     EMAIL_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "이메일 제공에 동의해야 가입할 수 있습니다."),
     PHONE_REQUIRED(HttpStatus.BAD_REQUEST, "전화번호를 먼저 등록해야 합니다."),
 

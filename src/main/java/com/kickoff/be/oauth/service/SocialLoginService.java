@@ -1,8 +1,6 @@
 package com.kickoff.be.oauth.service;
 
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
-import com.kickoff.be.common.BusinessException;
-import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.oauth.dto.OAuthProfile;
 import com.kickoff.be.oauth.entity.AuthProvider;
 import com.kickoff.be.oauth.entity.SocialAccount;
@@ -46,30 +44,28 @@ public class SocialLoginService {
             return issue(linked.get().getUser(), false);
         }
 
-        // 규칙 4 — 이메일이 없으면 계정을 찾을 수도 만들 수도 없다.
-        if (!profile.hasEmail()) {
-            throw new BusinessException(ErrorCode.EMAIL_CONSENT_REQUIRED);
-        }
+        // 규칙 2 — 연동 이력이 없으면 무조건 새 계정이다 (v1.3.4).
+        // 이메일 자동 연동은 폐지됐다. 같은 사람이 이메일 가입·카카오·네이버로 각각
+        // 들어오면 세 개의 별개 계정이 된다.
+        return issue(createAndLink(provider, profile), true);
+    }
 
-        // 규칙 2 — 이메일이 같으면 자동 연동. 카카오·네이버가 검증된 이메일만 주기 때문에
-        // 허용하는 것이다. 검증되지 않은 이메일을 주는 제공자를 붙일 때 이 분기를 그대로
-        // 두면 남의 계정을 가로챌 수 있다 (계약서 §3-1 경고).
-        Optional<User> existing = userRepository.findByEmail(profile.email());
-        if (existing.isPresent()) {
-            link(existing.get(), provider, profile);
-            log.info("소셜 계정 자동 연동 — userId={}, provider={}", existing.get().getId(), provider);
-            return issue(existing.get(), false);
-        }
-
-        // 규칙 3 — 신규 생성. 비밀번호도 전화번호도 없다.
+    /**
+     * 규칙 2 — 새 계정과 연동 이력은 언제나 함께 만들어진다. 연동이 빠지면 다음 로그인에서
+     * 규칙 1 에 걸리지 않아 같은 사람이 매번 새 계정을 얻는다.
+     *
+     * email 은 언제나 null 이다 (v1.3.4). 제공자가 줘도 저장하지 않는다 — 식별에 쓰지
+     * 않으므로 수집하지 않는 것이 원칙이고, 이메일 가입 계정과의 유니크 충돌도 사라진다.
+     */
+    private User createAndLink(AuthProvider provider, OAuthProfile profile) {
         User created = userRepository.save(User.builder()
-                .email(profile.email())
+                .email(null)
                 .password(null)
                 .nickname(uniqueNickname(profile.nickname()))
                 .phone(null)
                 .build());
         link(created, provider, profile);
-        return issue(created, true);
+        return created;
     }
 
     private SocialLoginResult issue(User user, boolean newUser) {
@@ -81,7 +77,6 @@ public class SocialLoginService {
                 .user(user)
                 .provider(provider)
                 .providerUserId(profile.providerUserId())
-                .email(profile.email())
                 .build());
     }
 

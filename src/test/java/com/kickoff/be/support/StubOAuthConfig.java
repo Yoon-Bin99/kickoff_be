@@ -5,9 +5,9 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
 /**
- * 카카오만 "설정된" 상태로 만든다. 네이버는 일부러 두지 않는다 —
- * 키가 없는 제공자가 UNSUPPORTED_PROVIDER 로 나가는지도 같이 검증해야 하고,
- * 지금 실제 운영 상태(키 미발급)와도 같은 모양이다.
+ * 카카오·네이버 둘 다 "설정된" 상태로 만든다. v1.3.2 에서 이메일 없을 때의 처리가
+ * 제공자마다 갈려서(카카오는 가입 허용, 네이버는 거절) 양쪽이 다 필요하다.
+ * 키 없는 제공자가 UNSUPPORTED_PROVIDER 로 나가는지는 GOOGLE 로 검증한다.
  */
 @TestConfiguration
 public class StubOAuthConfig {
@@ -15,5 +15,10 @@ public class StubOAuthConfig {
     @Bean
     public StubOAuthClient kakaoStub() {
         return new StubOAuthClient(AuthProvider.KAKAO);
+    }
+
+    @Bean
+    public StubOAuthClient naverStub() {
+        return new StubOAuthClient(AuthProvider.NAVER);
     }
 }
