@@ -25,6 +25,9 @@ server:
   address: 0.0.0.0
 
 kickoff:
+  push:
+    # 기본 off. dev 에서 실수로 실기기에 알림이 나가지 않게 한다 (계약서 §8).
+    enabled: ${PUSH_ENABLED:false}
   # 시드 데이터 투입 여부. 배포 환경 기본값은 off — 운영 DB 에 예제 데이터가 들어가면 안 된다.
   # 첫 배포 직후 화면 확인용으로만 SEED_DATA=true 로 한 번 켠다.
   seed-data: ${SEED_DATA:false}

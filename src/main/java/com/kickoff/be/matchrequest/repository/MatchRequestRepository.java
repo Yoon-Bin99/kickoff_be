@@ -61,7 +61,11 @@ public interface MatchRequestRepository extends JpaRepository<MatchRequest, Long
             """)
     Optional<MatchRequest> findAcceptedByPostId(@Param("postId") Long postId);
 
-    /** 수락 시 같은 글의 나머지 PENDING 을 한꺼번에 거절하려고 먼저 긁어온다. */
+    /**
+     * 수락 시 같은 글의 나머지 PENDING 을 한꺼번에 거절하려고 먼저 긁어온다.
+     * 자동 거절된 팀에게도 알림이 나가야 해서(계약서 §8) 소유자까지 같이 끌고 온다.
+     */
+    @EntityGraph(attributePaths = {"applicantTeam", "applicantTeam.owner"})
     List<MatchRequest> findByPostIdAndStatusAndIdNot(Long postId, RequestStatus status, Long id);
 
     boolean existsByPostIdAndApplicantTeamIdAndStatusIn(Long postId, Long applicantTeamId,

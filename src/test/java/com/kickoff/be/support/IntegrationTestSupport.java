@@ -37,7 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(StubOAuthConfig.class)
+@Import({StubOAuthConfig.class, StubPushConfig.class})
 public abstract class IntegrationTestSupport {
 
     protected static final String PASSWORD = "pass1234";
@@ -65,6 +65,8 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected StubOAuthClient naverStub;
     @Autowired
+    protected StubPushClient pushClient;
+    @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
     protected JwtTokenProvider tokenProvider;
@@ -81,6 +83,7 @@ public abstract class IntegrationTestSupport {
         userRepository.deleteAll();
         kakaoStub.reset();
         naverStub.reset();
+        pushClient.reset();
     }
 
     /** 소셜 가입 직후처럼 전화번호가 없는 사용자. */

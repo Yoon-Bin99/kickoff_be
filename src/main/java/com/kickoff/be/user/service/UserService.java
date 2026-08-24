@@ -5,6 +5,7 @@ import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
+import com.kickoff.be.user.dto.PushTokenRequest;
 import com.kickoff.be.user.dto.UserResponse;
 import com.kickoff.be.user.dto.UserUpdateRequest;
 import com.kickoff.be.user.entity.User;
@@ -29,6 +30,17 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.updateProfile(request.nickname(), request.phone());
         return toResponse(user);
+    }
+
+    /**
+     * Expo push token 등록·해제 (계약서 §8). 사용자당 하나라 마지막 등록이 이긴다.
+     * 같은 값을 다시 넣어도, null 로 지워도 결과는 204 로 같다 — 멱등이다.
+     */
+    @Transactional
+    public void updatePushToken(User loginUser, PushTokenRequest request) {
+        User user = userRepository.findById(loginUser.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        user.updatePushToken(request.expoPushToken());
     }
 
     private UserResponse toResponse(User user) {

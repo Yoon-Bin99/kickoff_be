@@ -26,3 +26,8 @@ oauth:
     - "exp://*"
     - "kickoff://*"
     - "http://localhost:*"
+
+# 푸시는 스텁으로 나가므로 켜 둔다. 꺼져 있으면 발송 자체가 없어 검증할 게 없다.
+kickoff:
+  push:
+    enabled: true

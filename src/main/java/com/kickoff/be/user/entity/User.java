@@ -44,6 +44,13 @@ public class User extends BaseTimeEntity {
     @Column(length = 20)
     private String phone;
 
+    /**
+     * Expo push token. 사용자당 하나이고 마지막 등록이 이긴다 (계약서 §8).
+     * 없으면 알림을 조용히 건너뛴다 — 알림이 없다고 매칭 흐름이 막히면 안 된다.
+     */
+    @Column(length = 200)
+    private String expoPushToken;
+
     @Builder
     private User(String email, String password, String nickname, String phone) {
         this.email = email;
@@ -60,6 +67,15 @@ public class User extends BaseTimeEntity {
         if (phone != null) {
             this.phone = phone;
         }
+    }
+
+    /** null 을 넣으면 등록 해제다 (계약서 §8). */
+    public void updatePushToken(String expoPushToken) {
+        this.expoPushToken = expoPushToken;
+    }
+
+    public boolean hasPushToken() {
+        return expoPushToken != null && !expoPushToken.isBlank();
     }
 
     public boolean hasPhone() {

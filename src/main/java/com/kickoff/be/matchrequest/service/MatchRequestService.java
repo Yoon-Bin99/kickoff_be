@@ -9,6 +9,8 @@ import com.kickoff.be.matchrequest.entity.RequestStatus;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.repository.MatchPostRepository;
+import com.kickoff.be.push.dto.MatchPushEvent;
+import com.kickoff.be.push.dto.PushEventType;
 import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
@@ -16,6 +18,7 @@ import com.kickoff.be.user.entity.User;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +34,7 @@ public class MatchRequestService {
     private final MatchPostRepository postRepository;
     private final TeamRepository teamRepository;
     private final ReviewRepository reviewRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public RequestResponse create(Long postId, User user, RequestCreateRequest request) {
@@ -57,6 +61,7 @@ public class MatchRequestService {
                 .applicantTeam(myTeam)
                 .message(request == null ? null : request.message())
                 .build());
+        publish(PushEventType.REQUEST_RECEIVED, post.getTeam().getOwner().getId(), saved);
         // 방금 만든 신청이라 리뷰가 달렸을 수 없다.
         return RequestResponse.of(saved, user.getId(), false);
     }
@@ -113,6 +118,11 @@ public class MatchRequestService {
 
         request.accept();
         request.getPost().markMatched();
+
+        publish(PushEventType.REQUEST_ACCEPTED, applicantOwnerId(request), request);
+        // 자동 거절된 팀들도 결과를 알아야 한다 (계약서 §8).
+        others.forEach(other ->
+                publish(PushEventType.REQUEST_REJECTED, applicantOwnerId(other), other));
         return toResponse(request, user);
     }
 
@@ -124,6 +134,7 @@ public class MatchRequestService {
             throw new BusinessException(ErrorCode.REQUEST_NOT_PENDING);
         }
         request.reject();
+        publish(PushEventType.REQUEST_REJECTED, applicantOwnerId(request), request);
         return toResponse(request, user);
     }
 
@@ -136,6 +147,7 @@ public class MatchRequestService {
             throw new BusinessException(ErrorCode.REQUEST_NOT_ACCEPTED);
         }
         request.confirmDeposit();
+        publish(PushEventType.DEPOSIT_CONFIRMED, applicantOwnerId(request), request);
         return toResponse(request, user);
     }
 
@@ -150,6 +162,24 @@ public class MatchRequestService {
             throw new BusinessException(ErrorCode.REQUEST_NOT_PENDING);
         }
         request.cancel();
+    }
+
+    /**
+     * 알림 이벤트를 발행한다. 실제 발송은 AFTER_COMMIT 리스너가 맡는다 — 여기서 바로 보내면
+     * 롤백된 트랜잭션에 대한 유령 알림이 나간다 (계약서 §8).
+     *
+     * 엔티티가 아니라 값만 실어 보낸다. 커밋 이후에는 지연 로딩을 걸 세션이 없다.
+     */
+    private void publish(PushEventType type, Long recipientUserId, MatchRequest request) {
+        MatchPost post = request.getPost();
+        eventPublisher.publishEvent(new MatchPushEvent(type, recipientUserId,
+                request.getId(), post.getId(), post.getTitle(),
+                request.getApplicantTeam().getName()));
+    }
+
+    /** 알림 수신자는 언제나 팀의 소유자다 (계약서 §8). */
+    private Long applicantOwnerId(MatchRequest request) {
+        return request.getApplicantTeam().getOwner().getId();
     }
 
     private MatchRequest findRequest(Long requestId) {
