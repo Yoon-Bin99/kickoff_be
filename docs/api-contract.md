@@ -1,8 +1,11 @@
-# Kickoff API 계약 v1 (현재 v1.2.1)
+# Kickoff API 계약 v1 (현재 v1.2.2)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.2.2 (2026-08-24): 리뷰 규정 명확화 — 복수 조건 위반 시 403 우선, 팀 없는 사용자는
+> 403(`TEAM_REQUIRED` 아님), 리뷰 목록 동률 정렬 2차 키 `id` DESC.
+>
 > v1.2.1 (2026-08-24): `RequestResponse`에 `postTeam`(글 작성 팀 `TeamSummary`) 추가 —
 > 보낸 신청 목록이 "누구에게 신청했는지"를 표시할 수 없던 갭 해소.
 >
@@ -387,15 +390,20 @@ PENDING 신청 취소 → `CANCELED`. 204. PENDING이 아니면 409 `REQUEST_NOT
 - 작성 조건 (전부 만족해야 함):
   - 신청 `status`가 `ACCEPTED` — 아니면 409 `REVIEW_NOT_AVAILABLE`
   - `matchAt`이 현재보다 **과거** (경기가 끝났어야 함) — 아니면 409 `REVIEW_NOT_AVAILABLE`
-  - 내 팀이 그 매칭의 당사자 (글 작성 팀 또는 신청 팀) — 아니면 403 `FORBIDDEN`
+  - 내 팀이 그 매칭의 당사자 (글 작성 팀 또는 신청 팀) — 아니면 403 `FORBIDDEN`.
+    **팀이 없는 사용자도 403** (어느 매칭의 당사자도 아니므로. `TEAM_REQUIRED`는
+    글 작성/신청 전용이라 리뷰에는 쓰지 않는다)
   - 내 팀이 이 매칭에 아직 안 씀 — 이미 썼으면 409 `REVIEW_ALREADY_EXISTS`
+- 검사 순서는 **권한 먼저**: 여러 조건을 동시에 위반하면 409가 아니라 403이 나간다
+  (제3자에게 매칭의 상태를 알려주지 않기 위함)
 - 201 → `ReviewResponse`
 - 수정/삭제는 없다 (한 번 쓰면 확정). 관리 기능은 v2로 미룬다
 
 ### GET /api/teams/{teamId}/reviews — 인증 불필요
 
 팀이 **받은** 리뷰 목록. 쿼리 `page`(기본 0), `size`(기본 20, 최대 50).
-200 → `PageResponse<ReviewResponse>`, `createdAt` DESC. 팀이 없으면 404 `TEAM_NOT_FOUND`.
+200 → `PageResponse<ReviewResponse>`, `createdAt` DESC (동률이면 `id` DESC —
+페이징이 결정적이어야 무한 스크롤에서 중복/누락이 없다). 팀이 없으면 404 `TEAM_NOT_FOUND`.
 
 ### 평점 집계 규칙
 

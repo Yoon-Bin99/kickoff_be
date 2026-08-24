@@ -35,14 +35,16 @@ public class ReviewService {
      * 매칭 당사자가 상대 팀을 평가한다 (계약서 §7).
      *
      * 검사 순서는 <b>권한 → 상태</b>다. 제3자에게는 그 매칭이 수락됐는지, 경기가 끝났는지조차
-     * 알려줄 이유가 없어서 403 을 먼저 낸다. 계약서는 조건을 나열만 하고 순서를 규정하지 않는다.
+     * 알려줄 이유가 없어서 403 을 먼저 낸다. v1.2.2 에서 계약서가 이 순서를 명문화했다 —
+     * 여러 조건을 동시에 위반하면 409 가 아니라 403 이 나간다.
      */
     @Transactional
     public ReviewResponse create(Long requestId, User user, ReviewCreateRequest request) {
         MatchRequest matchRequest = requestRepository.findDetailById(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_NOT_FOUND));
 
-        // 팀이 없으면 애초에 어느 매칭의 당사자도 될 수 없다.
+        // 팀이 없으면 애초에 어느 매칭의 당사자도 될 수 없다 — TEAM_REQUIRED 가 아니라
+        // FORBIDDEN 이다 (계약서 §7, v1.2.2 에서 명문화).
         Team myTeam = teamRepository.findByOwnerId(user.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
         Team targetTeam = counterpartOf(matchRequest, myTeam);
@@ -68,7 +70,13 @@ public class ReviewService {
         return ReviewResponse.from(saved);
     }
 
-    /** 팀이 받은 리뷰 목록. 인증 불필요 — 누구나 팀 평판을 볼 수 있다 (계약서 §7). */
+    /**
+     * 팀이 받은 리뷰 목록. 인증 불필요 — 누구나 팀 평판을 볼 수 있다 (계약서 §7).
+     *
+     * createdAt 만으로 정렬하면 같은 밀리초에 만들어진 두 건의 상대 순서가 매 조회마다
+     * 달라질 수 있고, 그러면 무한 스크롤에서 같은 리뷰가 두 번 나오거나 아예 빠진다.
+     * id 를 2차 키로 넣어 페이징을 결정적으로 만든다 (계약서 §7, v1.2.2).
+     */
     @Transactional(readOnly = true)
     public PageResponse<ReviewResponse> getByTeam(Long teamId, int page, int size) {
         if (!teamRepository.existsById(teamId)) {
@@ -77,7 +85,7 @@ public class ReviewService {
         Pageable pageable = PageRequest.of(
                 Math.max(page, 0),
                 clampSize(size),
-                Sort.by(Sort.Direction.DESC, "createdAt"));
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
         return PageResponse.of(reviewRepository.findByTargetTeamId(teamId, pageable),
                 ReviewResponse::from);
     }

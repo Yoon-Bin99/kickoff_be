@@ -124,6 +124,19 @@ class ReviewWriteTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("여러 조건을 동시에 위반하면 403 이 먼저 나간다 — 제3자에게 매칭 상태를 알려주지 않는다")
+    void authorizationIsCheckedBeforeState() throws Exception {
+        // 수락도 안 됐고(409 사유) 당사자도 아닌(403 사유) 요청. 계약서 v1.2.2 는 403 을 규정한다.
+        MatchPost anotherPast =
+                createPost(authorTeam, "지난 주 또 다른 경기", OffsetDateTime.now().minusDays(2), true);
+        MatchRequest pending = pendingRequest(anotherPast, applicantTeam);
+
+        writeReview(outsider, pending.getId(), 5, "남의 미수락 매칭입니다.")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     @DisplayName("팀이 없는 사용자는 어느 매칭의 당사자도 아니다 — 403 FORBIDDEN")
     void userWithoutTeamCannotReview() throws Exception {
         User teamless = createUser("noteam@example.com", "무소속", "010-4444-4444");

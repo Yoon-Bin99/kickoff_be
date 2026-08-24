@@ -14,6 +14,8 @@ import com.kickoff.be.support.IntegrationTestSupport;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.user.entity.User;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -100,13 +102,33 @@ class TeamRatingTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("리뷰 목록은 createdAt 내림차순이다")
-    void teamReviewListIsSortedByCreatedAtDesc() throws Exception {
+    @DisplayName("리뷰 목록은 createdAt 내림차순, 동률이면 id 내림차순이다")
+    void teamReviewListIsSortedByCreatedAtThenIdDesc() throws Exception {
         String body = bodyOf(mockMvc.perform(get("/api/teams/{id}/reviews", targetTeam.getId()))
                 .andExpect(status().isOk()));
 
         List<String> createdAt = JsonPath.read(body, "$.content[*].createdAt");
-        assertThat(createdAt).isSortedAccordingTo(java.util.Comparator.reverseOrder());
+        assertThat(createdAt).isSortedAccordingTo(Comparator.reverseOrder());
+
+        // 세 건이 한 셋업에서 연달아 만들어져 createdAt 이 같은 밀리초로 겹칠 수 있다.
+        // 2차 키가 없으면 이 순서가 조회마다 흔들린다 (계약서 §7, v1.2.2).
+        List<Integer> ids = JsonPath.read(body, "$.content[*].id");
+        assertThat(ids).isSortedAccordingTo(Comparator.reverseOrder());
+    }
+
+    @Test
+    @DisplayName("페이지를 한 건씩 훑어도 중복·누락이 없다 — 무한 스크롤이 안전하려면 정렬이 결정적이어야 한다")
+    void pagingIsDeterministic() throws Exception {
+        List<Integer> collected = new ArrayList<>();
+        for (int page = 0; page < 3; page++) {
+            String body = bodyOf(mockMvc.perform(get("/api/teams/{id}/reviews", targetTeam.getId())
+                            .param("page", String.valueOf(page))
+                            .param("size", "1"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content", hasSize(1))));
+            collected.addAll(JsonPath.read(body, "$.content[*].id"));
+        }
+        assertThat(collected).hasSize(3).doesNotHaveDuplicates();
     }
 
     @Test
