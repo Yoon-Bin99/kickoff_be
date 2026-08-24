@@ -42,6 +42,10 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    // 같은 통합 테스트를 실제 PostgreSQL 로도 돌리기 위한 것. 기본 test 는 여전히 H2 라
+    // 이 의존성이 있어도 Docker 없이 ./gradlew test 는 그대로 돈다.
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
@@ -49,4 +53,33 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+/*
+ * 같은 통합 테스트를 실제 PostgreSQL 컨테이너에서 한 번 더 돌린다.
+ *
+ * 테스트를 따로 쓰지 않고 <b>같은 클래스를 다시 실행</b>하는 게 핵심이다. PG 전용 테스트를
+ * 별도로 두면 시간이 지나며 커버리지가 벌어지고, 정작 새로 추가한 쿼리는 H2 에서만 검증되는
+ * 상태가 된다 — lower(bytea) 사고가 정확히 그런 종류였다.
+ *
+ * 기본 test 는 H2 그대로다. Docker 가 없는 환경에서도 개발이 막히지 않아야 하고,
+ * 빠른 피드백 루프도 지켜야 한다.
+ */
+tasks.register('postgresTest', Test) {
+    group = 'verification'
+    description = '통합 테스트를 실제 PostgreSQL 컨테이너에서 실행한다 (Docker 필요)'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+
+    // IntegrationTestSupport 가 이 값을 보고 컨테이너를 띄운다.
+    systemProperty 'kickoff.test.db', 'postgres'
+
+    // 결과를 기본 test 와 섞지 않는다. 두 실행의 성패를 따로 봐야 한다.
+    reports.html.outputLocation = layout.buildDirectory.dir('reports/tests/postgresTest')
+    reports.junitXml.outputLocation = layout.buildDirectory.dir('test-results/postgresTest')
+    binaryResultsDirectory = layout.buildDirectory.dir('test-results/postgresTest/binary')
+
+    shouldRunAfter tasks.named('test')
 }

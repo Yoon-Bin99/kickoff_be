@@ -200,8 +200,38 @@ JDBC URL은 기본값이 아니라 위 값으로 바꿔 넣어야 붙는다.
 ```
 
 테스트 105개. 매칭 수락 흐름, 계좌 비공개, 권한, 지난 경기 규칙, 인증, 리뷰·평점,
-소셜 로그인을 다룬다. 소셜 로그인은 제공자 호출을 스텁으로 갈아끼워 **실제 키 없이** 돈다.
-테스트는 별도 `test` 프로파일과 별도 DB를 쓰므로 실행 중인 개발 서버에 영향을 주지 않는다.
+소셜 로그인, 푸시 알림을 다룬다. 소셜 로그인과 푸시는 외부 호출을 스텁으로 갈아끼워
+**실제 키 없이** 돈다. 테스트는 별도 `test` 프로파일과 별도 DB를 쓰므로 실행 중인 개발
+서버에 영향을 주지 않는다.
+
+### 실제 PostgreSQL로 한 번 더 (`postgresTest`)
+
+```bash
+./gradlew postgresTest   # Docker 필요
+```
+
+**같은 테스트를 PostgreSQL 컨테이너에서 다시 돌린다.** 별도 테스트를 쓰지 않고 같은 클래스를
+재실행하는 게 핵심이다 — PG 전용 테스트를 따로 두면 시간이 지나며 커버리지가 벌어지고,
+정작 새로 추가한 쿼리는 H2 에서만 검증되는 상태가 된다.
+
+기본 `test` 는 H2 그대로다. Docker 가 없어도 개발이 막히지 않아야 하고, 빠른 피드백도
+지켜야 한다. 대신 **JPQL 에 함수를 쓰는 쿼리를 추가했거나 배포 전이라면 `postgresTest` 를
+한 번 돌린다.**
+
+왜 필요한지는 실제로 겪었다. `lower(concat('%', :region, '%'))` 에서 `region` 이 `null` 이면
+PostgreSQL 은 타입을 `bytea` 로 추론해 `function lower(bytea) does not exist` 로 죽는데,
+H2 는 그냥 넘어가서 **테스트 전체가 통과하는데도 운영에서는 목록 API 가 500** 이었다.
+
+Flyway V1·V2 도 이 실행에서 실제 PostgreSQL 에 적용되므로, 마이그레이션이 PG 에서 도는지도
+함께 검증된다.
+
+> **Testcontainers 는 2.x다.** Boot 4 가 관리하는 버전이 `2.0.5`라, 인터넷에 흔한 1.x 예제를
+> 그대로 옮기면 의존성 해석부터 실패한다. 바뀐 것 세 가지:
+> - 모듈 이름에 접두가 붙는다 — `org.testcontainers:postgresql` 이 아니라
+>   **`org.testcontainers:testcontainers-postgresql`** (junit 모듈도 `testcontainers-junit-jupiter`)
+> - 클래스가 옮겨졌다 — `org.testcontainers.containers.PostgreSQLContainer` 는 deprecated 이고
+>   **`org.testcontainers.postgresql.PostgreSQLContainer`** 를 쓴다
+> - **더 이상 제네릭이 아니다** — `new PostgreSQLContainer<>(...)` 가 아니라 `new PostgreSQLContainer(...)`
 
 ## 스키마 마이그레이션
 
