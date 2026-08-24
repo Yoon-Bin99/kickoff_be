@@ -1,8 +1,11 @@
-# Kickoff API 계약 v1 (현재 v1.3.4)
+# Kickoff API 계약 v1 (현재 v1.4.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.4.0 (2026-08-24): 푸시 알림 — §8 신설(기존 "범위 밖"은 §9로), Expo Push 기반.
+> `PUT /api/users/me/push-token` 신설, 알림 이벤트 4종. 푸시를 범위 밖 목록에서 제거.
+>
 > v1.3.4 (2026-08-24): 자동 연동 폐지(사용자 결정 번복) — 소셜 로그인은 제공자 불문
 > **항상 별개 계정**. 이메일 자동 연동 규칙 삭제, 소셜 계정은 `email` 항상 `null`,
 > `EMAIL_CONSENT_REQUIRED` 미사용(코드만 예약). 네이버 이메일 동의도 불필요해짐.
@@ -512,7 +515,51 @@ PENDING 신청 취소 → `CANCELED`. 204. PENDING이 아니면 409 `REQUEST_NOT
 - 리뷰 0건이면 `averageRating: null`, `reviewCount: 0`
 - 집계는 조회 시점 계산이든 반정규화든 BE 구현 자유 — 계약은 응답 값만 규정한다
 
-## 8. v1 범위 밖 (구현하지 말 것)
+## 8. 푸시 알림 (v1.4.0)
 
-실시간 채팅, 푸시 알림, 이미지 업로드, refresh token, 경기 결과/전적 기록, 지도,
-리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약)
+Expo Push Service 기반. FE가 기기에서 Expo push token을 받아 BE에 등록하면,
+BE가 매칭 이벤트 발생 시 Expo Push API(`https://exp.host/--/api/v2/push/send`)로 보낸다.
+푸시는 **best-effort** — 발송 실패가 원 트랜잭션(신청/수락 등)을 실패시키면 안 된다.
+
+### PUT /api/users/me/push-token — 인증 필요
+
+```json
+{ "expoPushToken": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]" }
+```
+
+- 사용자당 토큰 **1개** (마지막 등록이 이김 — 기기를 바꾸면 새 기기만 받는다. 다중 기기는 v2)
+- `expoPushToken` 필수, `ExponentPushToken[` 접두 형식 검증 (아니면 400 `VALIDATION_FAILED`)
+- 204. 같은 토큰 재등록도 204 (멱등)
+- **토큰 삭제**: body를 `{ "expoPushToken": null }`로 보내면 등록 해제 → 204. FE는 로그아웃 시 호출
+
+### 알림 이벤트 4종
+
+수신자는 전부 **팀의 소유자(owner) 사용자**다. push token이 없으면 조용히 건너뛴다.
+
+| 이벤트 | 시점 | 수신자 | title / body 예시 |
+|---|---|---|---|
+| `REQUEST_RECEIVED` | 신청 생성 | 글 작성 팀 | "새 매칭 신청" / "{신청팀}이(가) '{글제목}'에 신청했습니다" |
+| `REQUEST_ACCEPTED` | 수락 | 신청 팀 | "매칭 성사!" / "'{글제목}' 신청이 수락됐습니다. 연락처가 공개됐어요" |
+| `REQUEST_REJECTED` | 거절 | 신청 팀 | "매칭 불발" / "'{글제목}' 신청이 거절됐습니다" |
+| `DEPOSIT_CONFIRMED` | 입금 확인 | 신청 팀 | "입금 확인" / "'{글제목}' 입금이 확인됐습니다" |
+
+수락 시 자동 거절되는 다른 PENDING 신청들에도 각각 `REQUEST_REJECTED`를 보낸다.
+
+### 푸시 payload의 data (FE 딥링크용)
+
+```json
+{ "type": "REQUEST_ACCEPTED", "requestId": 7, "postId": 12 }
+```
+
+FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매칭 관리(받은 신청),
+나머지 → 매칭 관리(보낸 신청). 상세 화면 딥링크는 v2.
+
+### 환경변수 (BE)
+
+`PUSH_ENABLED` (기본 false — dev에서 실수로 실기기에 안 나가게. 운영과 푸시 테스트 시 true)
+
+## 9. v1 범위 밖 (구현하지 말 것)
+
+실시간 채팅, 이미지 업로드, refresh token, 경기 결과/전적 기록, 지도,
+리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),
+다중 기기 push token, 알림 히스토리 화면, 알림 설정(끄기/켜기)
