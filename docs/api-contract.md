@@ -1,8 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.2.2)
+# Kickoff API 계약 v1 (현재 v1.3.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.3.0 (2026-08-24): 소셜 로그인(OAuth) — §3에 `/api/auth/oauth/*` 신설(1차 KAKAO·NAVER,
+> GOOGLE·APPLE은 예약), `PATCH /api/users/me` 신설, `UserResponse`에 `phone`·`authProviders`,
+> `AuthProvider` 열거형, 에러 코드 4종. 소셜 로그인을 v1 범위 밖 목록에서 제거.
+>
 > v1.2.2 (2026-08-24): 리뷰 규정 명확화 — 복수 조건 위반 시 403 우선, 팀 없는 사용자는
 > 403(`TEAM_REQUIRED` 아님), 리뷰 목록 동률 정렬 2차 키 `id` DESC.
 >
@@ -63,6 +67,10 @@
 | `REQUEST_NOT_ACCEPTED` | 409 | 수락되지 않은 신청에 입금 확인 시도 |
 | `REVIEW_NOT_AVAILABLE` | 409 | 리뷰 불가 상태 (매칭 미성사 또는 경기 전) |
 | `REVIEW_ALREADY_EXISTS` | 409 | 같은 매칭에 이미 리뷰 작성함 |
+| `UNSUPPORTED_PROVIDER` | 400 | 비활성/미지원 소셜 제공자 |
+| `OAUTH_FAILED` | 401 | 제공자 인증 실패 (콜백 리다이렉트의 `error`로 전달) |
+| `EMAIL_CONSENT_REQUIRED` | 400 | 제공자가 이메일을 내려주지 않음 (동의 거부 등) |
+| `PHONE_REQUIRED` | 400 | 전화번호 없는 사용자가 팀 생성 시도 |
 | `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
@@ -93,14 +101,25 @@ PostStatus    OPEN | MATCHED | CLOSED
 
 RequestStatus PENDING | ACCEPTED | REJECTED | CANCELED
               대기중    수락됨     거절됨     취소됨
+
+AuthProvider  KAKAO | NAVER | GOOGLE | APPLE
+              (v1.3에서는 KAKAO·NAVER만 활성. GOOGLE·APPLE은 값만 예약 —
+               비활성 제공자 요청은 400 UNSUPPORTED_PROVIDER)
 ```
 
 ## 2. 공통 응답 오브젝트
 
 ### UserResponse
 ```json
-{ "id": 1, "email": "kim@example.com", "nickname": "김주장", "hasTeam": true, "teamId": 3 }
+{ "id": 1, "email": "kim@example.com", "nickname": "김주장", "phone": "010-1234-5678",
+  "hasTeam": true, "teamId": 3, "authProviders": [] }
 ```
+
+v1.3.0 추가 필드:
+- `phone`: 소셜 가입 사용자는 처음에 `null`일 수 있다 (이메일 가입은 항상 있음).
+  FE는 `phone`이 `null`이면 전화번호 입력을 유도한다 (팀 생성이 막히므로 — §4 참고)
+- `authProviders`: 이 계정에 연동된 소셜 제공자 목록 (`AuthProvider[]`).
+  이메일/비번으로만 가입했으면 `[]`
 
 ### TeamSummary (목록/카드에 박히는 축약형)
 ```json
@@ -152,6 +171,57 @@ RequestStatus PENDING | ACCEPTED | REJECTED | CANCELED
 200 → `UserResponse`
 
 토큰은 만료 7일 access token 단일. refresh token은 v1 범위 밖.
+
+### PATCH /api/users/me — 인증 필요 (v1.3.0)
+
+`{ "nickname": "김주장", "phone": "010-1234-5678" }` — 둘 다 optional, 형식은 signup과 동일.
+200 → `UserResponse`. 소셜 가입 후 전화번호 보완이 주 용도.
+
+## 3-1. 소셜 로그인 (OAuth, v1.3.0)
+
+리다이렉트 방식이다. FE는 SDK 없이 브라우저(WebBrowser)로 BE의 authorize URL을 열고,
+BE가 제공자와의 교환을 전부 처리한 뒤 앱으로 되돌아온다. 클라이언트 시크릿은 BE에만 있다.
+
+```
+FE ─open→ GET /api/auth/oauth/{provider}/authorize?redirect=<앱 복귀 URL>
+BE ─302→ 제공자 로그인/동의 화면
+제공자 ─302→ GET /api/auth/oauth/{provider}/callback?code=...&state=...
+BE: code 교환 → 프로필 조회 → 계정 결정 → JWT 발급
+BE ─302→ {redirect}?token=<accessToken>&isNewUser=true|false   (실패 시 {redirect}?error=<에러코드>)
+FE: token 저장 → GET /api/auth/me 로 UserResponse 취득
+```
+
+### GET /api/auth/oauth/{provider}/authorize — 인증 불필요
+
+- `provider` 경로값: `kakao` | `naver` (소문자). 비활성 제공자는 400 `UNSUPPORTED_PROVIDER`
+- `redirect` 쿼리 필수: 완료 후 돌아갈 URL. **BE의 허용 목록**과 대조해 통과한 것만 쓴다
+  (open redirect 방지). dev 허용 목록: `exp://*`, `kickoff://*`, `http://localhost:*`
+- `state`는 BE가 생성·검증한다 (CSRF 방지). FE는 신경 쓰지 않는다
+
+### GET /api/auth/oauth/{provider}/callback — 제공자 전용
+
+FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한다 (JSON 응답 아님).
+
+**계정 결정 규칙** (사용자 확정: 이메일 같으면 자동 연동):
+1. `(provider, providerUserId)` 연동 이력이 있으면 → 그 계정으로 로그인
+2. 없고, 제공자가 준 이메일이 기존 계정과 일치하면 → **자동 연동** 후 로그인.
+   카카오·네이버는 검증된 계정 이메일만 내려주므로 허용한다. (검증 안 된 이메일을
+   주는 제공자를 나중에 붙일 때는 이 규칙을 적용하지 말 것 — 계정 탈취 경로가 된다)
+3. 둘 다 없으면 → 신규 계정 생성. `nickname`은 제공자 프로필에서, 중복이면 뒤에 숫자를
+   붙여 유일하게 만든다. `phone`은 `null`, 비밀번호 없음
+4. 제공자가 이메일을 안 주면 → 실패, `{redirect}?error=EMAIL_CONSENT_REQUIRED`
+
+**비밀번호 없는 소셜 계정** 이 이메일/비번 로그인을 시도하면 401 `LOGIN_FAILED`
+(전용 코드를 만들지 않는다 — 계정 존재 여부 노출 방지. FE 문구도 기존 그대로).
+
+**토큰을 쿼리로 전달하는 것은 dev 한정 허용.** 운영 배포 단계에서 일회용 코드 교환
+방식으로 강화한다 (v2 항목).
+
+### 팀 생성 규칙 변경 (§4 연동)
+
+`phone`이 `null`인 사용자가 팀을 만들면 400 `PHONE_REQUIRED`. 매칭 성사 시 `contact`로
+전화번호가 공개되는 구조라, 팀 대표는 전화번호가 있어야 한다. FE는 이 코드를 받으면
+전화번호 입력 화면으로 유도한다.
 
 ## 4. 팀
 
@@ -413,4 +483,5 @@ PENDING 신청 취소 → `CANCELED`. 204. PENDING이 아니면 409 `REQUEST_NOT
 
 ## 8. v1 범위 밖 (구현하지 말 것)
 
-실시간 채팅, 푸시 알림, 이미지 업로드, 소셜 로그인, refresh token, 경기 결과/전적 기록, 지도, 리뷰 수정·삭제·신고
+실시간 채팅, 푸시 알림, 이미지 업로드, refresh token, 경기 결과/전적 기록, 지도,
+리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약)
