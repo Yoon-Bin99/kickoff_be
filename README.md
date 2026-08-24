@@ -91,18 +91,47 @@ curl -X POST http://localhost:8080/api/auth/login \
 제공자로 로그인을 시도하면 400 `UNSUPPORTED_PROVIDER`가 나간다. 기동 로그의
 `활성 소셜 제공자: ...` 줄로 지금 어떤 제공자가 켜져 있는지 확인할 수 있다.
 
-키는 **환경변수로만** 넣는다. `application.yaml`에는 바인딩만 있고 값은 없다 — 저장소에
-커밋되면 안 되기 때문이다.
+키는 저장소에 커밋하지 않는다. `application.yaml`에는 바인딩만 있고 값은 없다.
 
-| 변수 | 설명 |
+| 값 | 설명 |
 |---|---|
-| `KAKAO_CLIENT_ID` | 카카오 REST API 키 |
-| `KAKAO_CLIENT_SECRET` | 카카오 client secret (사용 안 하면 비워도 된다) |
+| `KAKAO_CLIENT_ID` | 카카오 **REST API 키** (JavaScript 키가 아니다) |
+| `KAKAO_CLIENT_SECRET` | 카카오 Client Secret. 콘솔에서 "사용함"이면 **필수** — 없으면 토큰 교환이 `KOE010`으로 막힌다 |
 | `NAVER_CLIENT_ID` | 네이버 애플리케이션 Client ID |
 | `NAVER_CLIENT_SECRET` | 네이버 Client Secret |
 
+### 로컬 개발: `local.yaml`
+
+저장소 루트의 **`local.yaml`**에 넣어두면 `bootRun`이 매번 자동으로 읽는다. 이 파일은
+`.gitignore`에 걸려 있어 커밋되지 않는다.
+
+```yaml
+# local.yaml — 커밋 금지
+oauth:
+  kakao:
+    client-id: <REST API 키>
+    client-secret: <Client Secret>
+  naver:
+    client-id: <Client ID>
+    client-secret: <Client Secret>
+```
+
+`application.yaml`이 `spring.config.import: "optional:file:./local.yaml"`로 읽는다.
+**optional이라 파일이 없어도 서버는 정상적으로 뜬다** — 소셜 제공자만 비활성이 될 뿐이다.
+CI와 운영에는 이 파일이 없는 게 정상이다.
+
+> **주의: `local.yaml`이 환경변수를 이긴다.** `spring.config.import`로 들여온 값이
+> `application.yaml`의 `${KAKAO_CLIENT_ID:}` 자리보다 나중에 얹히기 때문이다. 실제로
+> `KAKAO_CLIENT_ID=`를 빈 값으로 주고 띄워도 `local.yaml`의 키로 카카오가 활성화되는 것을
+> 확인했다. 그래서 **운영 서버에는 이 파일을 절대 올리지 말 것** — 올리면 환경변수로
+> 넣은 운영 키가 무시된다.
+
+### 운영: 환경변수
+
+파일 없이 환경변수로 넣는다. 이름은 위 표와 같다.
+
 ```bash
-KAKAO_CLIENT_ID=... NAVER_CLIENT_ID=... NAVER_CLIENT_SECRET=... ./gradlew bootRun
+KAKAO_CLIENT_ID=... KAKAO_CLIENT_SECRET=... NAVER_CLIENT_ID=... NAVER_CLIENT_SECRET=... ./gradlew bootRun
 ```
 
 ### 제공자 콘솔에 등록할 Redirect URI

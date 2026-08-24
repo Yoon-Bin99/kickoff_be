@@ -35,3 +35,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### 로컬 전용 비밀값 — 절대 커밋하지 말 것 ###
+# 소셜 로그인 클라이언트 키가 들어간다. application.yaml 이
+# spring.config.import 로 optional 하게 읽으므로, 없으면 없는 대로 뜬다.
+/local.yaml

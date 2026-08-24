@@ -1,6 +1,10 @@
 spring:
   application:
     name: be
+  config:
+    # 로컬 전용 키 파일. optional 이라 없으면 조용히 건너뛴다 (CI·운영에는 없다).
+    # .gitignore 에 걸려 있으니 커밋되지 않는다.
+    import: "optional:file:./local.yaml"
   profiles:
     active: dev
   jackson:
