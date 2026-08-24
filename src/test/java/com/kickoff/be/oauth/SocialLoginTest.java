@@ -163,6 +163,18 @@ class SocialLoginTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("복귀 주소를 제공자보다 먼저 본다 — 둘 다 틀리면 redirect 쪽이 나간다")
+    void redirectIsValidatedBeforeProvider() throws Exception {
+        // 키가 없는 동안 제공자 검사가 앞서면 허용 목록 위반이 UNSUPPORTED_PROVIDER 로
+        // 덮여버려, FE 가 이 실패를 볼 방법이 없어진다.
+        mockMvc.perform(get("/api/auth/oauth/naver/authorize")
+                        .param("redirect", "https://evil.example/steal"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("redirect"));
+    }
+
+    @Test
     @DisplayName("redirect 없이 호출하면 400")
     void redirectIsRequired() throws Exception {
         mockMvc.perform(get("/api/auth/oauth/kakao/authorize"))

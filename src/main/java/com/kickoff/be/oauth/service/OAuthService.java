@@ -33,11 +33,17 @@ public class OAuthService {
     private final SocialLoginService socialLoginService;
     private final OAuthProperties properties;
 
-    /** 사용자를 제공자 로그인 화면으로 보낸다. */
+    /**
+     * 사용자를 제공자 로그인 화면으로 보낸다.
+     *
+     * <b>복귀 주소를 제공자보다 먼저 검증한다.</b> 신뢰할 수 없는 입력을 먼저 걸러내는 게
+     * 순서로도 맞고, 제공자 검사가 앞서면 키가 없는 동안 허용 목록 위반이 전부
+     * UNSUPPORTED_PROVIDER 로 덮여 FE 가 그 실패를 관측할 수 없다.
+     */
     public URI authorizeUri(String providerPath, String redirect, String requestBaseUrl) {
+        String safeRedirect = redirectAllowList.require(redirect);
         AuthProvider provider = AuthProvider.fromPath(providerPath);
         OAuthClient client = clients.get(provider);
-        String safeRedirect = redirectAllowList.require(redirect);
         String callbackUri = callbackUri(provider, requestBaseUrl);
         String state = stateStore.issue(provider, safeRedirect, callbackUri);
         return URI.create(client.authorizeUrl(state, callbackUri));
