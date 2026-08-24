@@ -14,3 +14,11 @@ spring:
 jwt:
   secret: kickoff-test-secret-key-0123456789-0123456789
   expiration-days: 7
+
+# 소셜 로그인 테스트는 실제 키 없이 스텁 클라이언트로 돈다 (OAuthClientRegistry 가
+# isConfigured() 인 것만 등록하므로, 키가 비어 있는 실 클라이언트는 자동으로 빠진다).
+oauth:
+  allowed-redirects:
+    - "exp://*"
+    - "kickoff://*"
+    - "http://localhost:*"

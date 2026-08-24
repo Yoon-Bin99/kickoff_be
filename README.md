@@ -85,6 +85,46 @@ curl -X POST http://localhost:8080/api/auth/login \
 > **시드를 바꾸면 이 표도 같이 고칠 것.** 표가 실제와 어긋나면 FE가 "미작성"인 줄 알고 검증한
 > 매칭에 이미 리뷰가 들어 있는 식의 오탐이 난다. 실제로 그렇게 한 번 헛돌았다.
 
+## 소셜 로그인
+
+카카오·네이버 로그인은 **키가 있어야 켜진다.** 키 없이도 서버는 정상적으로 뜨고, 키가 없는
+제공자로 로그인을 시도하면 400 `UNSUPPORTED_PROVIDER`가 나간다. 기동 로그의
+`활성 소셜 제공자: ...` 줄로 지금 어떤 제공자가 켜져 있는지 확인할 수 있다.
+
+키는 **환경변수로만** 넣는다. `application.yaml`에는 바인딩만 있고 값은 없다 — 저장소에
+커밋되면 안 되기 때문이다.
+
+| 변수 | 설명 |
+|---|---|
+| `KAKAO_CLIENT_ID` | 카카오 REST API 키 |
+| `KAKAO_CLIENT_SECRET` | 카카오 client secret (사용 안 하면 비워도 된다) |
+| `NAVER_CLIENT_ID` | 네이버 애플리케이션 Client ID |
+| `NAVER_CLIENT_SECRET` | 네이버 Client Secret |
+
+```bash
+KAKAO_CLIENT_ID=... NAVER_CLIENT_ID=... NAVER_CLIENT_SECRET=... ./gradlew bootRun
+```
+
+### 제공자 콘솔에 등록할 Redirect URI
+
+개발 중에는 PC에서도 폰에서도 붙으므로 **두 개를 다 등록**한다. `<LAN-IP>`는 PC의 Wi-Fi
+주소이고, 공유기를 바꾸면 달라지므로 그때마다 다시 등록해야 한다.
+
+```
+http://localhost:8080/api/auth/oauth/kakao/callback
+http://<LAN-IP>:8080/api/auth/oauth/kakao/callback
+```
+
+네이버도 `kakao` 자리를 `naver`로 바꿔 같은 두 개를 등록한다.
+
+콜백 주소는 authorize 요청이 들어온 주소에서 그대로 만들어 쓴다. 그래서 localhost로 열면
+localhost 콜백이, LAN IP로 열면 LAN IP 콜백이 제공자에게 전달된다. 고정하고 싶으면
+`OAUTH_CALLBACK_BASE_URL`(예: `http://192.168.0.10:8080`)로 덮어쓸 수 있다.
+
+로그인 완료 후 앱으로 돌아갈 주소는 **허용 목록**에 있는 것만 쓴다(open redirect 방지).
+개발 기본값은 `exp://*`, `kickoff://*`, `http://localhost:*`이고 `application.yaml`의
+`oauth.allowed-redirects`에 있다. 운영에 올리기 전에 앱 스킴만 남기고 좁힐 것.
+
 ## H2 콘솔
 
 서버가 떠 있는 상태에서 <http://localhost:8080/h2-console>
@@ -103,7 +143,8 @@ JDBC URL은 기본값이 아니라 위 값으로 바꿔 넣어야 붙는다.
 ./gradlew test
 ```
 
-테스트 65개. 매칭 수락 흐름, 계좌 비공개, 권한, 지난 경기 규칙, 인증, 리뷰·평점을 다룬다.
+테스트 91개. 매칭 수락 흐름, 계좌 비공개, 권한, 지난 경기 규칙, 인증, 리뷰·평점,
+소셜 로그인을 다룬다. 소셜 로그인은 제공자 호출을 스텁으로 갈아끼워 **실제 키 없이** 돈다.
 테스트는 별도 `test` 프로파일과 별도 DB를 쓰므로 실행 중인 개발 서버에 영향을 주지 않는다.
 
 ## 운영 배포
@@ -116,6 +157,7 @@ JDBC URL은 기본값이 아니라 위 값으로 바꿔 넣어야 붙는다.
 | `DB_USERNAME` | DB 사용자 |
 | `DB_PASSWORD` | DB 비밀번호 |
 | `JWT_SECRET` | JWT 서명 키. HS256이라 **32바이트 이상** 필요 |
+| `KAKAO_CLIENT_ID` 등 | 소셜 로그인 키. 없으면 해당 제공자만 비활성 (위 참고) |
 
 ```bash
 ./gradlew build   # build/libs/be-0.0.1-SNAPSHOT.jar 생성

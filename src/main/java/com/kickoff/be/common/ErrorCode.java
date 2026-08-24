@@ -28,6 +28,10 @@ public enum ErrorCode {
     REQUEST_NOT_ACCEPTED(HttpStatus.CONFLICT, "수락된 신청이 아닙니다."),
     REVIEW_NOT_AVAILABLE(HttpStatus.CONFLICT, "아직 리뷰를 쓸 수 없는 매칭입니다."),
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 리뷰를 작성했습니다."),
+    UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인입니다."),
+    OAUTH_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다."),
+    EMAIL_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "이메일 제공에 동의해야 가입할 수 있습니다."),
+    PHONE_REQUIRED(HttpStatus.BAD_REQUEST, "전화번호를 먼저 등록해야 합니다."),
 
     /** 아래 둘은 계약서 표에는 없지만, 모든 4xx/5xx 가 같은 형식으로 나가야 해서 둔다. */
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),

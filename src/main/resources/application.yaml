@@ -28,6 +28,19 @@ jwt:
   secret: ${JWT_SECRET:kickoff-local-dev-secret-key-change-me-in-production-0123456789}
   expiration-days: 7
 
+oauth:
+  # 클라이언트 키는 환경변수로만 들어온다. 값을 여기 적지 말 것 — 저장소에 커밋된다.
+  # 키가 없는 제공자는 아예 등록되지 않고 400 UNSUPPORTED_PROVIDER 로 응답한다.
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID:}
+    client-secret: ${KAKAO_CLIENT_SECRET:}
+  naver:
+    client-id: ${NAVER_CLIENT_ID:}
+    client-secret: ${NAVER_CLIENT_SECRET:}
+  # 비우면 authorize 요청의 오리진을 그대로 쓴다 (localhost / LAN IP 양쪽 대응).
+  # 제공자 콘솔에 등록한 주소와 반드시 일치해야 토큰 교환이 통과한다.
+  callback-base-url: ${OAUTH_CALLBACK_BASE_URL:}
+
 ---
 spring:
   config:
@@ -54,6 +67,13 @@ spring:
     console:
       enabled: true
       path: /h2-console
+
+# 로그인 완료 후 돌아갈 수 있는 주소 (계약서 §3-1). 운영에서는 앱 스킴만 남기고 좁힐 것.
+oauth:
+  allowed-redirects:
+    - "exp://*"
+    - "kickoff://*"
+    - "http://localhost:*"
 
 ---
 spring:

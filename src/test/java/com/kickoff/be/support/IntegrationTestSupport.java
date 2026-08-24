@@ -6,6 +6,7 @@ import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
+import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.post.repository.MatchPostRepository;
 import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.AgeGroup;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -35,6 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(StubOAuthConfig.class)
 public abstract class IntegrationTestSupport {
 
     protected static final String PASSWORD = "pass1234";
@@ -56,6 +59,10 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected ReviewRepository reviewRepository;
     @Autowired
+    protected SocialAccountRepository socialAccountRepository;
+    @Autowired
+    protected StubOAuthClient kakaoStub;
+    @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
     protected JwtTokenProvider tokenProvider;
@@ -67,7 +74,15 @@ public abstract class IntegrationTestSupport {
         requestRepository.deleteAll();
         postRepository.deleteAll();
         teamRepository.deleteAll();
+        // 소셜 연동은 사용자를 참조하므로 사용자보다 먼저 지운다
+        socialAccountRepository.deleteAll();
         userRepository.deleteAll();
+        kakaoStub.reset();
+    }
+
+    /** 소셜 가입 직후처럼 전화번호가 없는 사용자. */
+    protected User createUserWithoutPhone(String email, String nickname) {
+        return createUser(email, nickname, null);
     }
 
     protected User createUser(String email, String nickname, String phone) {

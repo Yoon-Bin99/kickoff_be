@@ -25,13 +25,18 @@ public class User extends BaseTimeEntity {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(nullable = false)
+    /** 소셜로만 가입한 계정은 비밀번호가 없다 (계약서 §3-1). */
+    @Column
     private String password;
 
     @Column(nullable = false, length = 20)
     private String nickname;
 
-    @Column(nullable = false, length = 20)
+    /**
+     * 소셜 가입 직후에는 null 이다. 매칭이 성사되면 contact 로 공개되는 값이라
+     * 팀을 만들려면 반드시 채워야 한다 (계약서 §4, PHONE_REQUIRED).
+     */
+    @Column(length = 20)
     private String phone;
 
     @Builder
@@ -40,5 +45,24 @@ public class User extends BaseTimeEntity {
         this.password = password;
         this.nickname = nickname;
         this.phone = phone;
+    }
+
+    /** PATCH /api/users/me — null 인 항목은 건드리지 않는다 (계약서 §3). */
+    public void updateProfile(String nickname, String phone) {
+        if (nickname != null) {
+            this.nickname = nickname;
+        }
+        if (phone != null) {
+            this.phone = phone;
+        }
+    }
+
+    public boolean hasPhone() {
+        return phone != null && !phone.isBlank();
+    }
+
+    /** 소셜로만 가입해 비밀번호가 없는 계정인지. */
+    public boolean hasPassword() {
+        return password != null && !password.isBlank();
     }
 }

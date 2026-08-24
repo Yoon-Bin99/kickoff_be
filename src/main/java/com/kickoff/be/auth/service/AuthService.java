@@ -6,6 +6,7 @@ import com.kickoff.be.auth.dto.SignupRequest;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.dto.UserResponse;
@@ -22,6 +23,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final TeamRepository teamRepository;
+    private final SocialAccountRepository socialAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
 
@@ -43,7 +45,10 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
-        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+        // 소셜로만 가입한 계정은 비밀번호가 없다. 전용 에러 코드를 만들지 않는 이유는
+        // 계정이 존재한다는 사실 자체를 알려주지 않기 위해서다 (계약서 §3-1).
+        if (!user.hasPassword()
+                || !passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
         return toAuthResponse(user);
@@ -60,6 +65,7 @@ public class AuthService {
 
     private UserResponse toUserResponse(User user) {
         Team team = teamRepository.findByOwnerId(user.getId()).orElse(null);
-        return UserResponse.of(user, team);
+        return UserResponse.of(user, team,
+                socialAccountRepository.findProvidersByUserId(user.getId()));
     }
 }

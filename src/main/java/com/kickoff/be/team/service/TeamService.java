@@ -26,6 +26,11 @@ public class TeamService {
         if (teamRepository.existsByOwnerId(owner.getId())) {
             throw new BusinessException(ErrorCode.TEAM_ALREADY_EXISTS);
         }
+        // 매칭이 성사되면 팀 대표의 전화번호가 상대에게 공개된다. 소셜 가입자는 전화번호가
+        // 없을 수 있어 여기서 막고, FE 는 이 코드를 받으면 입력 화면으로 보낸다 (계약서 §4).
+        if (!owner.hasPhone()) {
+            throw new BusinessException(ErrorCode.PHONE_REQUIRED);
+        }
         Team team = teamRepository.save(Team.builder()
                 .owner(owner)
                 .name(request.name())
