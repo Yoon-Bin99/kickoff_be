@@ -4,6 +4,7 @@ import com.kickoff.be.oauth.service.OAuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 소셜 로그인 리다이렉트 흐름 (계약서 §3-1). 두 엔드포인트 모두 JSON 이 아니라 302 를 낸다.
  */
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 public class OAuthController {
@@ -25,6 +27,9 @@ public class OAuthController {
     public ResponseEntity<Void> authorize(@PathVariable String provider,
                                           @RequestParam String redirect,
                                           HttpServletRequest request) {
+        // 성공한 요청은 어디에도 흔적이 안 남아, 사후에 "요청이 오긴 했는지"조차 알 수 없었다.
+        log.info("소셜 로그인 진입 — provider={}, origin={}, redirect={}",
+                provider, originOf(request), redirect);
         URI location = oauthService.authorizeUri(provider, redirect, originOf(request));
         return ResponseEntity.status(HttpStatus.FOUND).location(location).build();
     }
@@ -35,6 +40,9 @@ public class OAuthController {
                                          @RequestParam(required = false) String code,
                                          @RequestParam(required = false) String state,
                                          @RequestParam(required = false) String error) {
+        // code 와 state 는 값 자체가 인증 재료라 유무만 남긴다.
+        log.info("소셜 로그인 콜백 — provider={}, code={}, state={}, error={}",
+                provider, code == null ? "없음" : "있음", state == null ? "없음" : "있음", error);
         URI location = oauthService.completeLogin(provider, code, state, error);
         return ResponseEntity.status(HttpStatus.FOUND).location(location).build();
     }
