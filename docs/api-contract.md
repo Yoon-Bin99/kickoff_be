@@ -224,8 +224,6 @@ FE: token 저장 → GET /api/auth/me 로 UserResponse 취득
 ### GET /api/auth/oauth/{provider}/callback — 제공자 전용
 
 FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한다 (JSON 응답 아님).
-**예외** (v1.3.1): `state`를 찾을 수 없는 콜백은 복귀 주소 자체를 알 수 없으므로
-302가 아니라 401 `OAUTH_FAILED` JSON으로 응답한다.
 **예외** (v1.3.1): `state`를 찾을 수 없거나 이미 사용된 콜백은 복귀 주소를 알 수 없으므로
 302가 아니라 401 `OAUTH_FAILED` JSON으로 응답한다.
 
@@ -242,9 +240,7 @@ FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한�
 `EMAIL_CONSENT_REQUIRED`는 미사용 (코드만 예약 — 연동 기능이 생기는 v2에서 재사용).
 
 **`email: null` 계정의 규칙**: 이메일/비번 로그인 불가(비밀번호도 없음).
-그 외 기능은 동일. `UserResponse.email`은 nullable (§2 참고)..
-   단 **연동 이력이 있으면(규칙 1) 이메일 검사는 하지 않는다** — 이미 연동한 사용자가
-   나중에 이메일 동의를 철회해도 로그인은 계속돼야 한다 (v1.3.1)
+그 외 기능은 동일. `UserResponse.email`은 nullable (§2 참고).
 
 **비밀번호 없는 소셜 계정** 이 이메일/비번 로그인을 시도하면 401 `LOGIN_FAILED`
 (전용 코드를 만들지 않는다 — 계정 존재 여부 노출 방지. FE 문구도 기존 그대로).
