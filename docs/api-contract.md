@@ -1,8 +1,15 @@
-# Kickoff API 계약 v1 (현재 v1.3.0)
+# Kickoff API 계약 v1 (현재 v1.3.2)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.3.2 (2026-08-24): 카카오는 이메일 없이 가입 허용 — 카카오 콘솔의 이메일 권한이
+> 비즈 앱 전용이라(사용자 확인) 신규 가입 시 `email: null` 허용. 자동 연동(규칙 2)은
+> 이메일을 주는 제공자(네이버)에서만 동작. `UserResponse.email` nullable로 변경.
+>
+> v1.3.1 (2026-08-24): OAuth 예외 명문화 — 허용 목록 밖 redirect는 302 없이 400,
+> state 불명 콜백은 401 JSON, 이메일 미제공 검사는 연동 이력 없을 때만. signup 예시 갱신.
+>
 > v1.3.0 (2026-08-24): 소셜 로그인(OAuth) — §3에 `/api/auth/oauth/*` 신설(1차 KAKAO·NAVER,
 > GOOGLE·APPLE은 예약), `PATCH /api/users/me` 신설, `UserResponse`에 `phone`·`authProviders`,
 > `AuthProvider` 열거형, 에러 코드 4종. 소셜 로그인을 v1 범위 밖 목록에서 제거.
@@ -116,6 +123,8 @@ AuthProvider  KAKAO | NAVER | GOOGLE | APPLE
 ```
 
 v1.3.0 추가 필드:
+- `email`: v1.3.2부터 nullable — 이메일을 안 주는 제공자(카카오)로 가입한 계정은 `null`.
+  FE는 이메일 표시 자리에 `null`이면 연동 제공자 표기("카카오 계정")로 대체
 - `phone`: 소셜 가입 사용자는 처음에 `null`일 수 있다 (이메일 가입은 항상 있음).
   FE는 `phone`이 `null`이면 전화번호 입력을 유도한다 (팀 생성이 막히므로 — §4 참고)
 - `authProviders`: 이 계정에 연동된 소셜 제공자 목록 (`AuthProvider[]`).
@@ -159,7 +168,8 @@ v1.3.0 추가 필드:
 201 응답
 
 ```json
-{ "accessToken": "eyJhbGci...", "user": { "id": 1, "email": "kim@example.com", "nickname": "김주장", "hasTeam": false, "teamId": null } }
+{ "accessToken": "eyJhbGci...", "user": { "id": 1, "email": "kim@example.com", "nickname": "김주장",
+  "phone": "010-1234-5678", "hasTeam": false, "teamId": null, "authProviders": [] } }
 ```
 
 ### POST /api/auth/login — 인증 불필요
@@ -195,12 +205,18 @@ FE: token 저장 → GET /api/auth/me 로 UserResponse 취득
 
 - `provider` 경로값: `kakao` | `naver` (소문자). 비활성 제공자는 400 `UNSUPPORTED_PROVIDER`
 - `redirect` 쿼리 필수: 완료 후 돌아갈 URL. **BE의 허용 목록**과 대조해 통과한 것만 쓴다
-  (open redirect 방지). dev 허용 목록: `exp://*`, `kickoff://*`, `http://localhost:*`
-- `state`는 BE가 생성·검증한다 (CSRF 방지). FE는 신경 쓰지 않는다
+  (open redirect 방지, **프리픽스 매칭**). dev 허용 목록: `exp://*`, `kickoff://*`, `http://localhost:*`
+- 허용 목록 밖 redirect는 **302 하지 않고** 400 `VALIDATION_FAILED`
+  (`fieldErrors[0].field = "redirect"`) — 신뢰하지 않는 주소로 되돌려 보내지 않는다 (v1.3.1)
+- `state`는 BE가 생성·검증한다 (CSRF 방지, 일회용). FE는 신경 쓰지 않는다
 
 ### GET /api/auth/oauth/{provider}/callback — 제공자 전용
 
 FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한다 (JSON 응답 아님).
+**예외** (v1.3.1): `state`를 찾을 수 없는 콜백은 복귀 주소 자체를 알 수 없으므로
+302가 아니라 401 `OAUTH_FAILED` JSON으로 응답한다.
+**예외** (v1.3.1): `state`를 찾을 수 없거나 이미 사용된 콜백은 복귀 주소를 알 수 없으므로
+302가 아니라 401 `OAUTH_FAILED` JSON으로 응답한다.
 
 **계정 결정 규칙** (사용자 확정: 이메일 같으면 자동 연동):
 1. `(provider, providerUserId)` 연동 이력이 있으면 → 그 계정으로 로그인
@@ -209,7 +225,18 @@ FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한�
    주는 제공자를 나중에 붙일 때는 이 규칙을 적용하지 말 것 — 계정 탈취 경로가 된다)
 3. 둘 다 없으면 → 신규 계정 생성. `nickname`은 제공자 프로필에서, 중복이면 뒤에 숫자를
    붙여 유일하게 만든다. `phone`은 `null`, 비밀번호 없음
-4. 제공자가 이메일을 안 주면 → 실패, `{redirect}?error=EMAIL_CONSENT_REQUIRED`
+4. 제공자가 이메일을 안 주면 (v1.3.2 개정):
+   - **카카오**: 이메일 없이 신규 가입을 허용한다 (`email: null`). 카카오 콘솔의
+     이메일 권한이 비즈 앱 전용이라 dev 단계에서 받을 수 없다. 규칙 2(자동 연동)는
+     건너뛴다 — 연동할 이메일이 없으므로 항상 규칙 1 아니면 규칙 3
+   - **네이버** (이메일이 정상 제공되는 제공자): 실패, `{redirect}?error=EMAIL_CONSENT_REQUIRED`
+   - **단, 규칙 1(연동 이력)에 걸린 사용자는 어느 제공자든 이메일 없이 로그인된다** (v1.3.1)
+   - 출시 단계에 카카오 비즈 앱 전환 후 카카오도 네이버와 같은 규칙으로 올린다 (배포 체크리스트)
+
+**`email: null` 계정의 규칙**: 이메일/비번 로그인 불가(비밀번호도 없음), 이메일 기반
+자동 연동 대상에서 제외. 그 외 기능은 동일. `UserResponse.email`은 nullable (§2 참고)..
+   단 **연동 이력이 있으면(규칙 1) 이메일 검사는 하지 않는다** — 이미 연동한 사용자가
+   나중에 이메일 동의를 철회해도 로그인은 계속돼야 한다 (v1.3.1)
 
 **비밀번호 없는 소셜 계정** 이 이메일/비번 로그인을 시도하면 401 `LOGIN_FAILED`
 (전용 코드를 만들지 않는다 — 계정 존재 여부 노출 방지. FE 문구도 기존 그대로).
