@@ -1,7 +1,13 @@
-# Kickoff API 계약 v1
+# Kickoff API 계약 v1 (현재 v1.2.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.2.1 (2026-08-24): `RequestResponse`에 `postTeam`(글 작성 팀 `TeamSummary`) 추가 —
+> 보낸 신청 목록이 "누구에게 신청했는지"를 표시할 수 없던 갭 해소.
+>
+> v1.2.0 (2026-08-24): 리뷰·평점 추가 — §7 신설, `TeamResponse`에 `reviewCount`/`averageRating`,
+> `RequestResponse`에 `myReviewWritten`, 에러 코드 `REVIEW_*` 2종. 리뷰를 v1 범위 밖 목록에서 제거.
 
 - BE: `kickoff_be` (Spring Boot 4.1.1 / Java 17 / Gradle / JPA)
 - FE: `kickoff_fe` (Expo SDK 57 / React Native / expo-router / TypeScript)
@@ -52,6 +58,8 @@
 | `REQUEST_NOT_FOUND` | 404 | |
 | `REQUEST_NOT_PENDING` | 409 | 이미 처리된 신청을 또 처리 |
 | `REQUEST_NOT_ACCEPTED` | 409 | 수락되지 않은 신청에 입금 확인 시도 |
+| `REVIEW_NOT_AVAILABLE` | 409 | 리뷰 불가 상태 (매칭 미성사 또는 경기 전) |
+| `REVIEW_ALREADY_EXISTS` | 409 | 같은 매칭에 이미 리뷰 작성함 |
 | `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
@@ -102,8 +110,12 @@ RequestStatus PENDING | ACCEPTED | REJECTED | CANCELED
 { "id": 3, "name": "FC 새벽", "region": "서울 강서구", "homeGround": "강서구민운동장",
   "skillLevel": "INTERMEDIATE", "ageGroup": "THIRTIES", "memberCount": 18,
   "introduction": "매주 토요일 오전 7시에 모입니다.", "logoUrl": null,
-  "ownerNickname": "김주장", "isMine": false, "createdAt": "2026-08-01T10:00:00+09:00" }
+  "ownerNickname": "김주장", "isMine": false, "createdAt": "2026-08-01T10:00:00+09:00",
+  "reviewCount": 4, "averageRating": 4.5 }
 ```
+
+`reviewCount`(받은 리뷰 수), `averageRating`(1~5 평균, **소수 첫째 자리 반올림**. 리뷰 없으면
+`null` — FE는 "평가 없음" 표시). v1.2.0 추가. `TeamSummary`에는 넣지 않는다 (목록 카드 변경 최소화).
 
 ### PageResponse&lt;T&gt;
 ```json
@@ -276,10 +288,19 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
 ```json
 { "id": 7, "postId": 12, "postTitle": "토요일 아침 풋살 상대 구합니다",
   "postStatus": "OPEN", "matchAt": "2026-08-30T07:00:00+09:00",
-  "applicantTeam": "<TeamSummary>", "message": "저희도 강서구라 가깝습니다!",
+  "applicantTeam": "<TeamSummary>", "postTeam": "<TeamSummary>",
+  "message": "저희도 강서구라 가깝습니다!",
   "status": "PENDING", "contact": null, "payment": null, "depositPaid": false,
+  "myReviewWritten": false,
   "createdAt": "2026-08-23T11:00:00+09:00" }
 ```
+
+`postTeam`(v1.2.1): **글 작성 팀**의 `TeamSummary`. 보낸 신청 목록에서 "누구에게
+신청했는지", 리뷰 쓰기에서 "누구를 평가하는지"를 표시하는 데 쓴다. 받은/보낸 어느
+관점에서든 항상 채워진다 (applicantTeam과 함께 매칭의 양 팀이 응답에 모두 담긴다).
+
+`myReviewWritten`(v1.2.0): **요청자의 팀**이 이 매칭에 리뷰를 이미 썼는지. FE는
+`status === 'ACCEPTED' && matchAt < now && !myReviewWritten`일 때 "리뷰 쓰기" 버튼을 노출한다.
 
 `contact`는 `status`가 `ACCEPTED`일 때만 채워진다. 규칙은 PostDetail과 동일.
 `postStatus`는 신청이 걸린 글의 현재 상태 — FE가 받은/보낸 신청 목록에서 글 상태
@@ -341,6 +362,47 @@ PENDING 신청 취소 → `CANCELED`. 204. PENDING이 아니면 409 `REQUEST_NOT
 
 재신청 이력이 있으면 **가장 최근** 신청의 상태를 반환한다.
 
-## 7. v1 범위 밖 (구현하지 말 것)
+## 7. 리뷰·평점 (v1.2.0)
 
-실시간 채팅, 푸시 알림, 이미지 업로드, 소셜 로그인, refresh token, 경기 결과/전적 기록, 지도, 리뷰·평점
+경기가 끝난 매칭(수락된 신청)에 대해 **양 팀이 서로 한 번씩** 상대 팀을 평가한다.
+리뷰 단위는 팀이 아니라 **매칭(requestId)** — 같은 두 팀이 다른 경기로 또 만나면 또 쓸 수 있다.
+
+### ReviewResponse
+
+```json
+{ "id": 3, "requestId": 7, "postId": 12, "postTitle": "토요일 아침 풋살 상대 구합니다",
+  "matchAt": "2026-08-30T07:00:00+09:00", "reviewerTeam": "<TeamSummary>",
+  "targetTeamId": 3, "rating": 5, "comment": "시간 약속 정확하고 매너 좋았습니다.",
+  "createdAt": "2026-08-30T10:12:00+09:00" }
+```
+
+### POST /api/requests/{requestId}/review — 인증 필요, 매칭 당사자 팀만
+
+```json
+{ "rating": 5, "comment": "시간 약속 정확하고 매너 좋았습니다." }
+```
+
+- `rating` 1~5 **정수** 필수 / `comment` 최대 500자 optional (없으면 `null` 저장)
+- 대상 팀은 서버가 결정한다: 글 작성 팀이 쓰면 → 신청 팀, 신청 팀이 쓰면 → 글 작성 팀
+- 작성 조건 (전부 만족해야 함):
+  - 신청 `status`가 `ACCEPTED` — 아니면 409 `REVIEW_NOT_AVAILABLE`
+  - `matchAt`이 현재보다 **과거** (경기가 끝났어야 함) — 아니면 409 `REVIEW_NOT_AVAILABLE`
+  - 내 팀이 그 매칭의 당사자 (글 작성 팀 또는 신청 팀) — 아니면 403 `FORBIDDEN`
+  - 내 팀이 이 매칭에 아직 안 씀 — 이미 썼으면 409 `REVIEW_ALREADY_EXISTS`
+- 201 → `ReviewResponse`
+- 수정/삭제는 없다 (한 번 쓰면 확정). 관리 기능은 v2로 미룬다
+
+### GET /api/teams/{teamId}/reviews — 인증 불필요
+
+팀이 **받은** 리뷰 목록. 쿼리 `page`(기본 0), `size`(기본 20, 최대 50).
+200 → `PageResponse<ReviewResponse>`, `createdAt` DESC. 팀이 없으면 404 `TEAM_NOT_FOUND`.
+
+### 평점 집계 규칙
+
+- `TeamResponse.averageRating` = 받은 리뷰 rating 평균, 소수 첫째 자리 반올림 (`4.4666…` → `4.5`)
+- 리뷰 0건이면 `averageRating: null`, `reviewCount: 0`
+- 집계는 조회 시점 계산이든 반정규화든 BE 구현 자유 — 계약은 응답 값만 규정한다
+
+## 8. v1 범위 밖 (구현하지 말 것)
+
+실시간 채팅, 푸시 알림, 이미지 업로드, 소셜 로그인, refresh token, 경기 결과/전적 기록, 지도, 리뷰 수정·삭제·신고
