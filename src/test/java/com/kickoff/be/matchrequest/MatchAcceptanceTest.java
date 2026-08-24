@@ -193,6 +193,42 @@ class MatchAcceptanceTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("SELF_REQUEST_NOT_ALLOWED"));
     }
 
+    @Test
+    @DisplayName("받은·보낸·글별 어느 목록에서든 매칭의 양 팀이 다 담긴다 (계약서 v1.2.1 postTeam)")
+    void bothTeamsAreAlwaysPresentInRequestResponse() throws Exception {
+        // 글 작성자 관점 — 받은 신청
+        mockMvc.perform(get("/api/requests/received")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(author)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].postTeam.name").value("FC 새벽"))
+                .andExpect(jsonPath("$[0].applicantTeam.name").isNotEmpty());
+
+        // 신청 팀 관점 — 보낸 신청. 여기가 postTeam 이 없으면 "누구에게 신청했는지"를 못 그린다
+        mockMvc.perform(get("/api/requests/sent")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(applicantB)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].postTeam.name").value("FC 새벽"))
+                .andExpect(jsonPath("$[0].applicantTeam.name").value("마포 유나이티드"));
+
+        // 글별 목록
+        mockMvc.perform(get("/api/posts/{id}/requests", post.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(author)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].postTeam.name").value("FC 새벽"));
+
+        // 상태를 바꾸는 응답들도 같은 형태여야 한다
+        mockMvc.perform(post("/api/requests/{id}/accept", requestB)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(author)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postTeam.name").value("FC 새벽"))
+                .andExpect(jsonPath("$.applicantTeam.name").value("마포 유나이티드"));
+
+        mockMvc.perform(post("/api/requests/{id}/confirm-deposit", requestB)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(author)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postTeam.name").value("FC 새벽"));
+    }
+
     private long apply(User user, String message) throws Exception {
         return idOf(mockMvc.perform(post("/api/posts/{id}/requests", post.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(user))

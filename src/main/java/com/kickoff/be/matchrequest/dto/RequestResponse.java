@@ -17,6 +17,7 @@ public record RequestResponse(
         PostStatus postStatus,
         OffsetDateTime matchAt,
         TeamSummary applicantTeam,
+        TeamSummary postTeam,
         String message,
         RequestStatus status,
         ContactInfo contact,
@@ -40,6 +41,9 @@ public record RequestResponse(
                 post.getStatus(),
                 post.getMatchAt(),
                 TeamSummary.from(request.getApplicantTeam()),
+                // 매칭의 양 팀이 응답에 모두 담긴다 (계약서 §6, v1.2.1). post.team 은
+                // RequestResponse 를 만드는 모든 조회가 이미 fetch 해 오므로 추가 쿼리가 없다.
+                TeamSummary.from(post.getTeam()),
                 request.getMessage(),
                 request.getStatus(),
                 contactFor(request, viewerId),
