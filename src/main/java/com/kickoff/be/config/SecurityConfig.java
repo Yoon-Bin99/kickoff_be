@@ -59,6 +59,8 @@ public class SecurityConfig {
 
                         // 인증 불필요 (계약서 §4, §5)
                         .requestMatchers(HttpMethod.GET, "/api/teams/*").permitAll()
+                        // 팀 평판은 누구나 본다 (계약서 §7)
+                        .requestMatchers(HttpMethod.GET, "/api/teams/*/reviews").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*").permitAll()
 
                         .anyRequest().authenticated())

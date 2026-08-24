@@ -1,6 +1,7 @@
 package com.kickoff.be.team.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
@@ -18,11 +19,17 @@ public record TeamResponse(
         String logoUrl,
         String ownerNickname,
         @JsonProperty("isMine") boolean isMine,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        long reviewCount,
+        Double averageRating
 ) {
 
-    /** viewerId 는 비로그인이면 null — 그때 isMine 은 false. */
-    public static TeamResponse of(Team team, Long viewerId) {
+    /**
+     * viewerId 는 비로그인이면 null — 그때 isMine 은 false.
+     * reviewStats 를 인자로 받는 이유: 이 DTO 는 팀 조회와 글 상세 양쪽에서 만들어지는데,
+     * 집계를 안에서 조회하면 리포지터리 의존이 DTO 로 새고 호출자가 쿼리 수를 통제할 수 없다.
+     */
+    public static TeamResponse of(Team team, Long viewerId, ReviewStats reviewStats) {
         return new TeamResponse(
                 team.getId(),
                 team.getName(),
@@ -35,7 +42,9 @@ public record TeamResponse(
                 team.getLogoUrl(),
                 team.getOwner().getNickname(),
                 team.isOwnedBy(viewerId),
-                team.getCreatedAt()
+                team.getCreatedAt(),
+                reviewStats.count(),
+                reviewStats.average()
         );
     }
 }

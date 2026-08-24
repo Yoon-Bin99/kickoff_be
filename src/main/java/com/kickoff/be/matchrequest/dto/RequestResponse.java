@@ -22,10 +22,16 @@ public record RequestResponse(
         ContactInfo contact,
         PaymentInfo payment,
         @JsonProperty("depositPaid") boolean depositPaid,
+        @JsonProperty("myReviewWritten") boolean myReviewWritten,
         OffsetDateTime createdAt
 ) {
 
-    public static RequestResponse of(MatchRequest request, Long viewerId) {
+    /**
+     * myReviewWritten 은 <b>요청자의 팀</b> 기준이다 (계약서 §6). 신청 하나에 대해 양 팀이
+     * 서로 다른 값을 보므로 엔티티에서 끌어낼 수 없고, 호출자가 보는 이의 팀으로 계산해 넘긴다.
+     */
+    public static RequestResponse of(MatchRequest request, Long viewerId,
+                                     boolean myReviewWritten) {
         MatchPost post = request.getPost();
         return new RequestResponse(
                 request.getId(),
@@ -39,6 +45,7 @@ public record RequestResponse(
                 contactFor(request, viewerId),
                 paymentFor(request, viewerId),
                 request.isDepositPaid(),
+                myReviewWritten,
                 request.getCreatedAt()
         );
     }

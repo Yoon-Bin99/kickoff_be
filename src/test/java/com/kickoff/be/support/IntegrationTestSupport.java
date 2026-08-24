@@ -2,10 +2,12 @@ package com.kickoff.be.support;
 
 import com.jayway.jsonpath.JsonPath;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
+import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.repository.MatchPostRepository;
+import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
@@ -52,13 +54,16 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected MatchRequestRepository requestRepository;
     @Autowired
+    protected ReviewRepository reviewRepository;
+    @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
     protected JwtTokenProvider tokenProvider;
 
     @BeforeEach
     void resetDatabase() {
-        // 외래키 순서대로 — 신청이 글을, 글이 팀을, 팀이 사용자를 참조한다
+        // 외래키 순서대로 — 리뷰가 신청을, 신청이 글을, 글이 팀을, 팀이 사용자를 참조한다
+        reviewRepository.deleteAll();
         requestRepository.deleteAll();
         postRepository.deleteAll();
         teamRepository.deleteAll();
@@ -108,6 +113,26 @@ public abstract class IntegrationTestSupport {
                 .bankName(withAccount ? BANK : null)
                 .accountNumber(withAccount ? ACCOUNT_NUMBER : null)
                 .accountHolder(withAccount ? ACCOUNT_HOLDER : null)
+                .build());
+    }
+
+    /**
+     * 지난 경기의 수락된 매칭. 리뷰 조건을 만들려면 이 방법뿐이다 —
+     * 지난 경기 글에는 API 로 신청을 넣을 수 없어서(계약서 §5) 엔티티로 직접 만든다.
+     */
+    protected MatchRequest acceptedRequest(MatchPost post, Team applicantTeam) {
+        MatchRequest request = pendingRequest(post, applicantTeam);
+        request.accept();
+        post.markMatched();
+        postRepository.save(post);
+        return requestRepository.save(request);
+    }
+
+    protected MatchRequest pendingRequest(MatchPost post, Team applicantTeam) {
+        return requestRepository.save(MatchRequest.builder()
+                .post(post)
+                .applicantTeam(applicantTeam)
+                .message(applicantTeam.getName() + " 신청합니다")
                 .build());
     }
 

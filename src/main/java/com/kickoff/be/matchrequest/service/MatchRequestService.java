@@ -9,10 +9,12 @@ import com.kickoff.be.matchrequest.entity.RequestStatus;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.repository.MatchPostRepository;
+import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,7 @@ public class MatchRequestService {
     private final MatchRequestRepository requestRepository;
     private final MatchPostRepository postRepository;
     private final TeamRepository teamRepository;
+    private final ReviewRepository reviewRepository;
 
     @Transactional
     public RequestResponse create(Long postId, User user, RequestCreateRequest request) {
@@ -54,7 +57,8 @@ public class MatchRequestService {
                 .applicantTeam(myTeam)
                 .message(request == null ? null : request.message())
                 .build());
-        return RequestResponse.of(saved, user.getId());
+        // 방금 만든 신청이라 리뷰가 달렸을 수 없다.
+        return RequestResponse.of(saved, user.getId(), false);
     }
 
     /** 한 글에 온 신청 — 글 작성자만 볼 수 있다. */
@@ -109,7 +113,7 @@ public class MatchRequestService {
 
         request.accept();
         request.getPost().markMatched();
-        return RequestResponse.of(request, user.getId());
+        return toResponse(request, user);
     }
 
     @Transactional
@@ -120,7 +124,7 @@ public class MatchRequestService {
             throw new BusinessException(ErrorCode.REQUEST_NOT_PENDING);
         }
         request.reject();
-        return RequestResponse.of(request, user.getId());
+        return toResponse(request, user);
     }
 
     /** 상대 팀 입금 확인. 기록용 플래그라 글/신청 상태는 그대로 둔다 (계약서 §6). */
@@ -132,7 +136,7 @@ public class MatchRequestService {
             throw new BusinessException(ErrorCode.REQUEST_NOT_ACCEPTED);
         }
         request.confirmDeposit();
-        return RequestResponse.of(request, user.getId());
+        return toResponse(request, user);
     }
 
     /** 신청 취소 — 신청한 팀만. */
@@ -159,8 +163,34 @@ public class MatchRequestService {
         }
     }
 
+    private RequestResponse toResponse(MatchRequest request, User viewer) {
+        Long viewerTeamId = viewerTeamId(viewer);
+        boolean reviewed = viewerTeamId != null && reviewRepository
+                .existsByRequestIdAndReviewerTeamId(request.getId(), viewerTeamId);
+        return RequestResponse.of(request, viewer.getId(), reviewed);
+    }
+
     private List<RequestResponse> toResponses(List<MatchRequest> requests, User viewer) {
         Long viewerId = viewer == null ? null : viewer.getId();
-        return requests.stream().map(r -> RequestResponse.of(r, viewerId)).toList();
+        Set<Long> reviewed = reviewedRequestIds(viewerTeamId(viewer), requests);
+        return requests.stream()
+                .map(r -> RequestResponse.of(r, viewerId, reviewed.contains(r.getId())))
+                .toList();
+    }
+
+    private Long viewerTeamId(User viewer) {
+        if (viewer == null) {
+            return null;
+        }
+        return teamRepository.findByOwnerId(viewer.getId()).map(Team::getId).orElse(null);
+    }
+
+    /** 목록의 myReviewWritten — 신청마다 exists 를 날리면 N+1 이라 한 번에 긁어온다. */
+    private Set<Long> reviewedRequestIds(Long viewerTeamId, List<MatchRequest> requests) {
+        if (viewerTeamId == null || requests.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(reviewRepository.findReviewedRequestIds(viewerTeamId,
+                requests.stream().map(MatchRequest::getId).toList()));
     }
 }

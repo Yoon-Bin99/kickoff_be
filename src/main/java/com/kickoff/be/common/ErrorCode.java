@@ -26,6 +26,8 @@ public enum ErrorCode {
     REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신청입니다."),
     REQUEST_NOT_PENDING(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
     REQUEST_NOT_ACCEPTED(HttpStatus.CONFLICT, "수락된 신청이 아닙니다."),
+    REVIEW_NOT_AVAILABLE(HttpStatus.CONFLICT, "아직 리뷰를 쓸 수 없는 매칭입니다."),
+    REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 리뷰를 작성했습니다."),
 
     /** 아래 둘은 계약서 표에는 없지만, 모든 4xx/5xx 가 같은 형식으로 나가야 해서 둔다. */
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),

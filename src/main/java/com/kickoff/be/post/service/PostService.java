@@ -18,6 +18,8 @@ import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.post.repository.MatchPostRepository;
+import com.kickoff.be.review.dto.ReviewStats;
+import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
@@ -46,6 +48,7 @@ public class PostService {
     private final MatchPostRepository postRepository;
     private final TeamRepository teamRepository;
     private final MatchRequestRepository requestRepository;
+    private final ReviewRepository reviewRepository;
 
     /**
      * 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5).
@@ -165,8 +168,10 @@ public class PostService {
 
     private PostDetail toDetail(MatchPost post, User viewer) {
         long requestCount = requestCounts(List.of(post)).getOrDefault(post.getId(), 0L);
+        // 상세의 team 은 TeamResponse 라 평점까지 들어간다 (계약서 §2, v1.2.0).
+        ReviewStats teamReviewStats = reviewRepository.statsOf(post.getTeam().getId());
         if (viewer == null) {
-            return PostDetail.of(post, requestCount, null, null, null, null);
+            return PostDetail.of(post, requestCount, null, null, null, null, teamReviewStats);
         }
 
         Long viewerId = viewer.getId();
@@ -181,7 +186,7 @@ public class PostService {
         MatchRequest accepted = requestRepository.findAcceptedByPostId(post.getId()).orElse(null);
         return PostDetail.of(post, requestCount, viewerId, myRequestStatus,
                 contactFor(post, accepted, viewerId, viewerTeamId),
-                paymentFor(post, accepted, viewerId, viewerTeamId));
+                paymentFor(post, accepted, viewerId, viewerTeamId), teamReviewStats);
     }
 
     /** 매칭이 성사된 두 팀만 서로의 연락처를 본다. */
