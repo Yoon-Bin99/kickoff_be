@@ -21,18 +21,23 @@ public interface MatchPostRepository extends JpaRepository<MatchPost, Long> {
      *
      * 지난 경기는 status 와 무관하게 빠진다 — 매칭 대상이 아니라서다.
      * 내 글 목록(findByTeamId)에는 이 조건을 걸지 않는다. 그쪽은 기록이니까.
+     *
+     * region 과 keyword 를 <b>cast(... as string)</b> 으로 감싼 이유가 있다. 이 둘은 보통 null 인데,
+     * PostgreSQL 은 타입 정보 없는 null 파라미터를 bytea 로 추론해서 lower(bytea) 를 찾다가
+     * 실패한다 (function lower(bytea) does not exist). H2 는 이걸 그냥 넘어가기 때문에
+     * 실제 PostgreSQL 로 띄워보기 전에는 드러나지 않았다. 캐스팅이 타입을 못 박아준다.
      */
     @EntityGraph(attributePaths = "team")
     @Query("""
             select p from MatchPost p
             where p.matchAt >= :now
-              and (:region is null or lower(p.region) like lower(concat('%', :region, '%')))
+              and (:region is null or lower(p.region) like lower(concat('%', cast(:region as string), '%')))
               and (:fieldType is null or p.fieldType = :fieldType)
               and (:skillLevel is null or p.preferredSkillLevel = :skillLevel)
               and (:status is null or p.status = :status)
               and (:keyword is null
-                   or lower(p.title) like lower(concat('%', :keyword, '%'))
-                   or lower(p.content) like lower(concat('%', :keyword, '%')))
+                   or lower(p.title) like lower(concat('%', cast(:keyword as string), '%'))
+                   or lower(p.content) like lower(concat('%', cast(:keyword as string), '%')))
             """)
     Page<MatchPost> search(@Param("now") OffsetDateTime now,
                            @Param("region") String region,
