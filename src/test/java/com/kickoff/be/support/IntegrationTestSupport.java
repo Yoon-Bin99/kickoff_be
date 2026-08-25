@@ -46,7 +46,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({StubOAuthConfig.class, StubPushConfig.class})
+@Import({StubOAuthConfig.class, StubPushConfig.class, StubPlaceConfig.class})
 public abstract class IntegrationTestSupport {
 
     protected static final String PASSWORD = "pass1234";
@@ -103,6 +103,8 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected StubPushClient pushClient;
     @Autowired
+    protected StubPlaceSearchClient placeSearchClient;
+    @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
     protected JwtTokenProvider tokenProvider;
@@ -120,6 +122,7 @@ public abstract class IntegrationTestSupport {
         kakaoStub.reset();
         naverStub.reset();
         pushClient.reset();
+        placeSearchClient.reset();
     }
 
     /** 소셜 가입 직후처럼 전화번호가 없는 사용자. */

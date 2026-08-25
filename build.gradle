@@ -30,6 +30,10 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     // Flyway 10 부터 DB 별 지원이 모듈로 쪼개졌다. H2 는 core 에 있고 PostgreSQL 은 별도다.
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    // 카카오 장소 검색을 부르는 RestClient 용. webmvc 스타터에는 RestClient 클래스만 들어
+    // 있고 RestClient.Builder <b>빈</b>을 만들어 주는 자동설정은 이 모듈에 있다 — 빠뜨리면
+    // 기동이 NoSuchBeanDefinition 으로 죽는다 (flyway 와 같은 함정).
+    implementation 'org.springframework.boot:spring-boot-restclient'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'

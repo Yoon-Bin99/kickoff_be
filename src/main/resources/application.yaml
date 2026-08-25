@@ -1,4 +1,10 @@
 spring:
+  # 외부 장소 검색이 느려지면 우리 요청 스레드가 같이 묶인다. 사용자가 검색창에서
+  # 기다려 줄 만한 시간으로 끊고, 그 뒤는 502 PLACE_SEARCH_FAILED 로 넘긴다.
+  http:
+    client:
+      connect-timeout: 2s
+      read-timeout: 5s
   application:
     name: be
   profiles:
@@ -23,6 +29,12 @@ server:
   # Railway 같은 PaaS 는 PORT 를 주입한다. 없으면 로컬 기본값.
   port: ${PORT:8080}
   address: 0.0.0.0
+
+place:
+  kakao:
+    # 카카오 로컬 API REST 키. 로그인용 KAKAO_CLIENT_ID 와 <b>다른 앱</b>의 키다 (계약서 §5-1).
+    # 값을 여기 적지 말 것 — 저장소에 커밋된다.
+    rest-key: ${KAKAO_MAP_REST_KEY:}
 
 kickoff:
   push:

@@ -33,6 +33,7 @@ public enum ErrorCode {
     /** v1.3.4 에서 자동 연동이 폐지돼 지금은 쓰지 않는다. 연동 기능이 생기는 v2 를 위해 남긴다. */
     EMAIL_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "이메일 제공에 동의해야 가입할 수 있습니다."),
     PHONE_REQUIRED(HttpStatus.BAD_REQUEST, "전화번호를 먼저 등록해야 합니다."),
+    PLACE_SEARCH_FAILED(HttpStatus.BAD_GATEWAY, "장소 검색에 실패했습니다."),
 
     /** 아래 둘은 계약서 표에는 없지만, 모든 4xx/5xx 가 같은 형식으로 나가야 해서 둔다. */
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),
