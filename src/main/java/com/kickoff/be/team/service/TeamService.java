@@ -10,7 +10,10 @@ import com.kickoff.be.team.dto.TeamResponse;
 import com.kickoff.be.team.dto.TeamUpdateRequest;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
+import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.user.entity.User;
+import java.time.Year;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,7 @@ public class TeamService {
         if (!owner.hasPhone()) {
             throw new BusinessException(ErrorCode.PHONE_REQUIRED);
         }
+        requireFoundedYearNotInFuture(request.foundedYear());
         Team team = teamRepository.save(Team.builder()
                 .owner(owner)
                 .name(request.name())
@@ -41,6 +45,9 @@ public class TeamService {
                 .ageGroup(request.ageGroup())
                 .memberCount(request.memberCount())
                 .introduction(request.introduction())
+                .foundedYear(request.foundedYear())
+                .teamColor(request.teamColor())
+                .formation(request.formation())
                 .build());
         // 방금 만든 팀이라 받은 리뷰가 있을 수 없다.
         return TeamResponse.of(team, owner.getId(), ReviewStats.EMPTY);
@@ -84,6 +91,33 @@ public class TeamService {
         if (Patchable.isPresent(request.introduction())) {
             team.updateIntroduction(Patchable.valueOf(request.introduction()));
         }
+        applyProfilePatch(team, request);
         return TeamResponse.of(team, user.getId(), reviewRepository.statsOf(team.getId()));
+    }
+
+    /** 팀 프로필 확장 필드 (계약서 §4-1, v1.8.0). 셋 다 명시적 null 로 지울 수 있다. */
+    private void applyProfilePatch(Team team, TeamUpdateRequest request) {
+        if (Patchable.isPresent(request.foundedYear())) {
+            requireFoundedYearNotInFuture(Patchable.valueOf(request.foundedYear()));
+            team.updateFoundedYear(Patchable.valueOf(request.foundedYear()));
+        }
+        if (Patchable.isPresent(request.teamColor())) {
+            team.updateTeamColor(Patchable.valueOf(request.teamColor()));
+        }
+        if (Patchable.isPresent(request.formation())) {
+            team.updateFormation(Patchable.valueOf(request.formation()));
+        }
+    }
+
+    /**
+     * 창단 연도 상한은 "올해"다 (계약서 §4-1). 어노테이션 상수로는 못 박는다 — 해가 바뀌면
+     * 상한도 같이 올라가야 하는데 @Max 는 컴파일 시점에 굳는다. 하한 1900 만 어노테이션이
+     * 맡고 상한은 여기서 본다.
+     */
+    private void requireFoundedYearNotInFuture(Integer foundedYear) {
+        if (foundedYear != null && foundedYear > Year.now().getValue()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                    new ErrorResponse.FieldError("foundedYear", "창단 연도는 올해 이하여야 합니다.")));
+        }
     }
 }

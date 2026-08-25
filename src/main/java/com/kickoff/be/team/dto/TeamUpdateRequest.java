@@ -5,6 +5,7 @@ import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -40,6 +41,17 @@ public record TeamUpdateRequest(
 
         /** null 이면 소개 없음으로 되돌린다. */
         @Size(min = 1, max = 1000, message = "소개는 1~1000자여야 합니다.")
-        Patchable<String> introduction
+        Patchable<String> introduction,
+
+        // ── 팀 프로필 확장 (계약서 §4-1, v1.8.0). 전부 지울 수 있다.
+
+        @Min(value = 1900, message = "창단 연도는 1900년 이후여야 합니다.")
+        Patchable<Integer> foundedYear,
+
+        @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "팀 색은 #RRGGBB 형식이어야 합니다.")
+        Patchable<String> teamColor,
+
+        @Size(min = 1, max = 10, message = "포메이션은 1~10자여야 합니다.")
+        Patchable<String> formation
 ) {
 }

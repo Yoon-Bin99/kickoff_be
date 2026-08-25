@@ -1,8 +1,16 @@
-# Kickoff API 계약 v1 (현재 v1.7.0)
+# Kickoff API 계약 v1 (현재 v1.9.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.9.0 (2026-08-25): 팀 관리자 — §4-2 신설. 소유자(생성자)가 다른 회원을 팀
+> 관리자로 임명(이메일 지정, 최대 5명). 관리자는 **팀 페이지 수정**(팀 정보 PATCH,
+> 명단, 기록) 가능. 매칭·리뷰 권한은 소유자 전용 유지. `TeamResponse`에 `myRole`.
+>
+> v1.8.0 (2026-08-25): 팀 페이지 — §4-1 신설: 팀원 명단(TeamMember CRUD), 경기 기록
+> (TeamRecord 수동 입력 + 전적 요약), 팀 프로필 확장(foundedYear·teamColor·formation).
+> Position 열거형, 에러 3종. 수동 전적을 범위 밖 목록에서 제거(자동 연동은 여전히 밖).
+>
 > v1.7.0 (2026-08-25): refresh token — access 1시간 + refresh 30일(로테이션). 로그인류
 > 응답에 `refreshToken` 추가, `POST /api/auth/refresh`·`POST /api/auth/logout` 신설,
 > `INVALID_REFRESH_TOKEN` 추가. 범위 밖 목록에서 refresh token 제거.
@@ -107,6 +115,12 @@
 | `PHONE_REQUIRED` | 400 | 전화번호 없는 사용자가 팀 생성 시도 |
 | `PLACE_SEARCH_FAILED` | 502 | 장소 검색 외부 API 실패 |
 | `INVALID_REFRESH_TOKEN` | 401 | refresh token 만료·무효·로테이션됨 (재로그인 필요) |
+| `TEAM_MEMBER_LIMIT` | 400 | 팀원 30명 초과 |
+| `MEMBER_NOT_FOUND` | 404 | |
+| `RECORD_NOT_FOUND` | 404 | |
+| `ALREADY_TEAM_ADMIN` | 409 | 이미 관리자거나 소유자 본인을 임명 시도 |
+| `TEAM_ADMIN_LIMIT` | 400 | 팀 관리자 5명 초과 |
+| `ADMIN_NOT_FOUND` | 404 | |
 | `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
@@ -137,6 +151,9 @@ PostStatus    OPEN | MATCHED | CLOSED
 
 RequestStatus PENDING | ACCEPTED | REJECTED | CANCELED
               대기중    수락됨     거절됨     취소됨
+
+Position      GK | DF | MF | FW
+              골키퍼  수비   미드필더  공격
 
 AuthProvider  KAKAO | NAVER | GOOGLE | APPLE
               (v1.3에서는 KAKAO·NAVER만 활성. GOOGLE·APPLE은 값만 예약 —
@@ -338,6 +355,92 @@ FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한�
 POST와 같은 필드, 전부 optional. 200 → `TeamResponse`
 - v1.5.1: `homeGround`, `introduction`은 명시적 `null`로 지울 수 있다 (§5의 PATCH
   지우기 규칙 참고). 필수 필드는 `null` 불가
+
+## 4-1. 팀 페이지 (v1.8.0)
+
+### 팀 프로필 확장
+
+`POST/PATCH /api/teams` 요청과 `TeamResponse`에 추가 (전부 optional/nullable,
+PATCH 지우기는 v1.5.1 규칙):
+
+```json
+{ "foundedYear": 2020, "teamColor": "#1B7F4B", "formation": "4-4-2" }
+```
+
+- `foundedYear` 1900~현재년도 / `teamColor` `#RRGGBB` 형식 / `formation` 최대 10자 자유 문자열
+- `TeamResponse`에는 전적 요약도 함께 나간다 (아래 기록에서 집계):
+  `"recordSummary": { "wins": 7, "draws": 2, "losses": 3 }` — 기록 0건이면 전부 0
+
+### 팀원 명단 (TeamMember)
+
+팀당 최대 **30명**. 명단은 실제 앱 계정이 아니라 **주장이 입력하는 정보**다.
+
+```json
+{ "id": 5, "name": "김철수", "position": "MF", "backNumber": 8 }
+```
+
+- `name` 1~20자 필수 / `position` Position enum, nullable / `backNumber` 0~99, nullable
+- `GET /api/teams/{teamId}/members` — 인증 불필요. 200 → `TeamMember[]`
+  (등번호 오름차순, null 등번호는 뒤에 이름순)
+- `POST /api/teams/{teamId}/members` — 소유자만. 201 → `TeamMember`.
+  30명 초과 시 400 `TEAM_MEMBER_LIMIT`
+- `PATCH /api/teams/{teamId}/members/{memberId}` — 소유자만. 전부 optional,
+  position·backNumber는 명시적 null로 지우기 가능(v1.5.1 규칙). 200 → `TeamMember`
+- `DELETE /api/teams/{teamId}/members/{memberId}` — 소유자만. 204
+- 없는 멤버 404 `MEMBER_NOT_FOUND`, 남의 팀 403 `FORBIDDEN`
+
+### 경기 기록 (TeamRecord)
+
+주장이 **수동 입력**하는 전적. 매칭 시스템과의 자동 연동은 범위 밖(v2).
+
+```json
+{ "id": 3, "playedOn": "2026-08-17", "opponentName": "FC 새벽",
+  "ourScore": 3, "opponentScore": 1, "result": "WIN", "memo": "후반 역전승" }
+```
+
+- `playedOn` 과거~오늘 날짜 필수 / `opponentName` 1~30자 필수 /
+  `ourScore`·`opponentScore` 0~99 필수 / `memo` 최대 200자 optional
+- `result`는 서버가 스코어로 계산해 내려준다: `WIN | DRAW | LOSS`
+- `GET /api/teams/{teamId}/records` — 인증 불필요. `page`/`size`(기본 20, 최대 50).
+  200 → `PageResponse<TeamRecord>`, `playedOn` DESC (동률 id DESC)
+- `POST /api/teams/{teamId}/records` — 소유자만. 201 → `TeamRecord`
+- `DELETE /api/teams/{teamId}/records/{recordId}` — 소유자만. 204. 없는 기록 404 `RECORD_NOT_FOUND`
+- 수정은 없다 — 잘못 넣었으면 지우고 다시 (기록 무결성보다 단순함 우선, v1 결정)
+
+## 4-2. 팀 관리자 (v1.9.0)
+
+역할 3단계: **OWNER**(팀 생성자, 유일) > **ADMIN**(소유자가 임명) > 일반.
+
+**권한표** (이 표가 정본 — 다른 절의 "소유자만" 표기 중 팀 페이지 관련은 v1.9.0부터
+"소유자·관리자"로 읽는다):
+
+| 행위 | OWNER | ADMIN |
+|---|---|---|
+| 팀 정보 PATCH (기본+확장 필드) | ✓ | ✓ |
+| 팀원 명단·경기 기록 쓰기 (§4-1) | ✓ | ✓ |
+| 관리자 임명·해제 | ✓ | ✗ |
+| 모집글 작성·수정, 신청, 수락/거절, 입금 확인, 리뷰 | ✓ | ✗ |
+
+- `TeamResponse`에 추가: `"myRole": "OWNER" | "ADMIN" | null` (비로그인·무관계면 null.
+  기존 `isMine`은 `myRole === "OWNER"`와 동치로 유지 — 하위호환)
+- ADMIN이 소유자 전용 행위를 하면 403 `FORBIDDEN` (전용 코드 없음)
+- 한 사용자가 여러 팀의 ADMIN일 수 있다. 자기 팀 소유와도 무관 (팀 없는 사용자도
+  ADMIN이 될 수 있다 — 팀 페이지 수정에는 `hasTeam`이 필요 없다)
+
+### GET /api/teams/{teamId}/admins — 소유자·관리자만
+
+200 → `[{ "userId": 4, "nickname": "최총무", "grantedAt": "..." }]` (임명순)
+
+### POST /api/teams/{teamId}/admins — 소유자만
+
+`{ "email": "chongmu@example.com" }` → 201, 위 항목 형태.
+- 대상 사용자 없음 404 `USER_NOT_FOUND` / 이미 관리자(또는 소유자 본인) 409
+  `ALREADY_TEAM_ADMIN` / 5명 초과 400 `TEAM_ADMIN_LIMIT`
+- 상대 동의 절차는 없다 (초대 수락 흐름은 v2)
+
+### DELETE /api/teams/{teamId}/admins/{userId} — 소유자만
+
+204. 해당 사용자가 관리자가 아니면 404 `ADMIN_NOT_FOUND`.
 
 ## 5. 모집글
 
@@ -673,7 +776,8 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 
 ## 9. v1 범위 밖 (구현하지 말 것)
 
-실시간 채팅, 이미지 업로드, 경기 결과/전적 기록,
+실시간 채팅, 이미지 업로드(팀 로고 포함), 전적 자동 연동(매칭→기록), 스쿼드/포메이션 보드,
+기록 수정, 팀원-계정 연결,
 리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),
 다중 기기 push token, 알림 히스토리 화면, 알림 설정(끄기/켜기),
 홈 목록 지도 뷰, 좌표 반경 검색, 정적 지도 이미지

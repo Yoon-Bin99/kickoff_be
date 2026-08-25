@@ -60,9 +60,24 @@ public class Team extends BaseTimeEntity {
     @Column(length = 500)
     private String logoUrl;
 
+    /** 창단 연도 (계약서 §4-1, v1.8.0). nullable — 모르는 팀이 많다. */
+    private Integer foundedYear;
+
+    /** 팀 색 {@code #RRGGBB} (계약서 §4-1). 형식 검증은 DTO 가 한다. */
+    @Column(length = 7)
+    private String teamColor;
+
+    /**
+     * 주 포메이션 (계약서 §4-1). "4-4-2" 같은 자유 문자열이다.
+     * 열거형으로 굳히지 않은 건 팀마다 쓰는 표기가 다르고 새 조합이 계속 나오기 때문이다.
+     */
+    @Column(length = 10)
+    private String formation;
+
     @Builder
     private Team(User owner, String name, String region, String homeGround, SkillLevel skillLevel,
-                 AgeGroup ageGroup, int memberCount, String introduction, String logoUrl) {
+                 AgeGroup ageGroup, int memberCount, String introduction, String logoUrl,
+                 Integer foundedYear, String teamColor, String formation) {
         this.owner = owner;
         this.name = name;
         this.region = region;
@@ -72,9 +87,11 @@ public class Team extends BaseTimeEntity {
         this.memberCount = memberCount;
         this.introduction = introduction;
         this.logoUrl = logoUrl;
+        this.foundedYear = foundedYear;
+        this.teamColor = teamColor;
+        this.formation = formation;
     }
 
-    /** PATCH 는 전 필드 optional 이라 null 인 항목은 건드리지 않는다. */
     /**
      * 지울 수 없는 필드만 여기서 바꾼다 — 여기서는 {@code null} 이 "안 건드림"이다.
      * 홈 구장·소개는 null 이 "지우기"라 규칙이 반대여서 아래 전용 메서드로 뗐다.
@@ -106,6 +123,21 @@ public class Team extends BaseTimeEntity {
     /** null 이면 소개 없음으로 되돌린다 (계약서 §4, v1.5.1). */
     public void updateIntroduction(String introduction) {
         this.introduction = introduction;
+    }
+
+    /** null 이면 창단 연도 없음으로 되돌린다 (계약서 §4-1, v1.8.0). */
+    public void updateFoundedYear(Integer foundedYear) {
+        this.foundedYear = foundedYear;
+    }
+
+    /** null 이면 팀 색 없음으로 되돌린다 (계약서 §4-1, v1.8.0). */
+    public void updateTeamColor(String teamColor) {
+        this.teamColor = teamColor;
+    }
+
+    /** null 이면 포메이션 없음으로 되돌린다 (계약서 §4-1, v1.8.0). */
+    public void updateFormation(String formation) {
+        this.formation = formation;
     }
 
     public boolean isOwnedBy(Long userId) {

@@ -21,7 +21,12 @@ public record TeamResponse(
         @JsonProperty("isMine") boolean isMine,
         OffsetDateTime createdAt,
         long reviewCount,
-        Double averageRating
+        Double averageRating,
+
+        // ── 팀 프로필 확장 (계약서 §4-1, v1.8.0)
+        Integer foundedYear,
+        String teamColor,
+        String formation
 ) {
 
     /**
@@ -44,7 +49,10 @@ public record TeamResponse(
                 team.isOwnedBy(viewerId),
                 team.getCreatedAt(),
                 reviewStats.count(),
-                reviewStats.average()
+                reviewStats.average(),
+                team.getFoundedYear(),
+                team.getTeamColor(),
+                team.getFormation()
         );
     }
 }

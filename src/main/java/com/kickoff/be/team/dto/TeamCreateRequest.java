@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record TeamCreateRequest(
@@ -33,6 +34,21 @@ public record TeamCreateRequest(
         Integer memberCount,
 
         @Size(max = 1000, message = "소개는 1000자를 넘을 수 없습니다.")
-        String introduction
+        String introduction,
+
+        // ── 팀 프로필 확장 (계약서 §4-1, v1.8.0). 전부 optional.
+
+        /**
+         * 창단 연도. 상한을 어노테이션 상수로 못 박을 수 없어 서비스에서 "현재 연도 이하"를
+         * 본다 — 해가 바뀌면 상한도 같이 올라가야 한다.
+         */
+        @Min(value = 1900, message = "창단 연도는 1900년 이후여야 합니다.")
+        Integer foundedYear,
+
+        @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "팀 색은 #RRGGBB 형식이어야 합니다.")
+        String teamColor,
+
+        @Size(max = 10, message = "포메이션은 10자를 넘을 수 없습니다.")
+        String formation
 ) {
 }
