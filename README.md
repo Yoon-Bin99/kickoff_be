@@ -254,6 +254,19 @@ Hibernate는 `ddl-auto: validate`로 대조만 한다 — 개발·테스트·운
 
 ## 운영 배포
 
+### 현재 배포
+
+| | |
+|---|---|
+| 주소 | https://kickoffbe-production-7275.up.railway.app |
+| 플랫폼 | Railway (origin `main` 푸시 시 자동 재배포) |
+| DB | Railway PostgreSQL |
+
+`main`에 푸시하면 재배포가 돈다. 그래서 푸시 전에 `./gradlew test`를 통과시킬 것.
+
+FE가 붙는 주소이기도 하므로 여기에 적어 둔다 — 세션이 바뀌면 이 주소를 아는 사람이
+아무도 없어지고, 저장소 어디에도 하드코딩돼 있지 않아 되찾을 방법이 없다.
+
 `Dockerfile`이 있다. 멀티스테이지로 `bootJar`까지 만들고 JRE 이미지에 얹는다.
 `SPRING_PROFILES_ACTIVE=prod`가 이미지에 박혀 있다 — 프로파일을 안 줘서 dev(H2)로 뜨는
 사고를 막기 위해서다.
@@ -273,6 +286,7 @@ docker run -p 8080:8080 -e DB_URL=... -e DB_USERNAME=... -e DB_PASSWORD=... -e J
 | `OAUTH_ALLOWED_REDIRECTS` | △ | 로그인 후 복귀 허용 주소. 기본 `kickoff://*` — **아래 경고 참고** |
 | `OAUTH_CALLBACK_BASE_URL` | △ | 콜백 오리진 고정 (`https://<도메인>`). 비우면 요청 오리진에서 만든다 |
 | `KAKAO_CLIENT_ID` 등 | | 소셜 로그인 키 4종. 없으면 해당 제공자만 비활성 |
+| `KAKAO_MAP_REST_KEY` | △ | 장소 검색용 카카오 REST 키. **`KAKAO_CLIENT_ID`와 다른 앱**이다 — 헷갈려서 소셜 키를 넣으면 검색이 통째로 502가 된다. 없으면 `/api/places/search`만 502로 나가고 나머지는 정상 |
 | `SEED_DATA` | | `true`면 시드 투입. **기본 off** — 첫 배포 직후 화면 확인용으로만 켠다 |
 | `PUSH_ENABLED` | | `true`면 푸시 발송. **기본 off** — 실기기에 실수로 알림이 나가지 않게 |
 
@@ -283,13 +297,17 @@ docker run -p 8080:8080 -e DB_URL=... -e DB_USERNAME=... -e DB_PASSWORD=... -e J
 > `OAUTH_ALLOWED_REDIRECTS=kickoff://*,exp://*`처럼 명시적으로 넣을 것.
 > 기동 로그의 `허용된 복귀 주소: [...]` 한 줄로 눈으로 확인할 수 있다.
 
-배포 후 로그에서 확인할 세 줄:
+배포 후 로그에서 확인할 네 줄:
 
 ```
 Successfully applied N migration(s)      ← Flyway 적용
 허용된 복귀 주소: [kickoff://*, exp://*]   ← 복귀 주소 설정
-활성 소셜 제공자: [KAKAO, NAVER]           ← 키 주입
+활성 소셜 제공자: [KAKAO, NAVER]           ← 소셜 키 주입
+장소 검색 키 설정됨                        ← 지도 검색 키 주입
 ```
+
+키가 없으면 마지막 줄이 `장소 검색 키 없음 — 검색이 502 로 나간다`로 뜬다. 기동은
+정상이고 검색만 죽으므로, 로그를 안 보면 배포가 성공한 것처럼 보인다.
 
 주의할 점 두 가지.
 
