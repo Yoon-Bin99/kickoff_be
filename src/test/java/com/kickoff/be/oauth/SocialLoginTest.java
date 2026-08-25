@@ -292,6 +292,26 @@ class SocialLoginTest extends IntegrationTestSupport {
     }
 
     /** authorize → callback 한 바퀴를 돌고 복귀 URL 의 쿼리를 돌려준다. */
+    @Test
+    @DisplayName("콜백 redirect 에 refreshToken 도 실린다 — 소셜도 자동 로그인이 된다 (v1.7.0)")
+    void callbackCarriesRefreshToken() throws Exception {
+        kakaoStub.willReturn("kakao-refresh", "카카오사용자");
+
+        Map<String, String> params = login();
+
+        assertThat(params.get("refreshToken")).isNotBlank();
+        assertThat(params.get("token")).isNotBlank();
+        assertThat(params.get("refreshToken")).isNotEqualTo(params.get("token"));
+
+        // 그 refreshToken 이 실제로 통해야 한다. 쿼리에 실렸다는 것만으로는
+        // 서버가 해시를 저장했는지 알 수 없다.
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\": \"" + params.get("refreshToken") + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty());
+    }
+
     private Map<String, String> login() throws Exception {
         return login("kakao", kakaoStub);
     }

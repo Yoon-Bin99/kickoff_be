@@ -98,6 +98,8 @@ public class OAuthService {
     private URI success(String redirect, SocialLoginResult result) {
         return UriComponentsBuilder.fromUriString(redirect)
                 .queryParam("token", result.accessToken())
+                // v1.7.0: 앱이 재시작돼도 로그인이 이어지려면 소셜 경로도 refresh 를 줘야 한다
+                .queryParam("refreshToken", result.refreshToken())
                 .queryParam("isNewUser", result.newUser())
                 .build()
                 .toUri();

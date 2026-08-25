@@ -52,7 +52,10 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
 
                         // 인증 불필요 (계약서 §3)
-                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login",
+                                // refresh token 자체가 자격 증명이라 access 없이 부른다 (v1.7.0).
+                                // 만료된 access 로 이 경로를 부르는 게 정상 흐름이기도 하다.
+                                "/api/auth/refresh").permitAll()
                         // 소셜 로그인 (계약서 §3-1) — 콜백은 제공자가 부르므로 토큰이 없다
                         .requestMatchers(HttpMethod.GET, "/api/auth/oauth/*/authorize",
                                 "/api/auth/oauth/*/callback").permitAll()

@@ -1,6 +1,7 @@
 package com.kickoff.be.oauth.service;
 
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
+import com.kickoff.be.auth.jwt.RefreshTokenProvider;
 import com.kickoff.be.oauth.dto.OAuthProfile;
 import com.kickoff.be.oauth.entity.AuthProvider;
 import com.kickoff.be.oauth.entity.SocialAccount;
@@ -30,8 +31,9 @@ public class SocialLoginService {
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final JwtTokenProvider tokenProvider;
+    private final RefreshTokenProvider refreshTokenProvider;
 
-    public record SocialLoginResult(String accessToken, boolean newUser) {
+    public record SocialLoginResult(String accessToken, String refreshToken, boolean newUser) {
     }
 
     @Transactional
@@ -68,8 +70,16 @@ public class SocialLoginService {
         return created;
     }
 
+    /**
+     * 소셜 로그인도 이메일 로그인과 같은 토큰 쌍을 준다 (계약서 §3, v1.7.0).
+     * 여기서도 새 refresh 가 이전 것을 덮어쓴다 — 단일 기기 정책은 로그인 경로와 무관하다.
+     */
     private SocialLoginResult issue(User user, boolean newUser) {
-        return new SocialLoginResult(tokenProvider.createToken(user.getId()), newUser);
+        String rawRefreshToken = refreshTokenProvider.issue();
+        user.issueRefreshToken(refreshTokenProvider.hash(rawRefreshToken),
+                refreshTokenProvider.expiresAt());
+        return new SocialLoginResult(tokenProvider.createToken(user.getId()),
+                rawRefreshToken, newUser);
     }
 
     private void link(User user, AuthProvider provider, OAuthProfile profile) {

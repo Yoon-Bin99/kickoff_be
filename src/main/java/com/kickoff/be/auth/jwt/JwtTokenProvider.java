@@ -13,8 +13,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * access token 단일 구성. 만료 7일 (계약서 §3).
- * subject 에 userId 를 담는다.
+ * access token 발급·검증 (계약서 §3). subject 에 userId 를 담는다.
+ *
+ * v1.7.0 부터 만료가 7일에서 1시간으로 짧아졌다. 짧은 만큼 refresh token 이 로그인을
+ * 이어붙인다 — refresh 는 {@link RefreshTokenProvider} 가 맡는다.
  */
 @Slf4j
 @Component
@@ -25,10 +27,10 @@ public class JwtTokenProvider {
 
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.expiration-days}") long expirationDays
+            @Value("${jwt.access-expiration}") Duration accessExpiration
     ) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.expiration = Duration.ofDays(expirationDays);
+        this.expiration = accessExpiration;
     }
 
     public String createToken(Long userId) {

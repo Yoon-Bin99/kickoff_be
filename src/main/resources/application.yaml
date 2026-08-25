@@ -47,7 +47,11 @@ kickoff:
 jwt:
   # 운영에서는 반드시 JWT_SECRET 환경변수로 덮어쓸 것 (HS256이라 32바이트 이상 필요)
   secret: ${JWT_SECRET:kickoff-local-dev-secret-key-change-me-in-production-0123456789}
-  expiration-days: 7
+  # v1.7.0 부터 access 는 짧게 가고 refresh 로 이어붙인다 (계약서 §3).
+  # access 가 길면 유출된 토큰을 만료 말고는 막을 방법이 없다. refresh 는 서버에
+  # 해시로 저장돼 있어 로그아웃·재로그인으로 즉시 끊을 수 있다.
+  access-expiration: 1h
+  refresh-expiration: 30d
 
 oauth:
   # 클라이언트 키는 환경변수로만 들어온다. 값을 여기 적지 말 것 — 저장소에 커밋된다.

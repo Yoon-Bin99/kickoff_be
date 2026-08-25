@@ -2,8 +2,11 @@ package com.kickoff.be.auth.service;
 
 import com.kickoff.be.auth.dto.AuthResponse;
 import com.kickoff.be.auth.dto.LoginRequest;
+import com.kickoff.be.auth.dto.RefreshRequest;
 import com.kickoff.be.auth.dto.SignupRequest;
+import com.kickoff.be.auth.dto.TokenResponse;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
+import com.kickoff.be.auth.jwt.RefreshTokenProvider;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
@@ -12,6 +15,7 @@ import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.dto.UserResponse;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.repository.UserRepository;
+import java.time.OffsetDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,7 @@ public class AuthService {
     private final SocialAccountRepository socialAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
+    private final RefreshTokenProvider refreshTokenProvider;
 
     @Transactional
     public AuthResponse signup(SignupRequest request) {
@@ -42,7 +47,11 @@ public class AuthService {
         return toAuthResponse(user);
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * 로그인 (계약서 §3). v1.7.0 부터 refresh token 을 발급하므로 <b>더 이상 읽기 전용이
+     * 아니다</b> — 새 로그인이 이전 기기의 refresh 를 덮어써 무효화한다(단일 기기 정책).
+     */
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
@@ -60,8 +69,52 @@ public class AuthService {
         return toUserResponse(user);
     }
 
+    /**
+     * refresh token 으로 새 토큰 쌍을 받는다 (계약서 §3, v1.7.0).
+     *
+     * 쓸 때마다 로테이션한다 — 새 쌍을 주고 이전 refresh 는 그 자리에서 무효가 된다.
+     * 그래서 같은 refresh 를 두 번 쓰면 두 번째는 401 이다.
+     *
+     * 실패는 전부 INVALID_REFRESH_TOKEN 이다. 없는 토큰인지 만료된 토큰인지 구분해서
+     * 알려주지 않는다 — 어느 쪽이든 FE 가 할 일은 재로그인 하나뿐이고, 구분해 주면
+     * 토큰 추측에 힌트가 된다.
+     */
+    @Transactional
+    public TokenResponse refresh(RefreshRequest request) {
+        String hash = refreshTokenProvider.hash(request.refreshToken());
+        User user = userRepository.findByRefreshTokenHash(hash)
+                .filter(candidate -> candidate.hasValidRefreshToken(OffsetDateTime.now()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
+        return new TokenResponse(tokenProvider.createToken(user.getId()), issueRefreshToken(user));
+    }
+
+    /**
+     * 로그아웃 (계약서 §3, v1.7.0). 서버의 refresh token 을 폐기한다.
+     *
+     * 멱등이다 — 이미 폐기됐어도 204 다. 로그아웃은 실패할 이유가 없어야 한다. 여기서
+     * 에러를 내면 FE 는 로컬 토큰을 못 지우고 어정쩡한 상태로 남는다.
+     *
+     * 이미 발급된 access token 은 만료(1시간)까지 살아 있다. 그걸 즉시 끊으려면 서버가
+     * access 도 상태로 들고 있어야 하는데, 그러면 매 요청마다 DB 를 본다. access 를
+     * 짧게 잡은 이유가 그 절충이다.
+     */
+    @Transactional
+    public void logout(User loginUser) {
+        // @LoginUser 인스턴스는 이 트랜잭션에 붙어 있지 않아 변경 감지가 안 걸린다
+        userRepository.findById(loginUser.getId()).ifPresent(User::clearRefreshToken);
+    }
+
     private AuthResponse toAuthResponse(User user) {
-        return new AuthResponse(tokenProvider.createToken(user.getId()), toUserResponse(user));
+        return new AuthResponse(tokenProvider.createToken(user.getId()),
+                issueRefreshToken(user), toUserResponse(user));
+    }
+
+    /** 원문은 응답으로만 나가고 서버에는 해시만 남는다 (계약서 §3). */
+    private String issueRefreshToken(User user) {
+        String rawToken = refreshTokenProvider.issue();
+        user.issueRefreshToken(refreshTokenProvider.hash(rawToken),
+                refreshTokenProvider.expiresAt());
+        return rawToken;
     }
 
     private UserResponse toUserResponse(User user) {

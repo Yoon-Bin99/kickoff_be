@@ -2,7 +2,9 @@ package com.kickoff.be.auth.controller;
 
 import com.kickoff.be.auth.dto.AuthResponse;
 import com.kickoff.be.auth.dto.LoginRequest;
+import com.kickoff.be.auth.dto.RefreshRequest;
 import com.kickoff.be.auth.dto.SignupRequest;
+import com.kickoff.be.auth.dto.TokenResponse;
 import com.kickoff.be.auth.jwt.LoginUser;
 import com.kickoff.be.auth.service.AuthService;
 import com.kickoff.be.user.dto.UserResponse;
@@ -32,6 +34,19 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    /** 새 토큰 쌍 (계약서 §3, v1.7.0). 인증 불필요 — refresh token 자체가 자격 증명이다. */
+    @PostMapping("/refresh")
+    public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
+        return ResponseEntity.ok(authService.refresh(request));
+    }
+
+    /** 서버의 refresh token 폐기 (계약서 §3, v1.7.0). 멱등이라 항상 204. */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@LoginUser User user) {
+        authService.logout(user);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/me")

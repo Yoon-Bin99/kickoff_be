@@ -1,8 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.6.0)
+# Kickoff API 계약 v1 (현재 v1.7.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.7.0 (2026-08-25): refresh token — access 1시간 + refresh 30일(로테이션). 로그인류
+> 응답에 `refreshToken` 추가, `POST /api/auth/refresh`·`POST /api/auth/logout` 신설,
+> `INVALID_REFRESH_TOKEN` 추가. 범위 밖 목록에서 refresh token 제거.
+>
 > v1.6.0 (2026-08-25): 주요 활동 지역 — `User`에 `activityRegion`(nullable) 추가.
 > signup 요청 optional, `UserResponse` 응답, `PATCH /api/users/me`로 수정·지우기(v1.5.1 규칙).
 > 홈 기본 필터링은 FE 동작(기존 `region` 쿼리 재사용)이라 BE 목록 API 변경 없음.
@@ -102,6 +106,7 @@
 | `EMAIL_CONSENT_REQUIRED` | 400 | (v1.3.4부터 미사용, 예약) |
 | `PHONE_REQUIRED` | 400 | 전화번호 없는 사용자가 팀 생성 시도 |
 | `PLACE_SEARCH_FAILED` | 502 | 장소 검색 외부 API 실패 |
+| `INVALID_REFRESH_TOKEN` | 401 | refresh token 만료·무효·로테이션됨 (재로그인 필요) |
 | `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
@@ -210,7 +215,32 @@ v1.3.0 추가 필드:
 
 200 → `UserResponse`
 
-토큰은 만료 7일 access token 단일. refresh token은 v1 범위 밖.
+### 토큰 정책 (v1.7.0)
+
+- **access token 1시간 / refresh token 30일.** 로그인·가입·소셜·refresh 응답이 항상
+  두 토큰을 함께 준다: `{ "accessToken": "...", "refreshToken": "...", "user": {...} }`
+  (refresh 응답에는 `user` 없음 — 아래 참고)
+- **로테이션**: refresh를 쓸 때마다 새 refresh가 발급되고 이전 것은 즉시 무효.
+  사용자당 활성 refresh token은 **1개** (push token과 같은 단일 기기 정책 —
+  새 로그인이 이전 기기의 refresh를 무효화한다)
+- 서버는 refresh token을 해시로 저장한다 (유출 대비 원문 비보관)
+
+### POST /api/auth/refresh — 인증 불필요 (v1.7.0)
+
+`{ "refreshToken": "..." }` → 200 `{ "accessToken": "...", "refreshToken": "..." }`
+(새 쌍. user는 없다 — FE는 필요하면 /auth/me로).
+만료·무효·로테이션된 토큰이면 401 `INVALID_REFRESH_TOKEN` — FE는 이때만 로그인
+화면으로 보낸다 (access 만료 401과 구분).
+
+### POST /api/auth/logout — 인증 필요 (v1.7.0)
+
+서버의 refresh token 폐기. 204. FE는 이어서 로컬 토큰·push token(null)을 정리한다.
+멱등 — 이미 폐기됐어도 204.
+
+**FE 자동 로그인 규칙**: 앱 시작 시 저장된 access가 유효하면 그대로, 만료면 refresh로
+새 쌍을 받아 조용히 로그인 유지. API 401 시 refresh 1회 시도 후 원 요청 재시도,
+refresh도 401이면 그때만 로그아웃 처리. 소셜 콜백 redirect 쿼리에도
+`refreshToken`이 추가된다 (`?token=...&refreshToken=...&isNewUser=...`).
 
 ### PATCH /api/users/me — 인증 필요 (v1.3.0)
 
@@ -641,7 +671,7 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 
 ## 9. v1 범위 밖 (구현하지 말 것)
 
-실시간 채팅, 이미지 업로드, refresh token, 경기 결과/전적 기록,
+실시간 채팅, 이미지 업로드, 경기 결과/전적 기록,
 리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),
 다중 기기 push token, 알림 히스토리 화면, 알림 설정(끄기/켜기),
 홈 목록 지도 뷰, 좌표 반경 검색, 정적 지도 이미지

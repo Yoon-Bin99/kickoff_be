@@ -15,6 +15,12 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없습니다."),
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
+    /**
+     * access 만료(UNAUTHORIZED)와 반드시 구분해야 한다 (계약서 §3, v1.7.0).
+     * FE 는 이 코드일 때만 로그인 화면으로 보낸다 — UNAUTHORIZED 는 refresh 를 한 번
+     * 시도해 볼 신호이고, 이건 그 시도마저 실패했다는 뜻이다.
+     */
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "다시 로그인해 주세요."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),
     TEAM_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팀입니다."),
     TEAM_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 팀을 보유하고 있습니다."),

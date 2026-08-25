@@ -1,0 +1,23 @@
+-- refresh token 저장 (계약서 §3, v1.7.0).
+--
+-- 별도 테이블이 아니라 users 컬럼으로 둔 이유:
+-- 계약이 "사용자당 활성 refresh token 1개"(단일 기기 정책)를 못박고 있어서, 컬럼으로 두면
+-- 그 규칙이 구조로 보장된다. 테이블로 만들면 unique 제약을 따로 걸어야 하고, 그래 놓고도
+-- 여러 기기를 허용하는 날에는 정책·만료·기기 식별을 함께 새로 설계해야 한다. 같은 정책의
+-- expo_push_token 이 이미 users 컬럼인 것과도 맞춘다.
+--
+-- 해시만 저장한다. 원문은 응답으로 한 번 나가고 서버에 남지 않으므로, DB 가 새도 그 값으로
+-- 로그인할 수 없다. SHA-256 hex 라 길이가 정확히 64자다.
+--
+-- 만료 시각을 따로 두는 이유는 해시가 맞아도 만료는 별개이기 때문이다. 만료된 해시를 지우는
+-- 정리 작업이 없어서 행에는 계속 남아 있고, 그래서 조회 뒤 시각을 다시 본다.
+--
+-- 타입은 Hibernate 가 PostgreSQLDialect 로 뽑은 DDL 그대로다 (README 절차).
+-- OffsetDateTime 은 timestamp(6) 으로 나가며, V1 의 created_at·match_at 과 같은 형태다.
+--
+-- 둘 다 nullable 이다. 기존 사용자는 전부 null 로 남고, 다음 로그인 때 채워진다 — 이번
+-- 배포로 기존 access token 이 무효가 되지는 않으므로 아무도 즉시 튕기지 않는다.
+--
+-- V1~V4 는 이미 배포됐으므로 수정하지 않는다. 고치면 Flyway 체크섬이 깨져 기동이 막힌다.
+alter table users add column refresh_token_hash varchar(64);
+alter table users add column refresh_token_expires_at timestamp(6);
