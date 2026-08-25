@@ -116,6 +116,22 @@ class PostClearFieldsTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("POST 도 계좌 빈 문자열을 거절한다 — 나중에 고칠 수 없는 글을 막는다")
+    void createRejectsEmptyAccountString() throws Exception {
+        // POST 에서 "" 를 통과시키면 "은행명이 빈 칸인 계좌"가 저장되는데, PATCH 에서도
+        // 빈 문자열은 거절되므로 그 글은 영원히 고칠 수 없게 된다 (계약서 §5).
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(postBody("\"depositAmount\": 50000, \"bankName\": \"\","
+                                + " \"accountNumber\": \"3333-01-1234567\","
+                                + " \"accountHolder\": \"김주장\"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("bankName"));
+    }
+
+    @Test
     @DisplayName("입금액만 고치는 PATCH 는 계속 통한다 — 계좌는 되읽을 수 없기 때문")
     void changingOnlyTheAmountStillWorks() throws Exception {
         long postId = createPost((depositJson()));
@@ -190,6 +206,14 @@ class PostClearFieldsTest extends IntegrationTestSupport {
 
     /** 필수 필드를 채운 글을 만들고 id 를 준다. extraFields 는 그 위에 얹는 JSON 조각. */
     private long createPost(String extraFields) throws Exception {
+        return idOf(mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(author))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(postBody(extraFields)))
+                .andExpect(status().isCreated()));
+    }
+
+    private static String postBody(String extraFields) {
         String matchAt = OffsetDateTime.now().plusDays(7)
                 .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         String body = "{\"title\": \"주말 경기 상대 구합니다\", \"content\": \"편하게 한 판 하실 팀\","
@@ -198,11 +222,7 @@ class PostClearFieldsTest extends IntegrationTestSupport {
         if (extraFields != null) {
             body += ", " + extraFields;
         }
-        return idOf(mockMvc.perform(post("/api/posts")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(author))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body + "}"))
-                .andExpect(status().isCreated()));
+        return body + "}";
     }
 
     private ResultActions patchPost(long postId, String body) throws Exception {

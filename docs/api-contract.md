@@ -395,10 +395,12 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
   지워라 (병합 결과 기준 "금액 있으면 계좌 필수" 규칙과 일관)
 - `preferredSkillLevel` `null` → 실력 무관으로
 - `rentalFee` `null` → 대여료 미정으로
-- 필수 필드(`title`, `content`, `matchAt`, `location`, `region`, `fieldType`)는
-  `null` 불가 — 400 `VALIDATION_FAILED`
-- 계좌 필드의 빈 문자열(`""`)은 `null`과 동일 취급하지 않는다 — 검증 실패로 거절
-  (길이/형식 규칙 적용). 지우기는 오직 `null`로
+- 필수 필드(`title`, `content`, `matchAt`, `location`, `region`, `fieldType`)와
+  **`status`**는 `null` 불가 — 400 `VALIDATION_FAILED` (status는 optional로 보낼 수는
+  있지만 지울 수는 없는 값)
+- 계좌 필드의 빈 문자열(`""`)은 `null`과 동일 취급하지 않는다 — **POST·PATCH 모두**
+  검증 실패로 거절 (POST에서 `""`를 허용하면 PATCH로 고칠 수 없는 글이 생긴다).
+  지우기는 오직 `null`로
 
 ### DELETE /api/posts/{postId} — 인증 필요, 작성자만 → 204
 

@@ -47,13 +47,18 @@ public record PostCreateRequest(
         @PositiveOrZero(message = "입금액은 0 이상이어야 합니다.")
         Integer depositAmount,
 
-        @Size(max = 20, message = "은행명은 20자를 넘을 수 없습니다.")
+        /**
+         * 계좌 3필드는 빈 문자열을 받지 않는다 (계약서 §5). {@code ""} 를 허용하면 "은행명이
+         * 빈 칸인 계좌"가 저장되는데, PATCH 에서도 빈 문자열은 거절되므로 <b>나중에 고칠 수
+         * 없는 글</b>이 된다. 값을 넣지 않으려면 필드를 빼거나 null 로 보낼 것.
+         */
+        @Size(min = 1, max = 20, message = "은행명은 1~20자여야 합니다.")
         String bankName,
 
-        @Size(max = 30, message = "계좌번호는 30자를 넘을 수 없습니다.")
+        @Size(min = 1, max = 30, message = "계좌번호는 1~30자여야 합니다.")
         String accountNumber,
 
-        @Size(max = 20, message = "예금주는 20자를 넘을 수 없습니다.")
+        @Size(min = 1, max = 20, message = "예금주는 1~20자여야 합니다.")
         String accountHolder,
 
         /**
