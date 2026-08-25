@@ -10,9 +10,17 @@ import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.team.entity.Position;
+import com.kickoff.be.team.entity.TeamAdmin;
+import com.kickoff.be.team.entity.TeamMember;
+import com.kickoff.be.team.entity.TeamRecord;
+import com.kickoff.be.team.repository.TeamAdminRepository;
+import com.kickoff.be.team.repository.TeamMemberRepository;
+import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.repository.UserRepository;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
@@ -62,6 +70,9 @@ public class DataInitializer implements ApplicationRunner {
     private final MatchPostRepository postRepository;
     private final MatchRequestRepository requestRepository;
     private final ReviewRepository reviewRepository;
+    private final TeamAdminRepository teamAdminRepository;
+    private final TeamMemberRepository teamMemberRepository;
+    private final TeamRecordRepository teamRecordRepository;
     private final PasswordEncoder passwordEncoder;
 
     /** 입금받을 계좌. depositAmount 를 넣는 글에만 붙는다. */
@@ -315,9 +326,75 @@ public class DataInitializer implements ApplicationRunner {
         }
         long openCount = posts.stream().filter(MatchPost::isOpen).count();
         long withCoordinates = posts.stream().filter(MatchPost::hasCoordinates).count();
-        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건",
+        seedTeamPage(saebyeok, goyang, goyang.getOwner());
+
+        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건, 관리자 {}명",
                 teamCount, postCount, openCount, withCoordinates, requestCount,
-                reviewRepository.count());
+                reviewRepository.count(), teamMemberRepository.count(),
+                teamRecordRepository.count(), teamAdminRepository.count());
+    }
+
+    /**
+     * 팀 페이지 시드 (계약서 §4-1·§4-2, v1.8.0·v1.9.0).
+     *
+     * FE 가 화면을 바로 붙여볼 수 있게 두 팀에만 채운다. 나머지 팀은 명단·기록이 비어 있는데,
+     * 그것도 실제로 나올 상태라 <b>일부러 비워 둔다</b> — 빈 화면 처리를 시드로 밟아볼
+     * 대상이 없으면 그 경로는 배포 후에야 드러난다.
+     */
+    private void seedTeamPage(Team saebyeok, Team goyang, User choi) {
+        // 등번호 없는 팀원을 섞어 둔다. 정렬 규칙(등번호 오름차순, 없으면 뒤에 이름순)을
+        // 화면에서 바로 확인할 수 있어야 한다.
+        member(saebyeok, "김주장", Position.MF, 10);
+        member(saebyeok, "박수비", Position.DF, 4);
+        member(saebyeok, "이골키", Position.GK, 1);
+        member(saebyeok, "최공격", Position.FW, 9);
+        member(saebyeok, "정미드", Position.MF, 8);
+        member(saebyeok, "한신입", null, null);
+        member(saebyeok, "강신입", Position.DF, null);
+
+        member(goyang, "최총무", Position.MF, 7);
+        member(goyang, "윤수비", Position.DF, 3);
+        member(goyang, "서골키", Position.GK, 21);
+        member(goyang, "남공격", Position.FW, 11);
+        member(goyang, "도미드", null, 6);
+        member(goyang, "백후보", null, null);
+
+        // 승·무·패를 섞어 요약이 0 이 아닌 화면을 만든다
+        record(saebyeok, 3, "마포 유나이티드", 3, 1, "후반 역전승");
+        record(saebyeok, 10, "송파 FC", 2, 2, "비 와서 미끄러웠음");
+        record(saebyeok, 17, "인천 스트라이커즈", 0, 2, null);
+        record(saebyeok, 24, "고양 킥커스", 4, 0, "완승");
+        record(saebyeok, 31, "성남 레인저스", 1, 1, null);
+
+        record(goyang, 5, "FC 새벽", 0, 4, "체력 부족");
+        record(goyang, 12, "성남 레인저스", 2, 1, null);
+        record(goyang, 19, "마포 유나이티드", 1, 3, null);
+        record(goyang, 26, "송파 FC", 3, 3, "난타전");
+
+        // 최총무를 FC 새벽의 관리자로 — 자기 팀(고양)을 가진 사람이 남의 팀 관리자도 되는
+        // 경우다. FE 가 마이 탭에서 소유 1 + 관리 1 을 한 번에 확인할 수 있다.
+        teamAdminRepository.save(TeamAdmin.builder().team(saebyeok).user(choi).build());
+    }
+
+    private void member(Team team, String name, Position position, Integer backNumber) {
+        teamMemberRepository.save(TeamMember.builder()
+                .team(team)
+                .name(name)
+                .position(position)
+                .backNumber(backNumber)
+                .build());
+    }
+
+    private void record(Team team, int daysAgo, String opponentName,
+                        int ourScore, int opponentScore, String memo) {
+        teamRecordRepository.save(TeamRecord.builder()
+                .team(team)
+                .playedOn(LocalDate.now().minusDays(daysAgo))
+                .opponentName(opponentName)
+                .ourScore(ourScore)
+                .opponentScore(opponentScore)
+                .memo(memo)
+                .build());
     }
 
     /**

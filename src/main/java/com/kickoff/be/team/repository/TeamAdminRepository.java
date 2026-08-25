@@ -12,6 +12,10 @@ public interface TeamAdminRepository extends JpaRepository<TeamAdmin, Long> {
     @EntityGraph(attributePaths = "user")
     List<TeamAdmin> findByTeamIdOrderByIdAsc(Long teamId);
 
+    /** 내가 관리하는 팀들 (계약서 §4-2, v1.9.1). 임명순. 팀 카드를 만들 것이라 team 도 함께. */
+    @EntityGraph(attributePaths = "team")
+    List<TeamAdmin> findByUserIdOrderByIdAsc(Long userId);
+
     boolean existsByTeamIdAndUserId(Long teamId, Long userId);
 
     Optional<TeamAdmin> findByTeamIdAndUserId(Long teamId, Long userId);

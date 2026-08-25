@@ -2,14 +2,18 @@ package com.kickoff.be.team.service;
 
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.team.dto.MyTeamResponse;
 import com.kickoff.be.team.dto.TeamAdminCreateRequest;
 import com.kickoff.be.team.dto.TeamAdminResponse;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.entity.TeamAdmin;
+import com.kickoff.be.team.entity.TeamRole;
 import com.kickoff.be.team.repository.TeamAdminRepository;
+import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.repository.UserRepository;
 import java.util.List;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +34,7 @@ public class TeamAdminService {
 
     private final TeamAdminRepository teamAdminRepository;
     private final UserRepository userRepository;
+    private final TeamRepository teamRepository;
     private final TeamAuthz teamAuthz;
 
     /** 소유자·관리자만 볼 수 있다 (계약서 §4-2). 임명순. */
@@ -39,6 +44,24 @@ public class TeamAdminService {
         return teamAdminRepository.findByTeamIdOrderByIdAsc(teamId).stream()
                 .map(TeamAdminResponse::of)
                 .toList();
+    }
+
+    /**
+     * 내가 소유·관리하는 팀 목록 (계약서 §4-2, v1.9.1). 없으면 빈 배열이고 에러가 아니다.
+     *
+     * 소유 팀을 먼저, 관리 팀은 임명순으로 잇는다. 소유는 최대 하나라 정렬이랄 게 없다.
+     */
+    @Transactional(readOnly = true)
+    public List<MyTeamResponse> myTeams(User user) {
+        List<MyTeamResponse> owned = teamRepository.findByOwnerId(user.getId())
+                .map(team -> MyTeamResponse.of(team, TeamRole.OWNER))
+                .map(List::of)
+                .orElseGet(List::of);
+        List<MyTeamResponse> administered = teamAdminRepository.findByUserIdOrderByIdAsc(
+                        user.getId()).stream()
+                .map(admin -> MyTeamResponse.of(admin.getTeam(), TeamRole.ADMIN))
+                .toList();
+        return Stream.concat(owned.stream(), administered.stream()).toList();
     }
 
     @Transactional
