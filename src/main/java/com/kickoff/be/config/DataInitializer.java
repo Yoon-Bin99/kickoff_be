@@ -342,6 +342,11 @@ public class DataInitializer implements ApplicationRunner {
      * 대상이 없으면 그 경로는 배포 후에야 드러난다.
      */
     private void seedTeamPage(Team saebyeok, Team goyang, User choi) {
+        // 프로필 확장 필드. 두 팀만 채우고 나머지는 비워 둔다 — 색이 없는 팀 카드도
+        // 실제로 나올 화면이라 FE 가 기본색 처리를 시드로 밟아볼 수 있어야 한다.
+        profile(saebyeok, 2015, "#1B7F4B", "4-4-2");
+        profile(goyang, 2008, "#C1272D", "3-5-2");
+
         // 등번호 없는 팀원을 섞어 둔다. 정렬 규칙(등번호 오름차순, 없으면 뒤에 이름순)을
         // 화면에서 바로 확인할 수 있어야 한다.
         member(saebyeok, "김주장", Position.MF, 10);
@@ -374,6 +379,13 @@ public class DataInitializer implements ApplicationRunner {
         // 최총무를 FC 새벽의 관리자로 — 자기 팀(고양)을 가진 사람이 남의 팀 관리자도 되는
         // 경우다. FE 가 마이 탭에서 소유 1 + 관리 1 을 한 번에 확인할 수 있다.
         teamAdminRepository.save(TeamAdmin.builder().team(saebyeok).user(choi).build());
+    }
+
+    private void profile(Team team, int foundedYear, String teamColor, String formation) {
+        team.updateFoundedYear(foundedYear);
+        team.updateTeamColor(teamColor);
+        team.updateFormation(formation);
+        teamRepository.save(team);
     }
 
     private void member(Team team, String name, Position position, Integer backNumber) {
