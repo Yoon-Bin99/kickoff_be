@@ -1,8 +1,13 @@
-# Kickoff API 계약 v1 (현재 v1.5.0)
+# Kickoff API 계약 v1 (현재 v1.5.1)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.5.1 (2026-08-25): PATCH 지우기 규칙 일반화 — 명시적 `null`로 optional 필드를
+> 지울 수 있다 (§5 참고). 대상: 모집글 `depositAmount`+계좌 3필드(원자적),
+> `preferredSkillLevel`, `rentalFee`, 팀 `homeGround`, `introduction`.
+> "필드 없음 = 유지, 명시적 null = 지움"이 PATCH 전반의 공통 규칙이 된다.
+>
 > v1.5.0 (2026-08-25): 지도 — 모집글에 `latitude`/`longitude`(nullable) 추가,
 > 장소 검색 프록시 `GET /api/places/search` 신설(§5-1). 지도를 범위 밖 목록에서 제거.
 >
@@ -287,6 +292,8 @@ FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한�
 ### PATCH /api/teams/{teamId} — 인증 필요, 소유자만
 
 POST와 같은 필드, 전부 optional. 200 → `TeamResponse`
+- v1.5.1: `homeGround`, `introduction`은 명시적 `null`로 지울 수 있다 (§5의 PATCH
+  지우기 규칙 참고). 필수 필드는 `null` 불가
 
 ## 5. 모집글
 
@@ -379,6 +386,19 @@ PATCH의 `depositAmount` 검증("있으면 계좌 3필드 필수")은 요청 본
 ### PATCH /api/posts/{postId} — 인증 필요, 작성자만
 
 POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
+
+**PATCH 지우기 규칙 (v1.5.1)**: 모든 PATCH에서 **필드 없음 = 기존 유지, 명시적
+`null` = 지움**이다 (좌표의 §5-1 규칙을 일반화). 지울 수 있는 필드:
+- `depositAmount`를 `null`로 → 입금액·계좌 3필드가 **함께** 지워진다 (금액 없는 계좌는
+  의미가 없고, 남으면 "무료 경기인데 입금 안내가 붙은" 어긋남이 생긴다). 계좌 3필드만
+  개별로 `null` 보내는 것은 400 `VALIDATION_FAILED` — 계좌를 지우려면 `depositAmount`를
+  지워라 (병합 결과 기준 "금액 있으면 계좌 필수" 규칙과 일관)
+- `preferredSkillLevel` `null` → 실력 무관으로
+- `rentalFee` `null` → 대여료 미정으로
+- 필수 필드(`title`, `content`, `matchAt`, `location`, `region`, `fieldType`)는
+  `null` 불가 — 400 `VALIDATION_FAILED`
+- 계좌 필드의 빈 문자열(`""`)은 `null`과 동일 취급하지 않는다 — 검증 실패로 거절
+  (길이/형식 규칙 적용). 지우기는 오직 `null`로
 
 ### DELETE /api/posts/{postId} — 인증 필요, 작성자만 → 204
 

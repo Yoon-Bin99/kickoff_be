@@ -5,7 +5,7 @@ import com.kickoff.be.common.ContactInfo;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.common.PageResponse;
-import com.kickoff.be.common.PatchableDouble;
+import com.kickoff.be.common.Patchable;
 import com.kickoff.be.common.PaymentInfo;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.entity.RequestStatus;
@@ -120,11 +120,13 @@ public class PostService {
     public PostDetail update(Long postId, User user, PostUpdateRequest request) {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
+        requireNotCleared(request);
         applyCoordinatePatch(post, request.latitude(), request.longitude());
-        post.update(request.title(), request.content(), request.matchAt(), request.location(),
-                request.region(), request.fieldType(), request.preferredSkillLevel(),
-                request.rentalFee(), request.depositAmount(), request.bankName(),
-                request.accountNumber(), request.accountHolder(), request.status());
+        applyClearableFields(post, request);
+        post.update(Patchable.valueOf(request.title()), Patchable.valueOf(request.content()),
+                Patchable.valueOf(request.matchAt()), Patchable.valueOf(request.location()),
+                Patchable.valueOf(request.region()), Patchable.valueOf(request.fieldType()),
+                Patchable.valueOf(request.status()));
         // 병합된 결과를 기준으로 본다. 계좌는 작성자도 다시 읽을 수 없어서,
         // PATCH 본문만 보고 판단하면 금액만 고치는 정상 요청이 막혀버린다.
         requireAccountWhenDepositSet(post.getDepositAmount(), post.getBankName(),
@@ -140,6 +142,67 @@ public class PostService {
     }
 
     /**
+     * 지울 수 없는 필드에 명시적 {@code null} 이 오면 400 이다 (계약서 §5, v1.5.1).
+     *
+     * 여기서 막지 않으면 "안 보냄"과 같아져 조용히 무시된다. FE 가 실수로 null 을 보내면
+     * 아무 일도 안 일어나는데 200 이 오므로, 반영된 줄 알고 넘어가게 된다.
+     *
+     * status 는 계약서의 필수 필드 목록에 없지만 컬럼이 not null 이라 지울 수 없다.
+     */
+    private void requireNotCleared(PostUpdateRequest request) {
+        Patchable.rejectClear(request.title(), "title");
+        Patchable.rejectClear(request.content(), "content");
+        Patchable.rejectClear(request.matchAt(), "matchAt");
+        Patchable.rejectClear(request.location(), "location");
+        Patchable.rejectClear(request.region(), "region");
+        Patchable.rejectClear(request.fieldType(), "fieldType");
+        Patchable.rejectClear(request.status(), "status");
+    }
+
+    /** 지울 수 있는 필드들 (계약서 §5, v1.5.1). 여기서는 명시적 null 이 "지우기"다. */
+    private void applyClearableFields(MatchPost post, PostUpdateRequest request) {
+        if (Patchable.isPresent(request.preferredSkillLevel())) {
+            post.updatePreferredSkillLevel(Patchable.valueOf(request.preferredSkillLevel()));
+        }
+        if (Patchable.isPresent(request.rentalFee())) {
+            post.updateRentalFee(Patchable.valueOf(request.rentalFee()));
+        }
+        applyDepositPatch(post, request);
+    }
+
+    /**
+     * 입금액·계좌 처리 (계약서 §5, v1.5.1).
+     *
+     * 입금액을 지우면 계좌 3필드도 <b>함께</b> 지운다. 금액 없는 계좌를 남기면 "무료 경기인데
+     * 입금 안내가 붙은" 글이 되는데, 이건 좌표 버그와 같은 종류다 — 글에 쓰인 내용과 실제가
+     * 어긋나고 그게 사용자에게 그대로 보인다.
+     *
+     * 반대로 계좌만 개별로 지우는 것은 400 이다. 허용하면 "금액은 5만원인데 계좌는 없음"이
+     * 만들어지는데, 그건 아래 requireAccountWhenDepositSet 이 금지하는 상태와 같다.
+     */
+    private void applyDepositPatch(MatchPost post, PostUpdateRequest request) {
+        if (Patchable.isClear(request.depositAmount())) {
+            post.clearDeposit();
+            return;
+        }
+        rejectAccountClear(request.bankName(), "bankName");
+        rejectAccountClear(request.accountNumber(), "accountNumber");
+        rejectAccountClear(request.accountHolder(), "accountHolder");
+        post.updateDeposit(Patchable.valueOf(request.depositAmount()),
+                Patchable.valueOf(request.bankName()),
+                Patchable.valueOf(request.accountNumber()),
+                Patchable.valueOf(request.accountHolder()));
+    }
+
+    private void rejectAccountClear(Patchable<String> field, String name) {
+        if (Patchable.isClear(field)) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                    new ErrorResponse.FieldError(name,
+                            "계좌는 따로 지울 수 없습니다. 입금액(depositAmount)을 null 로 보내면 함께 지워집니다.")));
+        }
+    }
+
+    /**
      * PATCH 의 좌표 처리 (계약서 §5-1). 세 갈래다.
      * <ul>
      *   <li>둘 다 안 보냄 → 기존 좌표 유지 (아무것도 안 한다)</li>
@@ -149,18 +212,18 @@ public class PostService {
      * 그 밖의 조합(한쪽만 보냄, 한쪽만 null)은 전부 400 이다. 반쪽만 반영하면 이전 값과
      * 짝지어져 <b>조용히 틀린 지점</b>이 만들어진다.
      */
-    private void applyCoordinatePatch(MatchPost post, PatchableDouble latitude,
-                                      PatchableDouble longitude) {
-        boolean latitudeSent = PatchableDouble.isPresent(latitude);
-        boolean longitudeSent = PatchableDouble.isPresent(longitude);
+    private void applyCoordinatePatch(MatchPost post, Patchable<Double> latitude,
+                                      Patchable<Double> longitude) {
+        boolean latitudeSent = Patchable.isPresent(latitude);
+        boolean longitudeSent = Patchable.isPresent(longitude);
         if (!latitudeSent && !longitudeSent) {
             return;
         }
         if (latitudeSent != longitudeSent) {
             throw coordinatePairViolation(latitudeSent ? "longitude" : "latitude");
         }
-        Double latitudeValue = PatchableDouble.valueOf(latitude);
-        Double longitudeValue = PatchableDouble.valueOf(longitude);
+        Double latitudeValue = Patchable.valueOf(latitude);
+        Double longitudeValue = Patchable.valueOf(longitude);
         if ((latitudeValue == null) != (longitudeValue == null)) {
             throw coordinatePairViolation(latitudeValue == null ? "latitude" : "longitude");
         }

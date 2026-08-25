@@ -1,6 +1,7 @@
 package com.kickoff.be.team.service;
 
 import com.kickoff.be.common.BusinessException;
+import com.kickoff.be.common.Patchable;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.review.repository.ReviewRepository;
@@ -68,8 +69,21 @@ public class TeamService {
         if (!team.isOwnedBy(user.getId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        team.update(request.name(), request.region(), request.homeGround(), request.skillLevel(),
-                request.ageGroup(), request.memberCount(), request.introduction());
+        Patchable.rejectClear(request.name(), "name");
+        Patchable.rejectClear(request.region(), "region");
+        Patchable.rejectClear(request.skillLevel(), "skillLevel");
+        Patchable.rejectClear(request.ageGroup(), "ageGroup");
+        Patchable.rejectClear(request.memberCount(), "memberCount");
+        team.update(Patchable.valueOf(request.name()), Patchable.valueOf(request.region()),
+                Patchable.valueOf(request.skillLevel()), Patchable.valueOf(request.ageGroup()),
+                Patchable.valueOf(request.memberCount()));
+        // 홈 구장·소개만 지울 수 있다 (계약서 §4, v1.5.1). 여기서는 null 이 "지우기"다.
+        if (Patchable.isPresent(request.homeGround())) {
+            team.updateHomeGround(Patchable.valueOf(request.homeGround()));
+        }
+        if (Patchable.isPresent(request.introduction())) {
+            team.updateIntroduction(Patchable.valueOf(request.introduction()));
+        }
         return TeamResponse.of(team, user.getId(), reviewRepository.statsOf(team.getId()));
     }
 }

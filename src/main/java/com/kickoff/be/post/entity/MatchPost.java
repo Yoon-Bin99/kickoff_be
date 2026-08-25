@@ -128,10 +128,14 @@ public class MatchPost extends BaseTimeEntity {
      * preferredSkillLevel/rentalFee/depositAmount 는 원래 null 이 "무관/미정"이라
      * 이 방식으로는 다시 null 로 되돌릴 수 없다.
      */
+    /**
+     * 지울 수 없는 필드만 여기서 바꾼다 — 여기서는 {@code null} 이 <b>"안 건드림"</b>이다.
+     *
+     * 지울 수 있는 필드(실력수준·대여료·입금액·계좌)는 같은 null 이 <b>"지우기"</b>라서 규칙이
+     * 정반대다. 한 메서드에 섞어 두면 다음 사람이 반드시 헷갈리므로 아래 전용 메서드로 뗐다.
+     */
     public void update(String title, String content, OffsetDateTime matchAt, String location,
-                       String region, FieldType fieldType, SkillLevel preferredSkillLevel,
-                       Integer rentalFee, Integer depositAmount, String bankName,
-                       String accountNumber, String accountHolder, PostStatus status) {
+                       String region, FieldType fieldType, PostStatus status) {
         if (title != null) {
             this.title = title;
         }
@@ -150,12 +154,28 @@ public class MatchPost extends BaseTimeEntity {
         if (fieldType != null) {
             this.fieldType = fieldType;
         }
-        if (preferredSkillLevel != null) {
-            this.preferredSkillLevel = preferredSkillLevel;
+        if (status != null) {
+            this.status = status;
         }
-        if (rentalFee != null) {
-            this.rentalFee = rentalFee;
-        }
+    }
+
+    /** null 이면 "실력 무관"으로 되돌린다 (계약서 §5, v1.5.1). */
+    public void updatePreferredSkillLevel(SkillLevel preferredSkillLevel) {
+        this.preferredSkillLevel = preferredSkillLevel;
+    }
+
+    /** null 이면 "대여료 미정"으로 되돌린다 (계약서 §5, v1.5.1). */
+    public void updateRentalFee(Integer rentalFee) {
+        this.rentalFee = rentalFee;
+    }
+
+    /**
+     * 입금액과 계좌를 함께 바꾼다. 여기서는 {@code null} 이 "안 건드림"이다 — 지우기는
+     * {@link #clearDeposit()} 이 맡는다. 둘을 한 메서드에 두면 "계좌만 지우기"가 표현
+     * 가능해져 버리는데, 그건 계약이 금지하는 상태다.
+     */
+    public void updateDeposit(Integer depositAmount, String bankName,
+                              String accountNumber, String accountHolder) {
         if (depositAmount != null) {
             this.depositAmount = depositAmount;
         }
@@ -168,9 +188,19 @@ public class MatchPost extends BaseTimeEntity {
         if (accountHolder != null) {
             this.accountHolder = accountHolder;
         }
-        if (status != null) {
-            this.status = status;
-        }
+    }
+
+    /**
+     * 입금액과 계좌 3필드를 <b>한꺼번에</b> 지운다 (계약서 §5, v1.5.1).
+     *
+     * 금액만 지우고 계좌를 남기면 "무료 경기인데 입금 안내가 붙은" 글이 된다. 좌표 버그와
+     * 같은 종류 — 글에 쓰인 내용과 실제가 어긋나고, 그게 사용자에게 그대로 보인다.
+     */
+    public void clearDeposit() {
+        this.depositAmount = null;
+        this.bankName = null;
+        this.accountNumber = null;
+        this.accountHolder = null;
     }
 
     /**

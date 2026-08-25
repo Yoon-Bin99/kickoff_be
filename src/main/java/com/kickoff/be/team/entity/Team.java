@@ -75,16 +75,17 @@ public class Team extends BaseTimeEntity {
     }
 
     /** PATCH 는 전 필드 optional 이라 null 인 항목은 건드리지 않는다. */
-    public void update(String name, String region, String homeGround, SkillLevel skillLevel,
-                       AgeGroup ageGroup, Integer memberCount, String introduction) {
+    /**
+     * 지울 수 없는 필드만 여기서 바꾼다 — 여기서는 {@code null} 이 "안 건드림"이다.
+     * 홈 구장·소개는 null 이 "지우기"라 규칙이 반대여서 아래 전용 메서드로 뗐다.
+     */
+    public void update(String name, String region, SkillLevel skillLevel,
+                       AgeGroup ageGroup, Integer memberCount) {
         if (name != null) {
             this.name = name;
         }
         if (region != null) {
             this.region = region;
-        }
-        if (homeGround != null) {
-            this.homeGround = homeGround;
         }
         if (skillLevel != null) {
             this.skillLevel = skillLevel;
@@ -95,9 +96,16 @@ public class Team extends BaseTimeEntity {
         if (memberCount != null) {
             this.memberCount = memberCount;
         }
-        if (introduction != null) {
-            this.introduction = introduction;
-        }
+    }
+
+    /** null 이면 홈 구장 없음으로 되돌린다 (계약서 §4, v1.5.1). */
+    public void updateHomeGround(String homeGround) {
+        this.homeGround = homeGround;
+    }
+
+    /** null 이면 소개 없음으로 되돌린다 (계약서 §4, v1.5.1). */
+    public void updateIntroduction(String introduction) {
+        this.introduction = introduction;
     }
 
     public boolean isOwnedBy(Long userId) {
