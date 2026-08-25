@@ -1,10 +1,9 @@
 package com.kickoff.be.post.dto;
 
+import com.kickoff.be.common.PatchableDouble;
 import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.team.entity.SkillLevel;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -50,15 +49,12 @@ public record PostUpdateRequest(
         PostStatus status,
 
         /**
-         * 지도 좌표 (계약서 §5-1). 좌표 없이도 글은 등록된다 — 장소를 직접 입력한 경우다.
-         * 다만 넣는다면 <b>반드시 쌍으로</b>. 하나만 오면 400 이다 (PostService 에서 검증).
+         * 지도 좌표 (계약서 §5-1). 여기만 PatchableDouble 인 이유는 <b>지우기</b> 때문이다 —
+         * 평범한 Double 로 받으면 "안 보냄"과 "null 을 보냄"이 구분되지 않아, 좌표를 지우려는
+         * 요청이 조용히 무시된다. 범위 검증은 어노테이션이 아니라 PostService 가 한다.
          */
-        @DecimalMin(value = "-90.0", message = "위도는 -90 이상이어야 합니다.")
-        @DecimalMax(value = "90.0", message = "위도는 90 이하여야 합니다.")
-        Double latitude,
+        PatchableDouble latitude,
 
-        @DecimalMin(value = "-180.0", message = "경도는 -180 이상이어야 합니다.")
-        @DecimalMax(value = "180.0", message = "경도는 180 이하여야 합니다.")
-        Double longitude
+        PatchableDouble longitude
 ) {
 }

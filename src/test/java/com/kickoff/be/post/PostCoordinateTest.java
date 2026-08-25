@@ -165,6 +165,102 @@ class PostCoordinateTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.longitude").value(LNG));
     }
 
+    // ── 좌표 지우기 (계약서 §5-1: "지우려면 명시적으로 둘 다 null")
+    //
+    // 아래 두 케이스는 FE 가 실제로 재현해 보고한 계약 위반이다. Double 로 받던 시절에는
+    // "필드 없음"과 "명시적 null"이 구분되지 않아 지우기가 조용히 무시됐고, 글에는 공터라고
+    // 쓰여 있는데 지도는 이전 구장을 가리켰다.
+
+    @Test
+    @DisplayName("둘 다 null 을 보내면 좌표가 지워진다")
+    void explicitNullPairClearsCoordinates() throws Exception {
+        long postId = idOf(createPost(coordinateJson(LAT, LNG)).andExpect(status().isCreated()));
+
+        patchPost(postId, "{\"latitude\": null, \"longitude\": null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latitude").isEmpty())
+                .andExpect(jsonPath("$.longitude").isEmpty());
+
+        mockMvc.perform(get("/api/posts/{id}", postId))
+                .andExpect(jsonPath("$.latitude").isEmpty())
+                .andExpect(jsonPath("$.longitude").isEmpty());
+    }
+
+    @Test
+    @DisplayName("장소를 직접 입력으로 바꾸면서 좌표를 지운다 — FE 의 실제 수정 흐름")
+    void changingLocationAndClearingCoordinatesTogether() throws Exception {
+        long postId = idOf(createPost(coordinateJson(LAT, LNG)).andExpect(status().isCreated()));
+
+        patchPost(postId,
+                "{\"location\": \"직접 입력한 공터\", \"latitude\": null, \"longitude\": null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.location").value("직접 입력한 공터"))
+                .andExpect(jsonPath("$.latitude").isEmpty())
+                .andExpect(jsonPath("$.longitude").isEmpty());
+    }
+
+    @Test
+    @DisplayName("한쪽만 null 이고 한쪽은 값이면 400 — 반쪽짜리 좌표를 만들지 않는다")
+    void mixedNullAndValueIsRejected() throws Exception {
+        long postId = idOf(createPost(coordinateJson(LAT, LNG)).andExpect(status().isCreated()));
+
+        patchPost(postId, "{\"latitude\": null, \"longitude\": 127.1}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("latitude"));
+
+        patchPost(postId, "{\"latitude\": 37.1, \"longitude\": null}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("longitude"));
+
+        // 원래 좌표가 그대로여야 한다
+        mockMvc.perform(get("/api/posts/{id}", postId))
+                .andExpect(jsonPath("$.latitude").value(LAT))
+                .andExpect(jsonPath("$.longitude").value(LNG));
+    }
+
+    @Test
+    @DisplayName("PATCH 도 범위를 본다 — 어노테이션이 아니라 서비스가 검증한다")
+    void patchValidatesRange() throws Exception {
+        long postId = idOf(createPost(coordinateJson(LAT, LNG)).andExpect(status().isCreated()));
+
+        patchPost(postId, "{\"latitude\": 91.0, \"longitude\": 126.8}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("latitude"));
+
+        patchPost(postId, "{\"latitude\": 37.5, \"longitude\": 181.0}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("longitude"));
+    }
+
+    @Test
+    @DisplayName("좌표가 없던 글에 좌표를 붙일 수 있다")
+    void coordinatesCanBeAddedLater() throws Exception {
+        long postId = idOf(createPost(null).andExpect(status().isCreated()));
+
+        patchPost(postId, "{\"latitude\": " + LAT + ", \"longitude\": " + LNG + "}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latitude").value(LAT))
+                .andExpect(jsonPath("$.longitude").value(LNG));
+    }
+
+    @Test
+    @DisplayName("좌표가 없는 글에 둘 다 null 을 보내도 그대로 200 — 멱등이다")
+    void clearingAlreadyNullCoordinatesIsFine() throws Exception {
+        long postId = idOf(createPost(null).andExpect(status().isCreated()));
+
+        patchPost(postId, "{\"latitude\": null, \"longitude\": null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latitude").isEmpty());
+    }
+
+    private ResultActions patchPost(long postId, String body) throws Exception {
+        return mockMvc.perform(patch("/api/posts/{id}", postId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(author))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
     private static String coordinateJson(double latitude, double longitude) {
         return "\"latitude\": " + latitude + ", \"longitude\": " + longitude;
     }

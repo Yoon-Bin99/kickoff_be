@@ -131,8 +131,7 @@ public class MatchPost extends BaseTimeEntity {
     public void update(String title, String content, OffsetDateTime matchAt, String location,
                        String region, FieldType fieldType, SkillLevel preferredSkillLevel,
                        Integer rentalFee, Integer depositAmount, String bankName,
-                       String accountNumber, String accountHolder, PostStatus status,
-                       Double latitude, Double longitude) {
+                       String accountNumber, String accountHolder, PostStatus status) {
         if (title != null) {
             this.title = title;
         }
@@ -172,11 +171,16 @@ public class MatchPost extends BaseTimeEntity {
         if (status != null) {
             this.status = status;
         }
-        // 좌표는 쌍으로만 바뀐다. 하나만 들어오는 요청은 서비스에서 이미 걸러졌다.
-        if (latitude != null && longitude != null) {
-            this.latitude = latitude;
-            this.longitude = longitude;
-        }
+    }
+
+    /**
+     * 좌표는 update 에 섞지 않고 따로 받는다. 다른 필드는 "null 이면 안 건드림"이지만 좌표는
+     * <b>null 이 지우기</b>라서, 같은 메서드에 두면 규칙이 둘로 갈려 헷갈린다.
+     * 요청에 좌표가 실제로 담겨 왔을 때만 호출된다 (계약서 §5-1).
+     */
+    public void updateCoordinates(Double latitude, Double longitude) {
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public boolean hasCoordinates() {

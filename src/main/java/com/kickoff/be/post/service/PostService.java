@@ -5,6 +5,7 @@ import com.kickoff.be.common.ContactInfo;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.common.PageResponse;
+import com.kickoff.be.common.PatchableDouble;
 import com.kickoff.be.common.PaymentInfo;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.entity.RequestStatus;
@@ -119,12 +120,11 @@ public class PostService {
     public PostDetail update(Long postId, User user, PostUpdateRequest request) {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
-        requireCoordinatePair(request.latitude(), request.longitude());
+        applyCoordinatePatch(post, request.latitude(), request.longitude());
         post.update(request.title(), request.content(), request.matchAt(), request.location(),
                 request.region(), request.fieldType(), request.preferredSkillLevel(),
                 request.rentalFee(), request.depositAmount(), request.bankName(),
-                request.accountNumber(), request.accountHolder(), request.status(),
-                request.latitude(), request.longitude());
+                request.accountNumber(), request.accountHolder(), request.status());
         // 병합된 결과를 기준으로 본다. 계좌는 작성자도 다시 읽을 수 없어서,
         // PATCH 본문만 보고 판단하면 금액만 고치는 정상 요청이 막혀버린다.
         requireAccountWhenDepositSet(post.getDepositAmount(), post.getBankName(),
@@ -140,7 +140,55 @@ public class PostService {
     }
 
     /**
-     * 좌표는 쌍으로만 받는다 (계약서 §5-1). 하나만 오면 400 이다.
+     * PATCH 의 좌표 처리 (계약서 §5-1). 세 갈래다.
+     * <ul>
+     *   <li>둘 다 안 보냄 → 기존 좌표 유지 (아무것도 안 한다)</li>
+     *   <li>둘 다 null → 좌표를 지운다. 장소를 직접 입력으로 바꾸는 흐름이다</li>
+     *   <li>둘 다 값 → 범위를 보고 교체</li>
+     * </ul>
+     * 그 밖의 조합(한쪽만 보냄, 한쪽만 null)은 전부 400 이다. 반쪽만 반영하면 이전 값과
+     * 짝지어져 <b>조용히 틀린 지점</b>이 만들어진다.
+     */
+    private void applyCoordinatePatch(MatchPost post, PatchableDouble latitude,
+                                      PatchableDouble longitude) {
+        boolean latitudeSent = PatchableDouble.isPresent(latitude);
+        boolean longitudeSent = PatchableDouble.isPresent(longitude);
+        if (!latitudeSent && !longitudeSent) {
+            return;
+        }
+        if (latitudeSent != longitudeSent) {
+            throw coordinatePairViolation(latitudeSent ? "longitude" : "latitude");
+        }
+        Double latitudeValue = PatchableDouble.valueOf(latitude);
+        Double longitudeValue = PatchableDouble.valueOf(longitude);
+        if ((latitudeValue == null) != (longitudeValue == null)) {
+            throw coordinatePairViolation(latitudeValue == null ? "latitude" : "longitude");
+        }
+        if (latitudeValue != null) {
+            requireCoordinateRange(latitudeValue, longitudeValue);
+        }
+        post.updateCoordinates(latitudeValue, longitudeValue);
+    }
+
+    /** PATCH 는 어노테이션 검증을 못 타므로 범위를 여기서 본다 (계약서 §5-1). */
+    private void requireCoordinateRange(double latitude, double longitude) {
+        if (latitude < -90 || latitude > 90) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                    new ErrorResponse.FieldError("latitude", "위도는 -90~90 이어야 합니다.")));
+        }
+        if (longitude < -180 || longitude > 180) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                    new ErrorResponse.FieldError("longitude", "경도는 -180~180 이어야 합니다.")));
+        }
+    }
+
+    private BusinessException coordinatePairViolation(String field) {
+        return new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                new ErrorResponse.FieldError(field, "위도와 경도는 함께 보내야 합니다.")));
+    }
+
+    /**
+     * POST 의 좌표는 쌍으로만 받는다 (계약서 §5-1). 하나만 오면 400 이다.
      *
      * 계좌 검증(requireAccountWhenDepositSet)과 달리 <b>병합된 결과가 아니라 요청 본문</b>을
      * 본다. 계좌는 클라이언트가 값을 되읽을 수 없어서 금액만 보내는 PATCH 를 허용해야 하지만,
