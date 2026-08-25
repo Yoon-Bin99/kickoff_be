@@ -5,6 +5,7 @@ import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.team.entity.TeamRole;
 import java.time.OffsetDateTime;
 
 public record TeamResponse(
@@ -18,7 +19,13 @@ public record TeamResponse(
         String introduction,
         String logoUrl,
         String ownerNickname,
+        /**
+         * 소유자 여부. v1.9.0 부터 {@code myRole == OWNER} 와 동치이고, 구버전 FE 를 위해
+         * 남겨 둔다 (계약서 §4-2 하위호환).
+         */
         @JsonProperty("isMine") boolean isMine,
+        /** OWNER · ADMIN · null (비로그인이거나 무관계) — 계약서 §4-2, v1.9.0. */
+        TeamRole myRole,
         OffsetDateTime createdAt,
         long reviewCount,
         Double averageRating,
@@ -35,6 +42,16 @@ public record TeamResponse(
      * 집계를 안에서 조회하면 리포지터리 의존이 DTO 로 새고 호출자가 쿼리 수를 통제할 수 없다.
      */
     public static TeamResponse of(Team team, Long viewerId, ReviewStats reviewStats) {
+        return of(team, viewerId, reviewStats, team.isOwnedBy(viewerId) ? TeamRole.OWNER : null);
+    }
+
+    /**
+     * 역할을 아는 호출자가 쓰는 형태 (계약서 §4-2). 관리자 판정에는 조회가 한 번 더
+     * 필요해서, 그 비용을 치를지는 호출자가 정한다 — 위 형태는 소유자만 가려내고 관리자는
+     * null 로 둔다.
+     */
+    public static TeamResponse of(Team team, Long viewerId, ReviewStats reviewStats,
+                                  TeamRole myRole) {
         return new TeamResponse(
                 team.getId(),
                 team.getName(),
@@ -47,6 +64,7 @@ public record TeamResponse(
                 team.getLogoUrl(),
                 team.getOwner().getNickname(),
                 team.isOwnedBy(viewerId),
+                myRole,
                 team.getCreatedAt(),
                 reviewStats.count(),
                 reviewStats.average(),

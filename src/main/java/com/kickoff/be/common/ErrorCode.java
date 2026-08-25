@@ -23,6 +23,14 @@ public enum ErrorCode {
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "다시 로그인해 주세요."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),
     TEAM_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팀입니다."),
+    /** 팀원 명단은 30명까지 (계약서 §4-1, v1.8.0). */
+    TEAM_MEMBER_LIMIT(HttpStatus.BAD_REQUEST, "팀원은 30명을 넘을 수 없습니다."),
+    MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팀원입니다."),
+    RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 경기 기록입니다."),
+    /** 팀 관리자 (계약서 §4-2, v1.9.0). */
+    ALREADY_TEAM_ADMIN(HttpStatus.CONFLICT, "이미 이 팀의 관리자입니다."),
+    TEAM_ADMIN_LIMIT(HttpStatus.BAD_REQUEST, "관리자는 5명을 넘을 수 없습니다."),
+    ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "이 팀의 관리자가 아닙니다."),
     TEAM_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 팀을 보유하고 있습니다."),
     TEAM_REQUIRED(HttpStatus.BAD_REQUEST, "팀을 먼저 등록해야 합니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 모집글입니다."),

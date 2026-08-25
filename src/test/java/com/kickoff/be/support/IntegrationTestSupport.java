@@ -12,6 +12,9 @@ import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.team.repository.TeamAdminRepository;
+import com.kickoff.be.team.repository.TeamMemberRepository;
+import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.repository.UserRepository;
@@ -89,6 +92,12 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected TeamRepository teamRepository;
     @Autowired
+    protected TeamAdminRepository teamAdminRepository;
+    @Autowired
+    protected TeamMemberRepository teamMemberRepository;
+    @Autowired
+    protected TeamRecordRepository teamRecordRepository;
+    @Autowired
     protected MatchPostRepository postRepository;
     @Autowired
     protected MatchRequestRepository requestRepository;
@@ -115,6 +124,11 @@ public abstract class IntegrationTestSupport {
         reviewRepository.deleteAll();
         requestRepository.deleteAll();
         postRepository.deleteAll();
+        // 팀 페이지 자식들 (v1.8.0·v1.9.0). 팀보다 먼저 지워야 한다 — 특히 team_admins 는
+        // 사용자도 참조해서, 빠뜨리면 팀·사용자 삭제가 참조 무결성 위반으로 터진다.
+        teamMemberRepository.deleteAll();
+        teamRecordRepository.deleteAll();
+        teamAdminRepository.deleteAll();
         teamRepository.deleteAll();
         // 소셜 연동은 사용자를 참조하므로 사용자보다 먼저 지운다
         socialAccountRepository.deleteAll();
