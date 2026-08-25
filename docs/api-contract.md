@@ -1,8 +1,11 @@
-# Kickoff API 계약 v1 (현재 v1.4.0)
+# Kickoff API 계약 v1 (현재 v1.5.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.5.0 (2026-08-25): 지도 — 모집글에 `latitude`/`longitude`(nullable) 추가,
+> 장소 검색 프록시 `GET /api/places/search` 신설(§5-1). 지도를 범위 밖 목록에서 제거.
+>
 > v1.4.0 (2026-08-24): 푸시 알림 — §8 신설(기존 "범위 밖"은 §9로), Expo Push 기반.
 > `PUT /api/users/me/push-token` 신설, 알림 이벤트 4종. 푸시를 범위 밖 목록에서 제거.
 >
@@ -89,6 +92,7 @@
 | `OAUTH_FAILED` | 401 | 제공자 인증 실패 (콜백 리다이렉트의 `error`로 전달) |
 | `EMAIL_CONSENT_REQUIRED` | 400 | (v1.3.4부터 미사용, 예약) |
 | `PHONE_REQUIRED` | 400 | 전화번호 없는 사용자가 팀 생성 시도 |
+| `PLACE_SEARCH_FAILED` | 502 | 장소 검색 외부 API 실패 |
 | `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
@@ -388,6 +392,45 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
 
 살아 있는 신청(`PENDING` + `ACCEPTED`)만 센다. 취소·거절된 신청은 제외.
 
+## 5-1. 장소 검색·좌표 (v1.5.0)
+
+### 모집글 좌표 필드
+
+`PostSummary`·`PostDetail` 응답과 `POST/PATCH /api/posts` 요청에 추가:
+
+```json
+{ "latitude": 37.5586, "longitude": 126.8351 }
+```
+
+- 둘 다 **nullable** — 좌표 없이도 글 등록 가능 (직접 입력 장소). 기존 글은 전부 `null`
+- 검증: 둘 중 **하나만 보내면** 400 `VALIDATION_FAILED` (쌍으로만). 위도 -90~90, 경도 -180~180
+- FE는 좌표가 있는 글에만 상세에서 지도를 그린다. `null`이면 지도 영역 자체를 숨김
+
+### GET /api/places/search — 인증 필요 (v1.5.0)
+
+카카오 로컬 키워드 검색의 **BE 프록시.** 검색 API 키를 앱 번들에 노출하지 않기 위해
+BE가 대행한다. FE는 글 작성/수정의 장소 입력에서 이걸 호출한다.
+
+쿼리: `query` (필수, 1~100자), `size` (기본 10, 최대 15)
+
+200 응답:
+
+```json
+{ "places": [
+  { "name": "강서구민운동장", "address": "서울 강서구 화곡동 980-16",
+    "roadAddress": "서울 강서구 남부순환로 172", "latitude": 37.5586, "longitude": 126.8351 }
+] }
+```
+
+- 결과 없으면 `{ "places": [] }` (에러 아님)
+- `roadAddress`는 nullable
+- 카카오 API 실패 시 502 `PLACE_SEARCH_FAILED` (FE는 "장소 검색에 실패했습니다.
+  직접 입력해 주세요"로 안내하고 직접 입력 경로를 열어둔다)
+- BE 환경변수: **`KAKAO_MAP_REST_KEY`** — 로그인용 `KAKAO_CLIENT_ID`와 **별개의 키**다
+  (v1.5.0 개정: 지도는 카카오맵이 활성화된 별도 카카오 앱의 키를 쓴다. kickoff 앱에서
+  카카오맵을 새로 켜면 결제수단 등록이 필요해 사용자가 기존 앱을 재사용하기로 결정).
+  FE의 지도 JS SDK 키도 같은 별도 앱의 JavaScript 키를 쓴다
+
 ## 6. 매칭 신청
 
 ### RequestResponse
@@ -560,6 +603,7 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 
 ## 9. v1 범위 밖 (구현하지 말 것)
 
-실시간 채팅, 이미지 업로드, refresh token, 경기 결과/전적 기록, 지도,
+실시간 채팅, 이미지 업로드, refresh token, 경기 결과/전적 기록,
 리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),
-다중 기기 push token, 알림 히스토리 화면, 알림 설정(끄기/켜기)
+다중 기기 push token, 알림 히스토리 화면, 알림 설정(끄기/켜기),
+홈 목록 지도 뷰, 좌표 반경 검색, 정적 지도 이미지
