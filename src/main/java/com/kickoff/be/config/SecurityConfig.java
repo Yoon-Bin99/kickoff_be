@@ -67,6 +67,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/teams/*").permitAll()
                         // 팀 평판은 누구나 본다 (계약서 §7)
                         .requestMatchers(HttpMethod.GET, "/api/teams/*/reviews").permitAll()
+                        // 팀 페이지 조회는 공개다 — 상대 팀을 보고 신청할지 정하는 정보라
+                        // 로그인 전에도 보여야 한다 (계약서 §4-1). 쓰기는 아래 authenticated
+                        .requestMatchers(HttpMethod.GET, "/api/teams/*/members",
+                                "/api/teams/*/records").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*").permitAll()
 
                         .anyRequest().authenticated())
