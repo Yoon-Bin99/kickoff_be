@@ -76,37 +76,37 @@ public class DataInitializer implements ApplicationRunner {
             return;
         }
 
-        Team saebyeok = createTeam("kim@example.com", "김주장", "010-1234-5678",
+        Team saebyeok = createTeam("kim@example.com", "김주장", "010-1234-5678", "서울",
                 "FC 새벽", "서울 강서구", "강서구민운동장",
                 SkillLevel.INTERMEDIATE, AgeGroup.THIRTIES, 18,
                 "매주 토요일 오전 7시에 모입니다. 매너 있는 경기 지향합니다.");
         SeedAccount kimAcc = new SeedAccount("카카오뱅크", "3333-01-1234567", "김주장");
 
-        Team mapo = createTeam("lee@example.com", "이감독", "010-2345-6789",
+        Team mapo = createTeam("lee@example.com", "이감독", "010-2345-6789", "서울",
                 "마포 유나이티드", "서울 마포구", "마포구립축구장",
                 SkillLevel.ADVANCED, AgeGroup.TWENTIES, 22,
                 "실력 있는 팀 환영합니다. 주말 오전 위주로 뜁니다.");
         SeedAccount leeAcc = new SeedAccount("신한은행", "110-234-567890", "이감독");
 
-        Team songpa = createTeam("park@example.com", "박캡틴", "010-3456-7890",
+        Team songpa = createTeam("park@example.com", "박캡틴", "010-3456-7890", null,
                 "송파 FC", "서울 송파구", "올림픽공원 축구장",
                 SkillLevel.BEGINNER, AgeGroup.MIXED, 15,
                 "이제 막 시작한 팀입니다. 즐겁게 뛰실 분들 구해요.");
         SeedAccount parkAcc = new SeedAccount("국민은행", "123456-04-567890", "박캡틴");
 
-        Team goyang = createTeam("choi@example.com", "최총무", "010-4567-8901",
+        Team goyang = createTeam("choi@example.com", "최총무", "010-4567-8901", "경기",
                 "고양 킥커스", "경기 고양시", "고양종합운동장 보조구장",
                 SkillLevel.AMATEUR, AgeGroup.FORTIES, 20,
                 "40대 위주 팀입니다. 부상 없는 경기가 최우선.");
         SeedAccount choiAcc = new SeedAccount("우리은행", "1002-345-678901", "최총무");
 
-        Team seongnam = createTeam("jung@example.com", "정주장", "010-5678-9012",
+        Team seongnam = createTeam("jung@example.com", "정주장", "010-5678-9012", "경기",
                 "성남 레인저스", "경기 성남시", "탄천종합운동장",
                 SkillLevel.INTERMEDIATE, AgeGroup.THIRTIES, 24,
                 "매주 일요일 아침에 모입니다. 풋살, 11인제 다 합니다.");
         SeedAccount jungAcc = new SeedAccount("하나은행", "352-0123-4567-89", "정주장");
 
-        Team incheon = createTeam("yoon@example.com", "윤코치", "010-6789-0123",
+        Team incheon = createTeam("yoon@example.com", "윤코치", "010-6789-0123", null,
                 "인천 스트라이커즈", "인천 남동구", "남동체육관 풋살장",
                 SkillLevel.ADVANCED, AgeGroup.FIFTIES_PLUS, 16,
                 "연령대는 높지만 실력은 자신 있습니다.");
@@ -320,14 +320,23 @@ public class DataInitializer implements ApplicationRunner {
                 reviewRepository.count());
     }
 
-    private Team createTeam(String email, String nickname, String phone, String teamName,
-                            String region, String homeGround, SkillLevel skillLevel,
-                            AgeGroup ageGroup, int memberCount, String introduction) {
+    /**
+     * 팀과 그 소유자를 함께 만든다.
+     *
+     * activityRegion 은 <b>null 을 넣는 계정을 일부러 남긴다</b> (계약서 §2, v1.6.0).
+     * null 이 "전국"이라서, FE 가 지역 필터 없는 홈 화면을 붙여볼 대상이 필요하다.
+     * 전부 채워 두면 그 경로를 시드로는 못 밟는다.
+     */
+    private Team createTeam(String email, String nickname, String phone, String activityRegion,
+                            String teamName, String region, String homeGround,
+                            SkillLevel skillLevel, AgeGroup ageGroup, int memberCount,
+                            String introduction) {
         User owner = userRepository.save(User.builder()
                 .email(email)
                 .password(passwordEncoder.encode(RAW_PASSWORD))
                 .nickname(nickname)
                 .phone(phone)
+                .activityRegion(activityRegion)
                 .build());
         return teamRepository.save(Team.builder()
                 .owner(owner)

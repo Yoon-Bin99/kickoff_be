@@ -1,8 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.5.1)
+# Kickoff API 계약 v1 (현재 v1.6.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.6.0 (2026-08-25): 주요 활동 지역 — `User`에 `activityRegion`(nullable) 추가.
+> signup 요청 optional, `UserResponse` 응답, `PATCH /api/users/me`로 수정·지우기(v1.5.1 규칙).
+> 홈 기본 필터링은 FE 동작(기존 `region` 쿼리 재사용)이라 BE 목록 API 변경 없음.
+>
 > v1.5.1 (2026-08-25): PATCH 지우기 규칙 일반화 — 명시적 `null`로 optional 필드를
 > 지울 수 있다 (§5 참고). 대상: 모집글 `depositAmount`+계좌 3필드(원자적),
 > `preferredSkillLevel`, `rentalFee`, 팀 `homeGround`, `introduction`.
@@ -149,6 +153,11 @@ v1.3.0 추가 필드:
   FE는 `phone`이 `null`이면 전화번호 입력을 유도한다 (팀 생성이 막히므로 — §4 참고)
 - `authProviders`: 이 계정에 연동된 소셜 제공자 목록 (`AuthProvider[]`).
   이메일/비번으로만 가입했으면 `[]`
+- `activityRegion` (v1.6.0): 주요 활동 지역, nullable. 시/도 단위 문자열 (`"서울"`,
+  `"경기"` 등 — FE가 고정 목록에서 선택시키고 BE는 최대 20자 문자열로만 검증).
+  홈 목록의 기본 `region` 필터로 쓰인다 (FE 동작). `null`이면 전국.
+  소셜 가입자는 항상 `null`로 시작 → FE가 설정 유도. `PATCH /api/users/me`로
+  수정하며 v1.5.1 규칙대로 명시적 `null`로 지울 수 있다 (전국으로 복귀)
 
 ### TeamSummary (목록/카드에 박히는 축약형)
 ```json
@@ -184,6 +193,7 @@ v1.3.0 추가 필드:
 ```
 
 - `email` 이메일 형식 필수 / `password` 8~64자 필수 / `nickname` 2~20자 필수 / `phone` `010-0000-0000` 형식 필수
+- `activityRegion` optional (v1.6.0, 최대 20자) — FE 가입 화면은 선택을 권하지만 건너뛸 수 있다
 
 201 응답
 
@@ -204,8 +214,9 @@ v1.3.0 추가 필드:
 
 ### PATCH /api/users/me — 인증 필요 (v1.3.0)
 
-`{ "nickname": "김주장", "phone": "010-1234-5678" }` — 둘 다 optional, 형식은 signup과 동일.
-200 → `UserResponse`. 소셜 가입 후 전화번호 보완이 주 용도.
+`{ "nickname": "김주장", "phone": "010-1234-5678", "activityRegion": "서울" }` — 전부 optional,
+형식은 signup과 동일. 200 → `UserResponse`. 소셜 가입 후 전화번호·활동 지역 보완이 주 용도.
+`activityRegion`은 v1.5.1 지우기 규칙 적용 (명시적 `null` → 전국).
 
 ## 3-1. 소셜 로그인 (OAuth, v1.3.0)
 

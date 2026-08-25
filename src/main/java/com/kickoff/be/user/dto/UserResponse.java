@@ -11,6 +11,8 @@ public record UserResponse(
         String email,
         String nickname,
         String phone,
+        /** 주요 활동 지역 (v1.6.0). null 이면 전국 — FE 홈 목록이 지역 필터 없이 뜬다. */
+        String activityRegion,
         @JsonProperty("hasTeam") boolean hasTeam,
         Long teamId,
         List<AuthProvider> authProviders
@@ -26,6 +28,7 @@ public record UserResponse(
                 user.getEmail(),
                 user.getNickname(),
                 user.getPhone(),
+                user.getActivityRegion(),
                 team != null,
                 team == null ? null : team.getId(),
                 authProviders == null ? List.of() : authProviders

@@ -2,6 +2,7 @@ package com.kickoff.be.user.service;
 
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.common.Patchable;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
@@ -22,13 +23,25 @@ public class UserService {
     private final TeamRepository teamRepository;
     private final SocialAccountRepository socialAccountRepository;
 
-    /** 닉네임·전화번호 보완 (계약서 §3). 둘 다 optional 이라 null 인 항목은 건드리지 않는다. */
+    /**
+     * 프로필 보완 (계약서 §3). 전부 optional 이고, 안 보낸 필드는 그대로다.
+     *
+     * 활동 지역만 명시적 null 로 지울 수 있다 — 지우면 전국이 된다 (계약서 §2, v1.6.0).
+     * 닉네임·전화번호는 빈 상태가 의미를 갖지 않아서 null 을 보내면 400 이다. 조용히
+     * 무시하면 200 이 돌아가 FE 가 반영된 줄 알고 넘어간다.
+     */
     @Transactional
     public UserResponse update(User loginUser, UserUpdateRequest request) {
         // @LoginUser 로 들어온 인스턴스는 이 트랜잭션에 붙어 있지 않아 변경 감지가 안 걸린다
         User user = userRepository.findById(loginUser.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        user.updateProfile(request.nickname(), request.phone());
+        Patchable.rejectClear(request.nickname(), "nickname");
+        Patchable.rejectClear(request.phone(), "phone");
+        user.updateProfile(Patchable.valueOf(request.nickname()),
+                Patchable.valueOf(request.phone()));
+        if (Patchable.isPresent(request.activityRegion())) {
+            user.updateActivityRegion(Patchable.valueOf(request.activityRegion()));
+        }
         return toResponse(user);
     }
 

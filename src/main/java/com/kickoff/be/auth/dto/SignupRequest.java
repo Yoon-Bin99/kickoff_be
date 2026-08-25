@@ -21,6 +21,13 @@ public record SignupRequest(
 
         @NotBlank(message = "휴대폰 번호는 필수입니다.")
         @Pattern(regexp = "^010-\\d{4}-\\d{4}$", message = "휴대폰 번호는 010-0000-0000 형식이어야 합니다.")
-        String phone
+        String phone,
+
+        /**
+         * 주요 활동 지역 (계약서 §3, v1.6.0). optional 이다 — 가입 화면이 선택을 권하지만
+         * 건너뛸 수 있고, 안 주면 전국이다. 나중에 PATCH 로 채울 수 있다.
+         */
+        @Size(max = 20, message = "활동 지역은 20자를 넘을 수 없습니다.")
+        String activityRegion
 ) {
 }

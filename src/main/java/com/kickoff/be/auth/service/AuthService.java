@@ -37,6 +37,7 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.password()))
                 .nickname(request.nickname())
                 .phone(request.phone())
+                .activityRegion(request.activityRegion())
                 .build());
         return toAuthResponse(user);
     }
