@@ -217,6 +217,7 @@ v1.3.0 추가 필드:
 `{ "nickname": "김주장", "phone": "010-1234-5678", "activityRegion": "서울" }` — 전부 optional,
 형식은 signup과 동일. 200 → `UserResponse`. 소셜 가입 후 전화번호·활동 지역 보완이 주 용도.
 `activityRegion`은 v1.5.1 지우기 규칙 적용 (명시적 `null` → 전국).
+`nickname`·`phone`은 지울 수 없는 필드 — 명시적 `null`은 400 (조용히 무시하지 않는다).
 
 ## 3-1. 소셜 로그인 (OAuth, v1.3.0)
 
