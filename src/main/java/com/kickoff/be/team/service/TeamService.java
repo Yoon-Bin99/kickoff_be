@@ -5,11 +5,13 @@ import com.kickoff.be.common.Patchable;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.review.repository.ReviewRepository;
+import com.kickoff.be.team.dto.RecordSummary;
 import com.kickoff.be.team.dto.TeamCreateRequest;
 import com.kickoff.be.team.dto.TeamResponse;
 import com.kickoff.be.team.dto.TeamUpdateRequest;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.entity.TeamRole;
+import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.user.entity.User;
@@ -25,6 +27,7 @@ public class TeamService {
 
     private final TeamRepository teamRepository;
     private final ReviewRepository reviewRepository;
+    private final TeamRecordRepository teamRecordRepository;
     private final TeamAuthz teamAuthz;
 
     @Transactional
@@ -51,8 +54,9 @@ public class TeamService {
                 .teamColor(request.teamColor())
                 .formation(request.formation())
                 .build());
-        // 방금 만든 팀이라 받은 리뷰가 있을 수 없고, 만든 사람이 곧 소유자다.
-        return TeamResponse.of(team, owner.getId(), ReviewStats.EMPTY, TeamRole.OWNER);
+        // 방금 만든 팀이라 리뷰도 기록도 있을 수 없고, 만든 사람이 곧 소유자다.
+        return TeamResponse.of(team, owner.getId(), ReviewStats.EMPTY, TeamRole.OWNER,
+                RecordSummary.EMPTY);
     }
 
     @Transactional(readOnly = true)
@@ -61,7 +65,7 @@ public class TeamService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_NOT_FOUND));
         // 소유 기준으로 찾아온 팀이라 역할을 조회할 필요가 없다.
         return TeamResponse.of(team, user.getId(), reviewRepository.statsOf(team.getId()),
-                TeamRole.OWNER);
+                TeamRole.OWNER, teamRecordRepository.summaryOf(team.getId()));
     }
 
     /** 인증 불필요 — viewer 가 null 이면 isMine 은 false 이고 myRole 은 null 이다. */
@@ -70,7 +74,7 @@ public class TeamService {
         Team team = teamAuthz.requireTeam(teamId);
         Long viewerId = viewer == null ? null : viewer.getId();
         return TeamResponse.of(team, viewerId, reviewRepository.statsOf(team.getId()),
-                teamAuthz.roleOf(team, viewerId));
+                teamAuthz.roleOf(team, viewerId), teamRecordRepository.summaryOf(team.getId()));
     }
 
     @Transactional
@@ -94,7 +98,8 @@ public class TeamService {
         }
         applyProfilePatch(team, request);
         return TeamResponse.of(team, user.getId(), reviewRepository.statsOf(team.getId()),
-                teamAuthz.roleOf(team, user.getId()));
+                teamAuthz.roleOf(team, user.getId()),
+                teamRecordRepository.summaryOf(team.getId()));
     }
 
     /** 팀 프로필 확장 필드 (계약서 §4-1, v1.8.0). 셋 다 명시적 null 로 지울 수 있다. */

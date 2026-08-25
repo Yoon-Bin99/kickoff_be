@@ -33,7 +33,9 @@ public record TeamResponse(
         // ── 팀 프로필 확장 (계약서 §4-1, v1.8.0)
         Integer foundedYear,
         String teamColor,
-        String formation
+        String formation,
+        /** 수동 입력 기록에서 집계한 전적. 기록이 0건이면 전부 0 이다 (계약서 §4-1). */
+        RecordSummary recordSummary
 ) {
 
     /**
@@ -41,17 +43,16 @@ public record TeamResponse(
      * reviewStats 를 인자로 받는 이유: 이 DTO 는 팀 조회와 글 상세 양쪽에서 만들어지는데,
      * 집계를 안에서 조회하면 리포지터리 의존이 DTO 로 새고 호출자가 쿼리 수를 통제할 수 없다.
      */
-    public static TeamResponse of(Team team, Long viewerId, ReviewStats reviewStats) {
-        return of(team, viewerId, reviewStats, team.isOwnedBy(viewerId) ? TeamRole.OWNER : null);
-    }
-
     /**
-     * 역할을 아는 호출자가 쓰는 형태 (계약서 §4-2). 관리자 판정에는 조회가 한 번 더
-     * 필요해서, 그 비용을 치를지는 호출자가 정한다 — 위 형태는 소유자만 가려내고 관리자는
-     * null 로 둔다.
+     * 역할과 전적 요약은 <b>호출자가 넘긴다</b>. 둘 다 조회가 필요해서 DTO 안에서 구하면
+     * 리포지터리 의존이 새고 호출자가 쿼리 수를 통제할 수 없다 (reviewStats 와 같은 이유).
+     *
+     * 기본값을 채워 주는 편의 생성자를 두지 않은 건 의도다. 그런 게 있으면 다음 사람이
+     * 무심코 써서 기록이 있는 팀에 <b>0승 0무 0패</b>가 나가는데, 에러가 아니라 조용히
+     * 틀린 값이라 화면을 보기 전에는 아무도 모른다.
      */
     public static TeamResponse of(Team team, Long viewerId, ReviewStats reviewStats,
-                                  TeamRole myRole) {
+                                  TeamRole myRole, RecordSummary recordSummary) {
         return new TeamResponse(
                 team.getId(),
                 team.getName(),
@@ -70,7 +71,8 @@ public record TeamResponse(
                 reviewStats.average(),
                 team.getFoundedYear(),
                 team.getTeamColor(),
-                team.getFormation()
+                team.getFormation(),
+                recordSummary
         );
     }
 }

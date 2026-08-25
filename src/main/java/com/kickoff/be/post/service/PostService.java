@@ -23,7 +23,10 @@ import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.team.dto.RecordSummary;
+import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
+import com.kickoff.be.team.service.TeamAuthz;
 import com.kickoff.be.user.entity.User;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -48,6 +51,8 @@ public class PostService {
 
     private final MatchPostRepository postRepository;
     private final TeamRepository teamRepository;
+    private final TeamRecordRepository teamRecordRepository;
+    private final TeamAuthz teamAuthz;
     private final MatchRequestRepository requestRepository;
     private final ReviewRepository reviewRepository;
 
@@ -305,8 +310,12 @@ public class PostService {
         long requestCount = requestCounts(List.of(post)).getOrDefault(post.getId(), 0L);
         // 상세의 team 은 TeamResponse 라 평점까지 들어간다 (계약서 §2, v1.2.0).
         ReviewStats teamReviewStats = reviewRepository.statsOf(post.getTeam().getId());
+        // 상세에 실린 팀도 전적 요약을 그대로 내보낸다. 0 으로 두면 기록이 있는 팀이
+        // 목록에서는 7승인데 글 상세에서는 0승으로 보인다 (계약서 §4-1).
+        RecordSummary teamRecordSummary = teamRecordRepository.summaryOf(post.getTeam().getId());
         if (viewer == null) {
-            return PostDetail.of(post, requestCount, null, null, null, null, teamReviewStats);
+            return PostDetail.of(post, requestCount, null, null, null, null, teamReviewStats,
+                    null, teamRecordSummary);
         }
 
         Long viewerId = viewer.getId();
@@ -321,7 +330,8 @@ public class PostService {
         MatchRequest accepted = requestRepository.findAcceptedByPostId(post.getId()).orElse(null);
         return PostDetail.of(post, requestCount, viewerId, myRequestStatus,
                 contactFor(post, accepted, viewerId, viewerTeamId),
-                paymentFor(post, accepted, viewerId, viewerTeamId), teamReviewStats);
+                paymentFor(post, accepted, viewerId, viewerTeamId), teamReviewStats,
+                teamAuthz.roleOf(post.getTeam(), viewerId), teamRecordSummary);
     }
 
     /** 매칭이 성사된 두 팀만 서로의 연락처를 본다. */

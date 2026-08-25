@@ -8,7 +8,9 @@ import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.review.dto.ReviewStats;
+import com.kickoff.be.team.dto.RecordSummary;
 import com.kickoff.be.team.dto.TeamResponse;
+import com.kickoff.be.team.entity.TeamRole;
 import com.kickoff.be.team.entity.SkillLevel;
 import java.time.OffsetDateTime;
 
@@ -42,7 +44,8 @@ public record PostDetail(
 
     public static PostDetail of(MatchPost post, long requestCount, Long viewerId,
                                 RequestStatus myRequestStatus, ContactInfo contact,
-                                PaymentInfo payment, ReviewStats teamReviewStats) {
+                                PaymentInfo payment, ReviewStats teamReviewStats,
+                                TeamRole teamRole, RecordSummary teamRecordSummary) {
         return new PostDetail(
                 post.getId(),
                 post.getTitle(),
@@ -59,7 +62,8 @@ public record PostDetail(
                 post.getStatus(),
                 post.getViewCount(),
                 requestCount,
-                TeamResponse.of(post.getTeam(), viewerId, teamReviewStats),
+                TeamResponse.of(post.getTeam(), viewerId, teamReviewStats,
+                        teamRole, teamRecordSummary),
                 post.isWrittenBy(viewerId),
                 myRequestStatus,
                 contact,
