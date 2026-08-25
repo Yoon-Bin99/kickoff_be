@@ -42,6 +42,21 @@ public class DataInitializer implements ApplicationRunner {
 
     private static final String RAW_PASSWORD = "pass1234";
 
+    /*
+     * 지도용 좌표 (계약서 §5-1). 카카오 로컬 키워드 검색으로 실제 조회한 값이라 지도에
+     * 찍으면 진짜 그 구장에 마커가 선다 — FE 가 눈으로 검증할 수 있어야 의미가 있다.
+     *
+     * 강서구민운동장만 예외다. 카카오 검색이 부산 화명동을 유사 매칭으로 돌려줘서
+     * 계약서 §5-1 예시에 적힌 값을 그대로 썼다.
+     *
+     * 좌표를 주지 않은 글이 훨씬 많다. 좌표 있는 글과 없는 글 양쪽을 FE 가 다 봐야 한다.
+     */
+    private static final double[] GANGSEO = {37.5586, 126.8351};
+    private static final double[] OLYMPIC_PARK = {37.5169382511733, 127.123340764599};
+    private static final double[] GOYANG_STADIUM = {37.67640372499092, 126.74308829942302};
+    private static final double[] TANCHEON = {37.4101849257468, 127.121331148072};
+    private static final double[] NAMDONG = {37.4346425602455, 126.733811034142};
+
     private final UserRepository userRepository;
     private final TeamRepository teamRepository;
     private final MatchPostRepository postRepository;
@@ -103,7 +118,8 @@ public class DataInitializer implements ApplicationRunner {
                 post(saebyeok, kimAcc, "토요일 아침 풋살 상대 구합니다",
                         "6인제로 2시간 뛸 팀 찾습니다. 매너 중요합니다.",
                         2, LocalTime.of(7, 0), "강서구민운동장 A구장", "서울 강서구",
-                        FieldType.FUTSAL, SkillLevel.INTERMEDIATE, 100000, 50000),
+                        FieldType.FUTSAL, SkillLevel.INTERMEDIATE, 100000, 50000,
+                        GANGSEO[0], GANGSEO[1]),
                 post(saebyeok, kimAcc, "평일 저녁 11인제 한 판",
                         "수요일 저녁에 풀피치로 뛸 팀 구합니다. 조명 있습니다.",
                         5, LocalTime.of(20, 0), "강서구민운동장 주경기장", "서울 강서구",
@@ -145,7 +161,8 @@ public class DataInitializer implements ApplicationRunner {
                 post(songpa, parkAcc, "초보팀끼리 즐겁게 한 경기",
                         "입문 수준입니다. 살살 해주실 팀 찾아요. 커피 쏘겠습니다.",
                         4, LocalTime.of(8, 0), "올림픽공원 축구장 2번", "서울 송파구",
-                        FieldType.SOCCER_6, SkillLevel.BEGINNER, 60000, 30000),
+                        FieldType.SOCCER_6, SkillLevel.BEGINNER, 60000, 30000,
+                        OLYMPIC_PARK[0], OLYMPIC_PARK[1]),
                 post(songpa, parkAcc, "송파 일요일 오후 6인제",
                         "오후 시간대 선호하는 팀 있으면 연락 주세요.",
                         10, LocalTime.of(15, 0), "송파구민체육관 풋살장", "서울 송파구",
@@ -166,7 +183,8 @@ public class DataInitializer implements ApplicationRunner {
                 post(goyang, choiAcc, "고양 토요일 오전 11인제",
                         "40대 위주 팀입니다. 비슷한 연령대면 더 좋습니다.",
                         2, LocalTime.of(10, 0), "고양종합운동장 보조구장", "경기 고양시",
-                        FieldType.SOCCER_11, SkillLevel.AMATEUR, 220000, 110000),
+                        FieldType.SOCCER_11, SkillLevel.AMATEUR, 220000, 110000,
+                        GOYANG_STADIUM[0], GOYANG_STADIUM[1]),
                 post(goyang, choiAcc, "평일 낮 풋살 하실 팀",
                         "자영업자 팀이라 평일 낮이 편합니다. 같은 사정인 팀 환영.",
                         7, LocalTime.of(14, 0), "일산 풋살파크 1구장", "경기 고양시",
@@ -187,7 +205,8 @@ public class DataInitializer implements ApplicationRunner {
                 post(seongnam, jungAcc, "성남 일요일 아침 9인제",
                         "탄천에서 뜁니다. 주차 편합니다.",
                         3, LocalTime.of(7, 30), "탄천종합운동장 축구장", "경기 성남시",
-                        FieldType.SOCCER_9, SkillLevel.INTERMEDIATE, 160000, 80000),
+                        FieldType.SOCCER_9, SkillLevel.INTERMEDIATE, 160000, 80000,
+                        TANCHEON[0], TANCHEON[1]),
                 post(seongnam, null, "다음 주 토요일 11인제 상대 구합니다",
                         "정기전 상대가 펑크나서 급하게 구합니다. 비용은 반반 협의.",
                         9, LocalTime.of(6, 30), "탄천종합운동장 주경기장", "경기 성남시",
@@ -208,7 +227,8 @@ public class DataInitializer implements ApplicationRunner {
                 post(incheon, yoonAcc, "인천 풋살 고수팀 구합니다",
                         "제대로 붙어볼 팀 찾습니다. 실력 자신 있는 팀만.",
                         6, LocalTime.of(19, 0), "남동체육관 풋살장", "인천 남동구",
-                        FieldType.FUTSAL, SkillLevel.ADVANCED, 120000, 60000),
+                        FieldType.FUTSAL, SkillLevel.ADVANCED, 120000, 60000,
+                        NAMDONG[0], NAMDONG[1]),
                 post(incheon, yoonAcc, "인천 주말 6인제 친선경기",
                         "가볍게 몸 풀 겸 한 경기 하실 팀 구해요.",
                         13, LocalTime.of(11, 0), "송도 축구장 3번", "인천 남동구",
@@ -294,8 +314,10 @@ public class DataInitializer implements ApplicationRunner {
                     "시드 데이터가 저장되지 않았다 — 팀 %d, 모집글 %d".formatted(teamCount, postCount));
         }
         long openCount = posts.stream().filter(MatchPost::isOpen).count();
-        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개), 신청 {}건, 리뷰 {}건",
-                teamCount, postCount, openCount, requestCount, reviewRepository.count());
+        long withCoordinates = posts.stream().filter(MatchPost::hasCoordinates).count();
+        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건",
+                teamCount, postCount, openCount, withCoordinates, requestCount,
+                reviewRepository.count());
     }
 
     private Team createTeam(String email, String nickname, String phone, String teamName,
@@ -319,10 +341,20 @@ public class DataInitializer implements ApplicationRunner {
                 .build());
     }
 
+    /** 좌표 없는 글 — 장소를 직접 입력한 경우다. FE 는 상세에서 지도 영역을 숨긴다. */
     private MatchPost post(Team team, SeedAccount account, String title, String content,
                            int dayOffset, LocalTime time, String location, String region,
                            FieldType fieldType, SkillLevel preferredSkillLevel,
                            Integer rentalFee, Integer depositAmount) {
+        return post(team, account, title, content, dayOffset, time, location, region,
+                fieldType, preferredSkillLevel, rentalFee, depositAmount, null, null);
+    }
+
+    private MatchPost post(Team team, SeedAccount account, String title, String content,
+                           int dayOffset, LocalTime time, String location, String region,
+                           FieldType fieldType, SkillLevel preferredSkillLevel,
+                           Integer rentalFee, Integer depositAmount,
+                           Double latitude, Double longitude) {
         OffsetDateTime matchAt = OffsetDateTime.now()
                 .truncatedTo(ChronoUnit.DAYS)
                 .plusDays(dayOffset)
@@ -341,6 +373,8 @@ public class DataInitializer implements ApplicationRunner {
                 .bankName(account == null ? null : account.bankName())
                 .accountNumber(account == null ? null : account.accountNumber())
                 .accountHolder(account == null ? null : account.accountHolder())
+                .latitude(latitude)
+                .longitude(longitude)
                 .build();
     }
 

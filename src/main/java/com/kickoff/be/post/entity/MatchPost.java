@@ -82,6 +82,15 @@ public class MatchPost extends BaseTimeEntity {
     @Column(length = 20)
     private String accountHolder;
 
+    /**
+     * 지도에 찍을 좌표 (계약서 §5-1). 둘 다 nullable 이고 <b>언제나 쌍으로만</b> 존재한다 —
+     * 한쪽만 있으면 엉뚱한 지점을 가리키게 되므로 서비스에서 쌍 검증을 한다.
+     * 장소를 직접 입력한 글은 좌표가 없고, FE 는 그때 지도 영역 자체를 숨긴다.
+     */
+    private Double latitude;
+
+    private Double longitude;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PostStatus status;
@@ -93,7 +102,8 @@ public class MatchPost extends BaseTimeEntity {
     private MatchPost(Team team, String title, String content, OffsetDateTime matchAt, String location,
                       String region, FieldType fieldType, SkillLevel preferredSkillLevel,
                       Integer rentalFee, Integer depositAmount, String bankName,
-                      String accountNumber, String accountHolder) {
+                      String accountNumber, String accountHolder,
+                      Double latitude, Double longitude) {
         this.team = team;
         this.title = title;
         this.content = content;
@@ -107,6 +117,8 @@ public class MatchPost extends BaseTimeEntity {
         this.bankName = bankName;
         this.accountNumber = accountNumber;
         this.accountHolder = accountHolder;
+        this.latitude = latitude;
+        this.longitude = longitude;
         this.status = PostStatus.OPEN;
         this.viewCount = 0;
     }
@@ -119,7 +131,8 @@ public class MatchPost extends BaseTimeEntity {
     public void update(String title, String content, OffsetDateTime matchAt, String location,
                        String region, FieldType fieldType, SkillLevel preferredSkillLevel,
                        Integer rentalFee, Integer depositAmount, String bankName,
-                       String accountNumber, String accountHolder, PostStatus status) {
+                       String accountNumber, String accountHolder, PostStatus status,
+                       Double latitude, Double longitude) {
         if (title != null) {
             this.title = title;
         }
@@ -159,6 +172,15 @@ public class MatchPost extends BaseTimeEntity {
         if (status != null) {
             this.status = status;
         }
+        // 좌표는 쌍으로만 바뀐다. 하나만 들어오는 요청은 서비스에서 이미 걸러졌다.
+        if (latitude != null && longitude != null) {
+            this.latitude = latitude;
+            this.longitude = longitude;
+        }
+    }
+
+    public boolean hasCoordinates() {
+        return latitude != null && longitude != null;
     }
 
     /** 입금 안내를 만들 수 있는 상태인지 — 계좌가 다 채워져 있어야 한다. */

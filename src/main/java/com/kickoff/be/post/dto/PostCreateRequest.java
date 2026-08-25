@@ -2,6 +2,8 @@ package com.kickoff.be.post.dto;
 
 import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.team.entity.SkillLevel;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -52,6 +54,18 @@ public record PostCreateRequest(
         String accountNumber,
 
         @Size(max = 20, message = "예금주는 20자를 넘을 수 없습니다.")
-        String accountHolder
+        String accountHolder,
+
+        /**
+         * 지도 좌표 (계약서 §5-1). 좌표 없이도 글은 등록된다 — 장소를 직접 입력한 경우다.
+         * 다만 넣는다면 <b>반드시 쌍으로</b>. 하나만 오면 400 이다 (PostService 에서 검증).
+         */
+        @DecimalMin(value = "-90.0", message = "위도는 -90 이상이어야 합니다.")
+        @DecimalMax(value = "90.0", message = "위도는 90 이하여야 합니다.")
+        Double latitude,
+
+        @DecimalMin(value = "-180.0", message = "경도는 -180 이상이어야 합니다.")
+        @DecimalMax(value = "180.0", message = "경도는 180 이하여야 합니다.")
+        Double longitude
 ) {
 }

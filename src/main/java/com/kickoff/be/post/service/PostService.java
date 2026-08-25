@@ -86,6 +86,7 @@ public class PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_REQUIRED));
         requireAccountWhenDepositSet(request.depositAmount(), request.bankName(),
                 request.accountNumber(), request.accountHolder());
+        requireCoordinatePair(request.latitude(), request.longitude());
         MatchPost post = postRepository.save(MatchPost.builder()
                 .team(team)
                 .title(request.title())
@@ -100,6 +101,8 @@ public class PostService {
                 .bankName(request.bankName())
                 .accountNumber(request.accountNumber())
                 .accountHolder(request.accountHolder())
+                .latitude(request.latitude())
+                .longitude(request.longitude())
                 .build());
         return toDetail(post, user);
     }
@@ -116,10 +119,12 @@ public class PostService {
     public PostDetail update(Long postId, User user, PostUpdateRequest request) {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
+        requireCoordinatePair(request.latitude(), request.longitude());
         post.update(request.title(), request.content(), request.matchAt(), request.location(),
                 request.region(), request.fieldType(), request.preferredSkillLevel(),
                 request.rentalFee(), request.depositAmount(), request.bankName(),
-                request.accountNumber(), request.accountHolder(), request.status());
+                request.accountNumber(), request.accountHolder(), request.status(),
+                request.latitude(), request.longitude());
         // 병합된 결과를 기준으로 본다. 계좌는 작성자도 다시 읽을 수 없어서,
         // PATCH 본문만 보고 판단하면 금액만 고치는 정상 요청이 막혀버린다.
         requireAccountWhenDepositSet(post.getDepositAmount(), post.getBankName(),
@@ -132,6 +137,25 @@ public class PostService {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
         postRepository.delete(post);
+    }
+
+    /**
+     * 좌표는 쌍으로만 받는다 (계약서 §5-1). 하나만 오면 400 이다.
+     *
+     * 계좌 검증(requireAccountWhenDepositSet)과 달리 <b>병합된 결과가 아니라 요청 본문</b>을
+     * 본다. 계좌는 클라이언트가 값을 되읽을 수 없어서 금액만 보내는 PATCH 를 허용해야 하지만,
+     * 좌표는 응답에 그대로 실려 나가므로 고칠 때 둘 다 보낼 수 있다. 그리고 위도만 바꾸면
+     * 이전 경도와 짝지어져 <b>엉뚱한 지점</b>을 가리키게 되는데, 그건 조용히 틀리는 종류의
+     * 사고라 요청 단계에서 막는 편이 낫다. 계약서가 PATCH 를 따로 규정하지 않아 이렇게 정했다.
+     */
+    private void requireCoordinatePair(Double latitude, Double longitude) {
+        if ((latitude == null) == (longitude == null)) {
+            return;
+        }
+        String missing = latitude == null ? "latitude" : "longitude";
+        throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                List.of(new ErrorResponse.FieldError(missing,
+                        "위도와 경도는 함께 보내야 합니다.")));
     }
 
     /** depositAmount 를 받으려면 보낼 곳이 있어야 한다 (계약서 §5). */
