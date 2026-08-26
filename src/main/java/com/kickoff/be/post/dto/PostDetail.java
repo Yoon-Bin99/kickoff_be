@@ -62,8 +62,10 @@ public record PostDetail(
                 post.getStatus(),
                 post.getViewCount(),
                 requestCount,
+                // 글 상세의 팀 카드에는 가입 신청 상태를 싣지 않는다. 그 화면에서 가입
+                // 버튼을 누르는 흐름이 없어서, 조회를 한 번 더 할 이유가 없다 (계약서 §4-3).
                 TeamResponse.of(post.getTeam(), viewerId, teamReviewStats,
-                        teamRole, teamRecordSummary),
+                        teamRole, teamRecordSummary, null),
                 post.isWrittenBy(viewerId),
                 myRequestStatus,
                 contact,

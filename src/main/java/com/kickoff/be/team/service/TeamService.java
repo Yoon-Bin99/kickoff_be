@@ -29,6 +29,7 @@ public class TeamService {
     private final ReviewRepository reviewRepository;
     private final TeamRecordRepository teamRecordRepository;
     private final TeamAuthz teamAuthz;
+    private final TeamJoinService teamJoinService;
 
     @Transactional
     public TeamResponse create(User owner, TeamCreateRequest request) {
@@ -55,8 +56,9 @@ public class TeamService {
                 .formation(request.formation())
                 .build());
         // 방금 만든 팀이라 리뷰도 기록도 있을 수 없고, 만든 사람이 곧 소유자다.
+        // 방금 만든 팀이라 가입 신청도 있을 수 없다.
         return TeamResponse.of(team, owner.getId(), ReviewStats.EMPTY, TeamRole.OWNER,
-                RecordSummary.EMPTY);
+                RecordSummary.EMPTY, null);
     }
 
     @Transactional(readOnly = true)
@@ -64,8 +66,9 @@ public class TeamService {
         Team team = teamRepository.findWithOwnerByOwnerId(user.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_NOT_FOUND));
         // 소유 기준으로 찾아온 팀이라 역할을 조회할 필요가 없다.
+        // 소유자가 자기 팀에 가입 신청을 낼 일은 없다 (낼 수도 없다 — 409).
         return TeamResponse.of(team, user.getId(), reviewRepository.statsOf(team.getId()),
-                TeamRole.OWNER, teamRecordRepository.summaryOf(team.getId()));
+                TeamRole.OWNER, teamRecordRepository.summaryOf(team.getId()), null);
     }
 
     /** 인증 불필요 — viewer 가 null 이면 isMine 은 false 이고 myRole 은 null 이다. */
@@ -74,7 +77,8 @@ public class TeamService {
         Team team = teamAuthz.requireTeam(teamId);
         Long viewerId = viewer == null ? null : viewer.getId();
         return TeamResponse.of(team, viewerId, reviewRepository.statsOf(team.getId()),
-                teamAuthz.roleOf(team, viewerId), teamRecordRepository.summaryOf(team.getId()));
+                teamAuthz.roleOf(team, viewerId), teamRecordRepository.summaryOf(team.getId()),
+                teamJoinService.myJoinStatus(teamId, viewerId));
     }
 
     @Transactional
@@ -97,9 +101,10 @@ public class TeamService {
             team.updateIntroduction(Patchable.valueOf(request.introduction()));
         }
         applyProfilePatch(team, request);
+        // 고칠 수 있는 사람은 이미 소속이라 대기 중인 신청이 있을 수 없다.
         return TeamResponse.of(team, user.getId(), reviewRepository.statsOf(team.getId()),
                 teamAuthz.roleOf(team, user.getId()),
-                teamRecordRepository.summaryOf(team.getId()));
+                teamRecordRepository.summaryOf(team.getId()), null);
     }
 
     /** 팀 프로필 확장 필드 (계약서 §4-1, v1.8.0). 셋 다 명시적 null 로 지울 수 있다. */

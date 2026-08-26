@@ -5,6 +5,7 @@ import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.entity.TeamRole;
 import com.kickoff.be.team.repository.TeamAdminRepository;
+import com.kickoff.be.team.repository.TeamMemberRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class TeamAuthz {
 
     private final TeamRepository teamRepository;
     private final TeamAdminRepository teamAdminRepository;
+    private final TeamMemberRepository teamMemberRepository;
 
     /** 팀을 찾는다. 없으면 404. 소유자 닉네임까지 쓰는 자리라 owner 를 함께 가져온다. */
     @Transactional(readOnly = true)
@@ -44,11 +46,18 @@ public class TeamAuthz {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_NOT_FOUND));
     }
 
-    /** 팀 페이지를 고칠 수 있는 사람 — 소유자 또는 관리자 (계약서 §4-2 권한표). */
+    /**
+     * 팀 페이지를 고칠 수 있는 사람 — 소유자 또는 관리자 (계약서 §4-2 권한표).
+     *
+     * <b>MEMBER 는 통과하지 못한다.</b> v1.11.0 이전에는 "역할이 있으면 통과"로 써도 같은
+     * 뜻이었지만, MEMBER 가 생기면서 그 표현이 조용히 틀린 것이 됐다 — 소속이라는 이유만으로
+     * 남의 팀 정보를 고칠 수 있게 된다. 그래서 허용 역할을 열거로 못 박는다.
+     */
     @Transactional(readOnly = true)
     public Team requireWriter(Long teamId, User user) {
         Team team = requireTeam(teamId);
-        if (roleOf(team, user.getId()) == null) {
+        TeamRole role = roleOf(team, user.getId());
+        if (role != TeamRole.OWNER && role != TeamRole.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         return team;
@@ -65,10 +74,12 @@ public class TeamAuthz {
     }
 
     /**
-     * 이 사용자의 역할. 관계가 없거나 비로그인이면 <b>null</b> 이다 (계약서 §4-2).
+     * 이 사용자의 역할. 관계가 없거나 비로그인이면 <b>null</b> 이다 (계약서 §4-2·§4-3).
      *
-     * 소유자를 먼저 본다. 소유자는 team_admins 에 들어가지 않으므로 순서가 결과를 바꾸지는
-     * 않지만, 소유자 판정에 쿼리가 필요 없다는 점에서 이 순서가 싸다.
+     * 판정 순서는 OWNER > ADMIN > MEMBER 다 (v1.11.0). 한 사람이 소유자이면서 명단에도
+     * 올라 있을 수 있는데, 그때 MEMBER 로 답하면 화면에서 권한이 사라진다.
+     *
+     * 소유자를 먼저 보는 건 서열 때문이기도 하고 쿼리가 필요 없어서이기도 하다.
      */
     @Transactional(readOnly = true)
     public TeamRole roleOf(Team team, Long userId) {
@@ -78,8 +89,17 @@ public class TeamAuthz {
         if (team.isOwnedBy(userId)) {
             return TeamRole.OWNER;
         }
-        return teamAdminRepository.existsByTeamIdAndUserId(team.getId(), userId)
-                ? TeamRole.ADMIN
+        if (teamAdminRepository.existsByTeamIdAndUserId(team.getId(), userId)) {
+            return TeamRole.ADMIN;
+        }
+        return teamMemberRepository.existsByTeamIdAndUser_Id(team.getId(), userId)
+                ? TeamRole.MEMBER
                 : null;
+    }
+
+    /** 이미 이 팀 소속인지 (계약서 §4-3). 가입 신청을 막는 조건이다. */
+    @Transactional(readOnly = true)
+    public boolean isMemberOfAnyKind(Team team, Long userId) {
+        return roleOf(team, userId) != null;
     }
 }

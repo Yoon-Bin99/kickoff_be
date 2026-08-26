@@ -501,7 +501,11 @@ PATCH 지우기는 v1.5.1 규칙):
 
 역할이 확장된다: **OWNER > ADMIN > MEMBER > 일반.** `TeamResponse.myRole`과
 `GET /api/users/me/teams`의 `role`에 `MEMBER`가 추가된다 (목록 순서: OWNER → ADMIN
-임명순 → MEMBER 가입순). MEMBER는 조회·소속 표시만 갖는다 — 팀 페이지 수정 권한 없음,
+임명순 → MEMBER 가입순). `TeamResponse`에 **`myJoinStatus`: `"PENDING" | null`** 도
+추가된다 — 내 PENDING 가입 신청 여부 (소속·비로그인·이력 없음·거절/취소됨은 전부
+`null`. 거절 상태를 따로 담지 않는 이유: 재신청이 허용되므로 "신청 가능"과 구분할
+필요가 없다). FE 분기: `myRole` 있으면 소속 표시, 없고 `myJoinStatus` PENDING이면
+"신청됨+취소", 둘 다 null이면 "가입 신청". MEMBER는 조회·소속 표시만 갖는다 — 팀 페이지 수정 권한 없음,
 매칭·리뷰 권한 없음 (v1.9 권한표 유지).
 
 **명단-계정 통합**: `TeamMember`에 `userId`(nullable)가 추가된다. 가입 승인 시 명단에

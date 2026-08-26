@@ -34,6 +34,11 @@ public enum ErrorCode {
     ALREADY_TEAM_ADMIN(HttpStatus.CONFLICT, "이미 이 팀의 관리자입니다."),
     TEAM_ADMIN_LIMIT(HttpStatus.BAD_REQUEST, "관리자는 5명을 넘을 수 없습니다."),
     ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "이 팀의 관리자가 아닙니다."),
+    /** 팀 소속·가입 (계약서 §4-3, v1.11.0). */
+    JOIN_ALREADY_REQUESTED(HttpStatus.CONFLICT, "이미 가입 신청이 대기 중입니다."),
+    ALREADY_TEAM_MEMBER(HttpStatus.CONFLICT, "이미 이 팀 소속입니다."),
+    JOIN_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 가입 신청입니다."),
+    JOIN_NOT_PENDING(HttpStatus.CONFLICT, "이미 처리된 가입 신청입니다."),
     TEAM_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 팀을 보유하고 있습니다."),
     TEAM_REQUIRED(HttpStatus.BAD_REQUEST, "팀을 먼저 등록해야 합니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 모집글입니다."),

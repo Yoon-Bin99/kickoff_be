@@ -5,6 +5,7 @@ import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.team.entity.JoinStatus;
 import com.kickoff.be.team.entity.TeamRole;
 import java.time.OffsetDateTime;
 
@@ -24,8 +25,16 @@ public record TeamResponse(
          * 남겨 둔다 (계약서 §4-2 하위호환).
          */
         @JsonProperty("isMine") boolean isMine,
-        /** OWNER · ADMIN · null (비로그인이거나 무관계) — 계약서 §4-2, v1.9.0. */
+        /** OWNER · ADMIN · MEMBER · null (비로그인이거나 무관계) — 계약서 §4-2·§4-3. */
         TeamRole myRole,
+        /**
+         * 내 가입 신청이 대기 중이면 PENDING, 아니면 null (계약서 §4-3, v1.11.0).
+         *
+         * 신청자 본인은 join-requests 목록을 볼 수 없어서(소유자·관리자 전용) 팀 페이지에서
+         * 자기 신청 상태를 알 길이 없었다. 거절·취소 이력을 구분하지 않는 건 재신청이
+         * 허용되기 때문이다 — 어느 쪽이든 FE 는 신청 버튼을 보여주면 된다.
+         */
+        JoinStatus myJoinStatus,
         OffsetDateTime createdAt,
         long reviewCount,
         Double averageRating,
@@ -52,7 +61,8 @@ public record TeamResponse(
      * 틀린 값이라 화면을 보기 전에는 아무도 모른다.
      */
     public static TeamResponse of(Team team, Long viewerId, ReviewStats reviewStats,
-                                  TeamRole myRole, RecordSummary recordSummary) {
+                                  TeamRole myRole, RecordSummary recordSummary,
+                                  JoinStatus myJoinStatus) {
         return new TeamResponse(
                 team.getId(),
                 team.getName(),
@@ -66,6 +76,7 @@ public record TeamResponse(
                 team.getOwner().getNickname(),
                 team.isOwnedBy(viewerId),
                 myRole,
+                myJoinStatus,
                 team.getCreatedAt(),
                 reviewStats.count(),
                 reviewStats.average(),

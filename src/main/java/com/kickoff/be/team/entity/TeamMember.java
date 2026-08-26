@@ -1,6 +1,7 @@
 package com.kickoff.be.team.entity;
 
 import com.kickoff.be.common.BaseTimeEntity;
+import com.kickoff.be.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -49,12 +50,39 @@ public class TeamMember extends BaseTimeEntity {
     /** nullable — 등번호가 없는 팀원이 있다. 목록에서는 뒤로 밀린다. */
     private Integer backNumber;
 
+    /**
+     * 이 항목이 가리키는 앱 계정 (계약서 §4-3, v1.11.0). 수기 명단은 <b>null</b> 이다.
+     *
+     * 연결된 항목은 곧 그 사람의 팀 소속이기도 하다 — 항목을 지우면 멤버십도 끝난다(강퇴).
+     * name 은 닉네임을 따르므로 PATCH 로 못 바꾼다. 둘이 갈리면 명단에 옛 이름이 남아
+     * 같은 사람이 두 명처럼 보인다.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
     @Builder
-    private TeamMember(Team team, String name, Position position, Integer backNumber) {
+    private TeamMember(Team team, String name, Position position, Integer backNumber,
+                       User user) {
         this.team = team;
         this.name = name;
         this.position = position;
         this.backNumber = backNumber;
+        this.user = user;
+    }
+
+    /** 앱 계정과 연결된 항목인지 (계약서 §4-3). 연결됐으면 그 사람은 이 팀 소속이다. */
+    public boolean isLinkedToAccount() {
+        return user != null;
+    }
+
+    public Long getUserId() {
+        return user == null ? null : user.getId();
+    }
+
+    /** 닉네임이 바뀌면 명단 이름도 따라간다 (계약서 §4-3). */
+    public void syncNameFromAccount(String nickname) {
+        this.name = nickname;
     }
 
     /** 이름은 지울 수 없어서 여기서는 null 이 "안 건드림"이다 (계약서 §4-1). */

@@ -3,6 +3,7 @@ package com.kickoff.be.team.repository;
 import com.kickoff.be.team.entity.TeamMember;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -25,4 +26,16 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
     Optional<TeamMember> findByIdAndTeamId(Long id, Long teamId);
 
     long countByTeamId(Long teamId);
+
+    /** 이 사람이 이 팀 명단에 계정으로 올라 있는지 — MEMBER 판정에 쓴다 (계약서 §4-3). */
+    boolean existsByTeamIdAndUser_Id(Long teamId, Long userId);
+
+    Optional<TeamMember> findByTeamIdAndUser_Id(Long teamId, Long userId);
+
+    /** 내가 소속된 팀들 — /users/me/teams 의 MEMBER 부분. 가입순(= 등재순)이다. */
+    @EntityGraph(attributePaths = "team")
+    List<TeamMember> findByUser_IdOrderByIdAsc(Long userId);
+
+    /** 닉네임이 바뀌었을 때 따라가야 할 명단 항목들 (계약서 §4-3). */
+    List<TeamMember> findByUser_Id(Long userId);
 }
