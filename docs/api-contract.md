@@ -1,8 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.10.0)
+# Kickoff API 계약 v1 (현재 v1.11.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.11.0 (2026-08-26): 팀 소속 — §4-3 신설: 가입 신청/수락/거절/취소/탈퇴, MEMBER 역할,
+> 명단-계정 통합(`TeamMember.userId`), 팀 검색 `GET /api/teams`, 팀 가입 푸시 3종,
+> `myRole`·`/users/me/teams`에 MEMBER 추가, 에러 4종. 팀원-계정 연결을 범위 밖에서 제거.
+>
 > v1.10.0 (2026-08-25): 고도화 — ① 매칭→전적 연동: `POST /api/requests/{id}/record`,
 > `RequestResponse.myRecordWritten`, `TeamRecord.requestId`, 에러 2종. 전적 자동 연동을
 > 범위 밖에서 제거(스코어는 수동, 연결은 자동). ② `TeamSummary`에
@@ -127,6 +131,10 @@
 | `MEMBER_NOT_FOUND` | 404 | |
 | `RECORD_NOT_FOUND` | 404 | |
 | `ALREADY_TEAM_ADMIN` | 409 | 이미 관리자거나 소유자 본인을 임명 시도 |
+| `JOIN_ALREADY_REQUESTED` | 409 | 이미 대기 중인 가입 신청 있음 |
+| `ALREADY_TEAM_MEMBER` | 409 | 이미 팀 소속 (OWNER·ADMIN·MEMBER) |
+| `JOIN_NOT_FOUND` | 404 | |
+| `JOIN_NOT_PENDING` | 409 | 이미 처리된 가입 신청 |
 | `RECORD_NOT_AVAILABLE` | 409 | 기록 불가 상태 (매칭 미성사 또는 경기 전) |
 | `RECORD_ALREADY_EXISTS` | 409 | 같은 매칭에 이미 전적 기록함 |
 | `TEAM_ADMIN_LIMIT` | 400 | 팀 관리자 5명 초과 |
@@ -359,6 +367,12 @@ FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한�
 
 200 → `TeamResponse`, 팀 없으면 404 `TEAM_NOT_FOUND`
 
+### GET /api/teams — 인증 불필요 (v1.11.0, 팀 찾기)
+
+쿼리 (전부 optional): `keyword`(팀 이름 부분 일치), `region`(부분 일치),
+`page`(기본 0), `size`(기본 20, 최대 50).
+200 → `PageResponse<TeamSummary>`, 생성일 DESC (동률 id DESC).
+
 ### GET /api/teams/{teamId} — 인증 불필요
 
 200 → `TeamResponse`
@@ -482,6 +496,60 @@ PATCH 지우기는 v1.5.1 규칙):
 
 200 → `[{ "team": "<TeamSummary>", "role": "OWNER" }, { "team": "<TeamSummary>", "role": "ADMIN" }]`
 (OWNER 먼저, ADMIN은 임명순). 아무것도 없으면 `[]` (에러 아님).
+
+## 4-3. 팀 소속·가입 (v1.11.0)
+
+역할이 확장된다: **OWNER > ADMIN > MEMBER > 일반.** `TeamResponse.myRole`과
+`GET /api/users/me/teams`의 `role`에 `MEMBER`가 추가된다 (목록 순서: OWNER → ADMIN
+임명순 → MEMBER 가입순). MEMBER는 조회·소속 표시만 갖는다 — 팀 페이지 수정 권한 없음,
+매칭·리뷰 권한 없음 (v1.9 권한표 유지).
+
+**명단-계정 통합**: `TeamMember`에 `userId`(nullable)가 추가된다. 가입 승인 시 명단에
+항목이 자동 생성되고(`name` = 가입자 닉네임, `userId` 연결, position·backNumber null —
+주장·관리자가 나중에 채움), 수기 명단은 `userId: null` 그대로다. **계정 연결 항목의
+삭제 = 강퇴** (멤버십도 함께 끝난다. 기존 DELETE members API 재사용). 계정 연결 항목의
+name은 PATCH로 못 바꾼다 — 닉네임을 따른다 (400 `VALIDATION_FAILED`).
+
+### POST /api/teams/{teamId}/join — 인증 필요
+
+`{ "message": "매주 토요일 나갈 수 있습니다" }` (최대 200자, optional) → 201
+`{ "id": 5, "teamId": 3, "status": "PENDING", "message": "...", "createdAt": "..." }`
+- 이미 PENDING 신청 있으면 409 `JOIN_ALREADY_REQUESTED` / 이미 소속(OWNER·ADMIN·MEMBER)이면
+  409 `ALREADY_TEAM_MEMBER` / 거절·취소 이력이 있으면 재신청 허용 (매칭 신청과 동일 규칙)
+
+### GET /api/teams/{teamId}/join-requests — 소유자·관리자만
+
+PENDING 목록. 200 → `[{ "id": 5, "applicant": { "userId": 9, "nickname": "박멤버" },
+"message": "...", "createdAt": "..." }]` (오래된 순 — 먼저 온 신청부터 처리).
+
+### POST /api/teams/{teamId}/join-requests/{joinId}/accept — 소유자·관리자만
+
+수락 → 신청자가 MEMBER가 되고 명단에 자동 등재. 200.
+- 명단 30명 초과면 400 `TEAM_MEMBER_LIMIT` (수락 실패, 신청은 PENDING 유지)
+- PENDING 아니면 409 `JOIN_NOT_PENDING` / 없으면 404 `JOIN_NOT_FOUND`
+
+### POST /api/teams/{teamId}/join-requests/{joinId}/reject — 소유자·관리자만 → 200
+
+### DELETE /api/teams/{teamId}/join — 인증 필요 (신청자 본인)
+
+내 PENDING 신청 취소 → 204. PENDING 없으면 404 `JOIN_NOT_FOUND`.
+
+### DELETE /api/teams/{teamId}/membership — 인증 필요 (MEMBER 본인)
+
+탈퇴 → 204 (명단 항목도 함께 삭제). MEMBER가 아니면 404 `JOIN_NOT_FOUND` 재사용 대신
+403 `FORBIDDEN`. OWNER·ADMIN은 이 API로 못 나간다 (403 — 관리자는 해제 후, 소유자는 v1
+범위 밖).
+
+### 푸시 알림 추가 (§8 확장)
+
+| 이벤트 | 수신자 | title / body |
+|---|---|---|
+| `JOIN_REQUEST_RECEIVED` | 팀 OWNER | "가입 신청" / "{닉네임}님이 {팀}에 가입 신청했습니다" |
+| `JOIN_ACCEPTED` | 신청자 | "가입 승인!" / "{팀}의 멤버가 됐습니다" |
+| `JOIN_REJECTED` | 신청자 | "가입 불발" / "{팀} 가입 신청이 거절됐습니다" |
+
+data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해당 팀 페이지,
+나머지 → 팀 페이지. best-effort 규칙 동일.
 
 ## 5. 모집글
 
@@ -818,7 +886,8 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 ## 9. v1 범위 밖 (구현하지 말 것)
 
 실시간 채팅, 이미지 업로드(팀 로고 포함), 스쿼드/포메이션 보드,
-기록 수정, 팀원-계정 연결, 경기 종료 리마인드 푸시(기록·리뷰 유도 알림),
+기록 수정, 소유권 이전·소유자 탈퇴, 가입 초대(팀→사용자 방향),
+경기 종료 리마인드 푸시(기록·리뷰 유도 알림),
 리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),
 다중 기기 push token, 알림 히스토리 화면, 알림 설정(끄기/켜기),
 홈 목록 지도 뷰, 좌표 반경 검색, 정적 지도 이미지
