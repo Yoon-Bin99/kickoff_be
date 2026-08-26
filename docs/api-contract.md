@@ -505,7 +505,10 @@ PATCH 지우기는 v1.5.1 규칙):
 추가된다 — 내 PENDING 가입 신청 여부 (소속·비로그인·이력 없음·거절/취소됨은 전부
 `null`. 거절 상태를 따로 담지 않는 이유: 재신청이 허용되므로 "신청 가능"과 구분할
 필요가 없다). FE 분기: `myRole` 있으면 소속 표시, 없고 `myJoinStatus` PENDING이면
-"신청됨+취소", 둘 다 null이면 "가입 신청". MEMBER는 조회·소속 표시만 갖는다 — 팀 페이지 수정 권한 없음,
+"신청됨+취소", 둘 다 null이면 "가입 신청".
+`myJoinStatus`는 **`GET /api/teams/{teamId}` 응답에서만** 채워진다 — `PostDetail.team`
+등 다른 응답에 내포된 `TeamResponse`에서는 항상 `null` (그 자리에 가입 UI가 없어
+추가 조회 비용을 치를 이유가 없다). MEMBER는 조회·소속 표시만 갖는다 — 팀 페이지 수정 권한 없음,
 매칭·리뷰 권한 없음 (v1.9 권한표 유지).
 
 **명단-계정 통합**: `TeamMember`에 `userId`(nullable)가 추가된다. 가입 승인 시 명단에
