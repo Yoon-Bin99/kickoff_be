@@ -1,8 +1,10 @@
 package com.kickoff.be.team.controller;
 
 import com.kickoff.be.auth.jwt.LoginUser;
+import com.kickoff.be.common.PageResponse;
 import com.kickoff.be.team.dto.TeamCreateRequest;
 import com.kickoff.be.team.dto.TeamResponse;
+import com.kickoff.be.team.dto.TeamSummary;
 import com.kickoff.be.team.dto.TeamUpdateRequest;
 import com.kickoff.be.team.service.TeamService;
 import com.kickoff.be.user.entity.User;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,6 +32,16 @@ public class TeamController {
     public ResponseEntity<TeamResponse> create(@LoginUser User user,
                                                @Valid @RequestBody TeamCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(teamService.create(user, request));
+    }
+
+    /** 팀 찾기 (계약서 §4, v1.11.0). 인증 불필요. */
+    @GetMapping
+    public ResponseEntity<PageResponse<TeamSummary>> search(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String region,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(teamService.search(keyword, region, page, size));
     }
 
     @GetMapping("/me")

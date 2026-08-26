@@ -10,6 +10,7 @@ import com.kickoff.be.user.dto.PushTokenRequest;
 import com.kickoff.be.user.dto.UserResponse;
 import com.kickoff.be.user.dto.UserUpdateRequest;
 import com.kickoff.be.user.entity.User;
+import com.kickoff.be.team.repository.TeamMemberRepository;
 import com.kickoff.be.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final TeamMemberRepository teamMemberRepository;
     private final TeamRepository teamRepository;
     private final SocialAccountRepository socialAccountRepository;
 
@@ -39,10 +41,27 @@ public class UserService {
         Patchable.rejectClear(request.phone(), "phone");
         user.updateProfile(Patchable.valueOf(request.nickname()),
                 Patchable.valueOf(request.phone()));
+        syncRosterNames(user, Patchable.valueOf(request.nickname()));
         if (Patchable.isPresent(request.activityRegion())) {
             user.updateActivityRegion(Patchable.valueOf(request.activityRegion()));
         }
         return toResponse(user);
+    }
+
+    /**
+     * 닉네임이 바뀌면 계정이 연결된 명단 항목의 이름도 따라간다 (계약서 §4-3, v1.11.0).
+     *
+     * 안 맞춰 주면 명단에 옛 이름이 남아 같은 사람이 두 명처럼 보인다. 명단 쪽에서 이름을
+     * 못 고치게 막아 놨으므로(400), 여기서 따라가지 않으면 영영 어긋난 채로 남는다.
+     *
+     * 한 사람이 여러 팀에 속할 수 있어 항목이 여러 개일 수 있다.
+     */
+    private void syncRosterNames(User user, String newNickname) {
+        if (newNickname == null) {
+            return;
+        }
+        teamMemberRepository.findByUser_Id(user.getId())
+                .forEach(member -> member.syncNameFromAccount(newNickname));
     }
 
     /**

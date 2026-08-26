@@ -64,6 +64,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/teams/me", "/api/posts/me").authenticated()
 
                         // 인증 불필요 (계약서 §4, §5)
+                        // 팀 찾기는 공개다 (계약서 §4, v1.11.0). "/api/teams" 는 정확히
+                        // 한 경로라 아래 "/api/teams/me" 인증 규칙을 가리지 않는다.
+                        .requestMatchers(HttpMethod.GET, "/api/teams").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/teams/*").permitAll()
                         // 팀 평판은 누구나 본다 (계약서 §7)
                         .requestMatchers(HttpMethod.GET, "/api/teams/*/reviews").permitAll()

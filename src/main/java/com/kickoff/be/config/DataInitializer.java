@@ -13,9 +13,11 @@ import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.entity.Position;
 import com.kickoff.be.team.entity.TeamAdmin;
 import com.kickoff.be.team.entity.TeamMember;
+import com.kickoff.be.team.entity.TeamJoinRequest;
 import com.kickoff.be.team.entity.TeamRecord;
 import com.kickoff.be.team.repository.TeamAdminRepository;
 import com.kickoff.be.team.repository.TeamMemberRepository;
+import com.kickoff.be.team.repository.TeamJoinRequestRepository;
 import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
@@ -73,6 +75,7 @@ public class DataInitializer implements ApplicationRunner {
     private final TeamAdminRepository teamAdminRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final TeamRecordRepository teamRecordRepository;
+    private final TeamJoinRequestRepository joinRequestRepository;
     private final PasswordEncoder passwordEncoder;
 
     /** 입금받을 계좌. depositAmount 를 넣는 글에만 붙는다. */
@@ -336,12 +339,13 @@ public class DataInitializer implements ApplicationRunner {
         long openCount = posts.stream().filter(MatchPost::isOpen).count();
         long withCoordinates = posts.stream().filter(MatchPost::hasCoordinates).count();
         seedTeamPage(saebyeok, goyang, goyang.getOwner());
+        seedMembership(saebyeok, incheon.getOwner(), seongnam.getOwner());
 
-        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건(매칭연동 {}건), 관리자 {}명",
+        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건(매칭연동 {}건), 관리자 {}명, 가입신청 {}건",
                 teamCount, postCount, openCount, withCoordinates, requestCount,
                 reviewRepository.count(), teamMemberRepository.count(),
                 teamRecordRepository.count(), matchLinkedRecordCount(),
-                teamAdminRepository.count());
+                teamAdminRepository.count(), joinRequestRepository.count());
     }
 
     /**
@@ -389,6 +393,34 @@ public class DataInitializer implements ApplicationRunner {
         // 최총무를 FC 새벽의 관리자로 — 자기 팀(고양)을 가진 사람이 남의 팀 관리자도 되는
         // 경우다. FE 가 마이 탭에서 소유 1 + 관리 1 을 한 번에 확인할 수 있다.
         teamAdminRepository.save(TeamAdmin.builder().team(saebyeok).user(choi).build());
+    }
+
+    /**
+     * 팀 소속·가입 시드 (계약서 §4-3, v1.11.0).
+     *
+     * 승인된 멤버 하나와 대기 중인 신청 하나를 넣는다. 둘 다 있어야 FE 가 "이미 멤버인 화면"과
+     * "수락·거절 버튼이 뜬 화면"을 같은 팀에서 한 번에 볼 수 있다.
+     */
+    private void seedMembership(Team saebyeok, User yoon, User jung) {
+        // 윤코치는 승인된 멤버 — 명단에 계정 연결 항목으로 올라간다 (수락 흐름과 같은 모양).
+        TeamJoinRequest accepted = joinRequestRepository.save(TeamJoinRequest.builder()
+                .team(saebyeok)
+                .user(yoon)
+                .message("주말에 시간 됩니다. 받아 주세요.")
+                .build());
+        accepted.accept();
+        teamMemberRepository.save(TeamMember.builder()
+                .team(saebyeok)
+                .name(yoon.getNickname())
+                .user(yoon)
+                .build());
+
+        // 정주장은 대기 중 — FC 새벽으로 로그인하면 수락·거절할 신청이 하나 보인다.
+        joinRequestRepository.save(TeamJoinRequest.builder()
+                .team(saebyeok)
+                .user(jung)
+                .message("같이 뛰고 싶습니다.")
+                .build());
     }
 
     private void profile(Team team, int foundedYear, String teamColor, String formation) {

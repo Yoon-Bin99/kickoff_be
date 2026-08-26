@@ -2,6 +2,8 @@ package com.kickoff.be.team.service;
 
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.push.dto.TeamJoinPushEvent;
+import com.kickoff.be.push.dto.TeamJoinPushType;
 import com.kickoff.be.team.dto.TeamJoinCreateRequest;
 import com.kickoff.be.team.dto.TeamJoinRequestItem;
 import com.kickoff.be.team.dto.TeamJoinResponse;
@@ -14,6 +16,7 @@ import com.kickoff.be.team.repository.TeamMemberRepository;
 import com.kickoff.be.user.entity.User;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +39,7 @@ public class TeamJoinService {
     private final TeamJoinRequestRepository joinRequestRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final TeamAuthz teamAuthz;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public TeamJoinResponse apply(Long teamId, User user, TeamJoinCreateRequest request) {
@@ -48,11 +52,14 @@ public class TeamJoinService {
                 teamId, user.getId(), JoinStatus.PENDING)) {
             throw new BusinessException(ErrorCode.JOIN_ALREADY_REQUESTED);
         }
-        return TeamJoinResponse.of(joinRequestRepository.save(TeamJoinRequest.builder()
+        TeamJoinRequest saved = joinRequestRepository.save(TeamJoinRequest.builder()
                 .team(team)
                 .user(user)
                 .message(request == null ? null : request.message())
-                .build()));
+                .build());
+        // 수신자는 팀 소유자다. 관리자도 수락할 수 있지만 계약서가 소유자로 못박았다.
+        publish(TeamJoinPushType.JOIN_REQUEST_RECEIVED, team.getOwner().getId(), team, user);
+        return TeamJoinResponse.of(saved);
     }
 
     /** 소유자·관리자만. 오래된 순 — 먼저 온 신청부터 처리한다 (계약서 §4-3). */
@@ -88,12 +95,17 @@ public class TeamJoinService {
                 .name(joinRequest.getUser().getNickname())
                 .user(joinRequest.getUser())
                 .build());
+        publish(TeamJoinPushType.JOIN_ACCEPTED, joinRequest.getUser().getId(),
+                joinRequest.getTeam(), joinRequest.getUser());
     }
 
     @Transactional
     public void reject(Long teamId, Long joinId, User user) {
         teamAuthz.requireWriter(teamId, user);
-        findPending(teamId, joinId).reject();
+        TeamJoinRequest joinRequest = findPending(teamId, joinId);
+        joinRequest.reject();
+        publish(TeamJoinPushType.JOIN_REJECTED, joinRequest.getUser().getId(),
+                joinRequest.getTeam(), joinRequest.getUser());
     }
 
     /** 신청자 본인이 자기 대기 신청을 물린다 (계약서 §4-3). */
@@ -137,6 +149,15 @@ public class TeamJoinService {
         }
         return joinRequestRepository.existsByTeamIdAndUserIdAndStatus(
                 teamId, userId, JoinStatus.PENDING) ? JoinStatus.PENDING : null;
+    }
+
+    /**
+     * 커밋 뒤에 발송되므로 엔티티가 아니라 값만 싣는다 (MatchPushEvent 와 같은 규칙).
+     * 지연 로딩을 커밋 이후에 건드리면 세션이 없어 터진다.
+     */
+    private void publish(TeamJoinPushType type, Long recipientUserId, Team team, User applicant) {
+        eventPublisher.publishEvent(new TeamJoinPushEvent(type, recipientUserId,
+                team.getId(), team.getName(), applicant.getNickname()));
     }
 
     private TeamJoinRequest findPending(Long teamId, Long joinId) {

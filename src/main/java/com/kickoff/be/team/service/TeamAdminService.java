@@ -8,7 +8,9 @@ import com.kickoff.be.team.dto.TeamAdminResponse;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.entity.TeamAdmin;
 import com.kickoff.be.team.entity.TeamRole;
+import com.kickoff.be.team.entity.TeamMember;
 import com.kickoff.be.team.repository.TeamAdminRepository;
+import com.kickoff.be.team.repository.TeamMemberRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.review.dto.ReviewStats;
@@ -16,6 +18,8 @@ import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.user.repository.UserRepository;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,6 +43,7 @@ public class TeamAdminService {
     private final UserRepository userRepository;
     private final TeamRepository teamRepository;
     private final ReviewRepository reviewRepository;
+    private final TeamMemberRepository teamMemberRepository;
     private final TeamAuthz teamAuthz;
 
     /** 소유자·관리자만 볼 수 있다 (계약서 §4-2). 임명순. */
@@ -53,7 +58,8 @@ public class TeamAdminService {
     /**
      * 내가 소유·관리하는 팀 목록 (계약서 §4-2, v1.9.1). 없으면 빈 배열이고 에러가 아니다.
      *
-     * 소유 팀을 먼저, 관리 팀은 임명순으로 잇는다. 소유는 최대 하나라 정렬이랄 게 없다.
+     * 소유 → 관리(임명순) → 소속(가입순) 순이다 (계약서 §4-3). 소유는 최대 하나라
+     * 정렬이랄 게 없다.
      */
     @Transactional(readOnly = true)
     public List<MyTeamResponse> myTeams(User user) {
@@ -64,14 +70,29 @@ public class TeamAdminService {
                 .stream()
                 .map(TeamAdmin::getTeam)
                 .toList();
+        // 소속 팀 (계약서 §4-3, v1.11.0). 가입순 = 명단 등재순이다.
+        // 소유·관리 중인 팀은 빼야 한다 — 소유자가 자기 팀 명단에도 올라 있으면 목록에
+        // 같은 팀이 두 번 나온다. 서열이 높은 쪽 한 줄만 남긴다.
+        Set<Long> alreadyListed = Stream.concat(owned.stream(), administered.stream())
+                .map(Team::getId)
+                .collect(Collectors.toSet());
+        List<Team> joined = teamMemberRepository.findByUser_IdOrderByIdAsc(user.getId()).stream()
+                .map(TeamMember::getTeam)
+                .filter(team -> !alreadyListed.contains(team.getId()))
+                .toList();
+
         // 팀마다 평점을 조회하면 팀 수만큼 쿼리가 는다 (계약서 §2, v1.10.0)
         Map<Long, ReviewStats> stats = reviewRepository.statsMapOf(
-                Stream.concat(owned.stream(), administered.stream()).map(Team::getId).toList());
-        return Stream.concat(
+                Stream.of(owned, administered, joined).flatMap(List::stream)
+                        .map(Team::getId).toList());
+        return Stream.of(
                         owned.stream().map(team -> MyTeamResponse.of(team, TeamRole.OWNER,
                                 statOf(stats, team))),
                         administered.stream().map(team -> MyTeamResponse.of(team, TeamRole.ADMIN,
+                                statOf(stats, team))),
+                        joined.stream().map(team -> MyTeamResponse.of(team, TeamRole.MEMBER,
                                 statOf(stats, team))))
+                .flatMap(s -> s)
                 .toList();
     }
 

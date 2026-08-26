@@ -2,6 +2,7 @@ package com.kickoff.be.team.service;
 
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.common.Patchable;
 import com.kickoff.be.team.dto.TeamMemberCreateRequest;
 import com.kickoff.be.team.dto.TeamMemberResponse;
@@ -66,6 +67,7 @@ public class TeamMemberService {
         teamAuthz.requireWriter(teamId, user);
         TeamMember member = findMember(teamId, memberId);
         Patchable.rejectClear(request.name(), "name");
+        requireNameEditable(member, request);
         member.updateName(Patchable.valueOf(request.name()));
         if (Patchable.isPresent(request.position())) {
             member.updatePosition(Patchable.valueOf(request.position()));
@@ -76,10 +78,32 @@ public class TeamMemberService {
         return TeamMemberResponse.of(member);
     }
 
+    /**
+     * 명단에서 지운다. 계정이 연결된 항목이면 <b>그게 곧 강퇴</b>다 (계약서 §4-3, v1.11.0) —
+     * 소속이 명단 항목으로 표현되므로 항목이 사라지면 멤버십도 끝난다.
+     *
+     * 별도의 강퇴 API 를 두지 않은 건 두 개념이 실제로 하나이기 때문이다. 나눠 놓으면
+     * "명단에서만 지웠는데 아직 멤버"인 상태가 생긴다.
+     */
     @Transactional
     public void delete(Long teamId, Long memberId, User user) {
         teamAuthz.requireWriter(teamId, user);
         teamMemberRepository.delete(findMember(teamId, memberId));
+    }
+
+    /**
+     * 계정이 연결된 항목의 이름은 못 바꾼다 (계약서 §4-3, v1.11.0).
+     *
+     * 그 이름은 닉네임을 따르는 값이라, 여기서 고치면 다음 닉네임 변경 때 되돌아간다.
+     * 조용히 무시하면 주장은 바꿨다고 믿고 넘어가므로 400 으로 끊는다. 포지션·등번호는
+     * 주장이 채우는 값이라 그대로 고칠 수 있다.
+     */
+    private void requireNameEditable(TeamMember member, TeamMemberUpdateRequest request) {
+        if (member.isLinkedToAccount() && Patchable.isPresent(request.name())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                    new ErrorResponse.FieldError("name",
+                            "가입한 팀원의 이름은 닉네임을 따릅니다. 본인이 프로필에서 바꿔야 합니다.")));
+        }
     }
 
     /**
