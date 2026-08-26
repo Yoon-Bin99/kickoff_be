@@ -316,6 +316,15 @@ public class DataInitializer implements ApplicationRunner {
         review(doneWithMapo, mapo, songpa, 4, "즐겁게 뛰었습니다. 추천합니다.");
         review(doneWithGoyang, goyang, songpa, 4, "매너 좋은 팀입니다.");
 
+        // 매칭에서 만든 전적 (계약서 §4-1, v1.10.0). 양 팀이 각자 자기 관점으로 남긴 한 쌍을
+        // 넣어 FE 가 requestId 가 채워진 기록을 바로 볼 수 있게 한다.
+        matchRecord(doneWithSaebyeok, songpa, saebyeok, 1, 3, "원정에서 아쉽게 패배");
+        matchRecord(doneWithSaebyeok, saebyeok, songpa, 3, 1, "홈에서 승리");
+        // 한 팀만 남긴 매칭 — 상대 계정으로 들어가면 "전적 기록하기"가 떠 있다
+        matchRecord(doneWithMapo, mapo, songpa, 2, 2, null);
+        // doneWithGoyang 과 성남 매칭은 <b>양 팀 다 비워 둔다</b>. 기록이 하나도 없는 지난
+        // 매칭이 있어야 FE 가 버튼을 처음부터 밟아볼 수 있다 (리뷰 시드와 같은 이유).
+
         long teamCount = teamRepository.count();
         long postCount = postRepository.count();
         long requestCount = requestRepository.count();
@@ -328,10 +337,11 @@ public class DataInitializer implements ApplicationRunner {
         long withCoordinates = posts.stream().filter(MatchPost::hasCoordinates).count();
         seedTeamPage(saebyeok, goyang, goyang.getOwner());
 
-        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건, 관리자 {}명",
+        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건(매칭연동 {}건), 관리자 {}명",
                 teamCount, postCount, openCount, withCoordinates, requestCount,
                 reviewRepository.count(), teamMemberRepository.count(),
-                teamRecordRepository.count(), teamAdminRepository.count());
+                teamRecordRepository.count(), matchLinkedRecordCount(),
+                teamAdminRepository.count());
     }
 
     /**
@@ -386,6 +396,30 @@ public class DataInitializer implements ApplicationRunner {
         team.updateTeamColor(teamColor);
         team.updateFormation(formation);
         teamRepository.save(team);
+    }
+
+    /** 매칭에 연결된 기록 수 — 시드 로그에서 수동 기록과 갈라 보려는 것뿐이다. */
+    private long matchLinkedRecordCount() {
+        return teamRecordRepository.findAll().stream()
+                .filter(record -> record.getRequestId() != null)
+                .count();
+    }
+
+    /**
+     * 매칭에서 만든 기록. 상대 팀 이름과 경기 날짜는 서비스와 같은 규칙으로 매칭에서 뽑는다 —
+     * 시드가 다른 규칙을 쓰면 화면에서만 어긋난다.
+     */
+    private void matchRecord(MatchRequest request, Team team, Team opponent,
+                             int ourScore, int opponentScore, String memo) {
+        teamRecordRepository.save(TeamRecord.builder()
+                .team(team)
+                .playedOn(request.getPost().getMatchAt().toLocalDate())
+                .opponentName(opponent.getName())
+                .ourScore(ourScore)
+                .opponentScore(opponentScore)
+                .memo(memo)
+                .request(request)
+                .build());
     }
 
     private void member(Team team, String name, Position position, Integer backNumber) {

@@ -3,6 +3,7 @@ package com.kickoff.be.review.dto;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.review.entity.Review;
+import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.dto.TeamSummary;
 import java.time.OffsetDateTime;
 
@@ -20,7 +21,8 @@ public record ReviewResponse(
         OffsetDateTime createdAt
 ) {
 
-    public static ReviewResponse from(Review review) {
+    /** reviewerTeamStats 는 호출자가 배치로 모아 넘긴다 (계약서 §2, v1.10.0). */
+    public static ReviewResponse of(Review review, ReviewStats reviewerTeamStats) {
         MatchRequest request = review.getRequest();
         MatchPost post = request.getPost();
         return new ReviewResponse(
@@ -29,7 +31,7 @@ public record ReviewResponse(
                 post.getId(),
                 post.getTitle(),
                 post.getMatchAt(),
-                TeamSummary.from(review.getReviewerTeam()),
+                TeamSummary.of(review.getReviewerTeam(), reviewerTeamStats),
                 review.getTargetTeam().getId(),
                 review.getRating(),
                 review.getComment(),

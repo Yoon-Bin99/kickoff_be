@@ -7,6 +7,7 @@ import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.entity.RequestStatus;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.entity.PostStatus;
+import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.dto.TeamSummary;
 import java.time.OffsetDateTime;
 
@@ -36,8 +37,13 @@ public record RequestResponse(
      * myReviewWritten 은 <b>요청자의 팀</b> 기준이다 (계약서 §6). 신청 하나에 대해 양 팀이
      * 서로 다른 값을 보므로 엔티티에서 끌어낼 수 없고, 호출자가 보는 이의 팀으로 계산해 넘긴다.
      */
+    /**
+     * 두 팀의 평점(applicantTeamStats·postTeamStats)은 호출자가 배치로 모아 넘긴다
+     * (계약서 §2, v1.10.0) — 신청마다 조회하면 목록에서 N+1 이다.
+     */
     public static RequestResponse of(MatchRequest request, Long viewerId,
-                                     boolean myReviewWritten, boolean myRecordWritten) {
+                                     boolean myReviewWritten, boolean myRecordWritten,
+                                     ReviewStats applicantTeamStats, ReviewStats postTeamStats) {
         MatchPost post = request.getPost();
         return new RequestResponse(
                 request.getId(),
@@ -45,10 +51,10 @@ public record RequestResponse(
                 post.getTitle(),
                 post.getStatus(),
                 post.getMatchAt(),
-                TeamSummary.from(request.getApplicantTeam()),
+                TeamSummary.of(request.getApplicantTeam(), applicantTeamStats),
                 // 매칭의 양 팀이 응답에 모두 담긴다 (계약서 §6, v1.2.1). post.team 은
                 // RequestResponse 를 만드는 모든 조회가 이미 fetch 해 오므로 추가 쿼리가 없다.
-                TeamSummary.from(post.getTeam()),
+                TeamSummary.of(post.getTeam(), postTeamStats),
                 request.getMessage(),
                 request.getStatus(),
                 contactFor(request, viewerId),

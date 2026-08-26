@@ -11,8 +11,11 @@ import com.kickoff.be.team.entity.TeamRole;
 import com.kickoff.be.team.repository.TeamAdminRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
+import com.kickoff.be.review.dto.ReviewStats;
+import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.user.repository.UserRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,6 +38,7 @@ public class TeamAdminService {
     private final TeamAdminRepository teamAdminRepository;
     private final UserRepository userRepository;
     private final TeamRepository teamRepository;
+    private final ReviewRepository reviewRepository;
     private final TeamAuthz teamAuthz;
 
     /** 소유자·관리자만 볼 수 있다 (계약서 §4-2). 임명순. */
@@ -53,15 +57,26 @@ public class TeamAdminService {
      */
     @Transactional(readOnly = true)
     public List<MyTeamResponse> myTeams(User user) {
-        List<MyTeamResponse> owned = teamRepository.findByOwnerId(user.getId())
-                .map(team -> MyTeamResponse.of(team, TeamRole.OWNER))
+        List<Team> owned = teamRepository.findByOwnerId(user.getId())
                 .map(List::of)
                 .orElseGet(List::of);
-        List<MyTeamResponse> administered = teamAdminRepository.findByUserIdOrderByIdAsc(
-                        user.getId()).stream()
-                .map(admin -> MyTeamResponse.of(admin.getTeam(), TeamRole.ADMIN))
+        List<Team> administered = teamAdminRepository.findByUserIdOrderByIdAsc(user.getId())
+                .stream()
+                .map(TeamAdmin::getTeam)
                 .toList();
-        return Stream.concat(owned.stream(), administered.stream()).toList();
+        // 팀마다 평점을 조회하면 팀 수만큼 쿼리가 는다 (계약서 §2, v1.10.0)
+        Map<Long, ReviewStats> stats = reviewRepository.statsMapOf(
+                Stream.concat(owned.stream(), administered.stream()).map(Team::getId).toList());
+        return Stream.concat(
+                        owned.stream().map(team -> MyTeamResponse.of(team, TeamRole.OWNER,
+                                statOf(stats, team))),
+                        administered.stream().map(team -> MyTeamResponse.of(team, TeamRole.ADMIN,
+                                statOf(stats, team))))
+                .toList();
+    }
+
+    private static ReviewStats statOf(Map<Long, ReviewStats> stats, Team team) {
+        return stats.getOrDefault(team.getId(), ReviewStats.EMPTY);
     }
 
     @Transactional

@@ -1,5 +1,6 @@
 package com.kickoff.be.team.dto;
 
+import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.entity.TeamRole;
 
@@ -11,7 +12,7 @@ import com.kickoff.be.team.entity.TeamRole;
  */
 public record MyTeamResponse(TeamSummary team, TeamRole role) {
 
-    public static MyTeamResponse of(Team team, TeamRole role) {
-        return new MyTeamResponse(TeamSummary.from(team), role);
+    public static MyTeamResponse of(Team team, TeamRole role, ReviewStats stats) {
+        return new MyTeamResponse(TeamSummary.of(team, stats), role);
     }
 }

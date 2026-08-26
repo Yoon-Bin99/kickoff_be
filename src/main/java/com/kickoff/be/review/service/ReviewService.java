@@ -8,12 +8,15 @@ import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.review.dto.ReviewCreateRequest;
 import com.kickoff.be.review.dto.ReviewResponse;
+import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.review.entity.Review;
 import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import lombok.RequiredArgsConstructor;
+import java.util.Map;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -67,7 +70,7 @@ public class ReviewService {
                 .rating(request.rating())
                 .comment(request.comment())
                 .build());
-        return ReviewResponse.from(saved);
+        return ReviewResponse.of(saved, reviewRepository.statsOf(myTeam.getId()));
     }
 
     /**
@@ -86,8 +89,14 @@ public class ReviewService {
                 Math.max(page, 0),
                 clampSize(size),
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        return PageResponse.of(reviewRepository.findByTargetTeamId(teamId, pageable),
-                ReviewResponse::from);
+        Page<Review> reviews = reviewRepository.findByTargetTeamId(teamId, pageable);
+        // 리뷰마다 작성 팀 평점을 조회하면 페이지 크기만큼 쿼리가 는다 (계약서 §2, v1.10.0)
+        Map<Long, ReviewStats> reviewerStats = reviewRepository.statsMapOf(
+                reviews.getContent().stream()
+                        .map(review -> review.getReviewerTeam().getId()).toList());
+        return PageResponse.of(reviews, review -> ReviewResponse.of(review,
+                reviewerStats.getOrDefault(review.getReviewerTeam().getId(),
+                        ReviewStats.EMPTY)));
     }
 
     /**

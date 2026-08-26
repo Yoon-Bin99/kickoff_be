@@ -371,8 +371,12 @@ public class PostService {
 
     private PageResponse<PostSummary> toSummaryPage(Page<MatchPost> posts) {
         Map<Long, Long> counts = requestCounts(posts.getContent());
+        // 카드마다 평점 조회를 날리면 페이지 크기만큼 쿼리가 는다 (계약서 §2, v1.10.0)
+        Map<Long, ReviewStats> teamStats = reviewRepository.statsMapOf(
+                posts.getContent().stream().map(post -> post.getTeam().getId()).toList());
         return PageResponse.of(posts,
-                post -> PostSummary.of(post, counts.getOrDefault(post.getId(), 0L)));
+                post -> PostSummary.of(post, counts.getOrDefault(post.getId(), 0L),
+                        teamStats.getOrDefault(post.getTeam().getId(), ReviewStats.EMPTY)));
     }
 
     /** 페이지에 실린 글들의 신청 수를 쿼리 한 번으로 모아온다. */

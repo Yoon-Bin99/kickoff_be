@@ -11,13 +11,16 @@ import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.repository.MatchPostRepository;
 import com.kickoff.be.push.dto.MatchPushEvent;
 import com.kickoff.be.push.dto.PushEventType;
+import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -64,8 +67,10 @@ public class MatchRequestService {
                 .message(request == null ? null : request.message())
                 .build());
         publish(PushEventType.REQUEST_RECEIVED, post.getTeam().getOwner().getId(), saved);
-        // 방금 만든 신청이라 리뷰도 전적도 있을 수 없다.
-        return RequestResponse.of(saved, user.getId(), false, false);
+        // 방금 만든 신청이라 리뷰도 전적도 있을 수 없다. 팀 평점은 두 팀뿐이라 그대로 조회한다.
+        return RequestResponse.of(saved, user.getId(), false, false,
+                reviewRepository.statsOf(myTeam.getId()),
+                reviewRepository.statsOf(post.getTeam().getId()));
     }
 
     /** 한 글에 온 신청 — 글 작성자만 볼 수 있다. */
@@ -201,7 +206,10 @@ public class MatchRequestService {
                 .existsByRequestIdAndReviewerTeamId(request.getId(), viewerTeamId);
         boolean recorded = viewerTeamId != null && teamRecordRepository
                 .existsByRequest_IdAndTeamId(request.getId(), viewerTeamId);
-        return RequestResponse.of(request, viewer.getId(), reviewed, recorded);
+        Map<Long, ReviewStats> stats = teamStatsOf(List.of(request));
+        return RequestResponse.of(request, viewer.getId(), reviewed, recorded,
+                statOf(stats, request.getApplicantTeam().getId()),
+                statOf(stats, request.getPost().getTeam().getId()));
     }
 
     private List<RequestResponse> toResponses(List<MatchRequest> requests, User viewer) {
@@ -209,9 +217,12 @@ public class MatchRequestService {
         Long viewerTeamId = viewerTeamId(viewer);
         Set<Long> reviewed = reviewedRequestIds(viewerTeamId, requests);
         Set<Long> recorded = recordedRequestIds(viewerTeamId, requests);
+        Map<Long, ReviewStats> stats = teamStatsOf(requests);
         return requests.stream()
                 .map(r -> RequestResponse.of(r, viewerId, reviewed.contains(r.getId()),
-                        recorded.contains(r.getId())))
+                        recorded.contains(r.getId()),
+                        statOf(stats, r.getApplicantTeam().getId()),
+                        statOf(stats, r.getPost().getTeam().getId())))
                 .toList();
     }
 
@@ -229,6 +240,22 @@ public class MatchRequestService {
         }
         return Set.copyOf(reviewRepository.findReviewedRequestIds(viewerTeamId,
                 requests.stream().map(MatchRequest::getId).toList()));
+    }
+
+    /**
+     * 목록에 실린 <b>양 팀</b>의 평점을 한 번에 (계약서 §2, v1.10.0).
+     * 신청 하나에 팀이 둘이라, 배치가 없으면 페이지 크기의 두 배만큼 쿼리가 난다.
+     */
+    private Map<Long, ReviewStats> teamStatsOf(List<MatchRequest> requests) {
+        return reviewRepository.statsMapOf(requests.stream()
+                .flatMap(r -> Stream.of(r.getApplicantTeam().getId(),
+                        r.getPost().getTeam().getId()))
+                .distinct()
+                .toList());
+    }
+
+    private static ReviewStats statOf(Map<Long, ReviewStats> stats, Long teamId) {
+        return stats.getOrDefault(teamId, ReviewStats.EMPTY);
     }
 
     /** 목록의 myRecordWritten — 위와 같은 이유로 한 번에 긁어온다 (계약서 §4-1, v1.10.0). */

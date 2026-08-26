@@ -3,6 +3,7 @@ package com.kickoff.be.post.dto;
 import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.entity.PostStatus;
+import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.dto.TeamSummary;
 import com.kickoff.be.team.entity.SkillLevel;
 import java.time.OffsetDateTime;
@@ -28,7 +29,8 @@ public record PostSummary(
         OffsetDateTime createdAt
 ) {
 
-    public static PostSummary of(MatchPost post, long requestCount) {
+    /** teamStats 는 호출자가 배치로 모아 넘긴다 — 카드마다 조회하면 N+1 이다 (계약서 §2). */
+    public static PostSummary of(MatchPost post, long requestCount, ReviewStats teamStats) {
         return new PostSummary(
                 post.getId(),
                 post.getTitle(),
@@ -43,7 +45,7 @@ public record PostSummary(
                 post.getLongitude(),
                 post.getStatus(),
                 requestCount,
-                TeamSummary.from(post.getTeam()),
+                TeamSummary.of(post.getTeam(), teamStats),
                 post.getCreatedAt()
         );
     }
