@@ -1,8 +1,13 @@
-# Kickoff API 계약 v1 (현재 v1.9.1)
+# Kickoff API 계약 v1 (현재 v1.10.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.10.0 (2026-08-25): 고도화 — ① 매칭→전적 연동: `POST /api/requests/{id}/record`,
+> `RequestResponse.myRecordWritten`, `TeamRecord.requestId`, 에러 2종. 전적 자동 연동을
+> 범위 밖에서 제거(스코어는 수동, 연결은 자동). ② `TeamSummary`에
+> `averageRating`·`reviewCount` 추가 — 홈 카드 별점 (v1.2.0의 제외 결정 번복, 사용자 승인).
+>
 > v1.9.1 (2026-08-25): `GET /api/users/me/teams` 신설 — 내가 소유·관리하는 팀 목록
 > (마이 탭 진입점용. 관리자로 임명된 사람이 그 팀을 되찾아갈 길이 없던 문제).
 >
@@ -122,6 +127,8 @@
 | `MEMBER_NOT_FOUND` | 404 | |
 | `RECORD_NOT_FOUND` | 404 | |
 | `ALREADY_TEAM_ADMIN` | 409 | 이미 관리자거나 소유자 본인을 임명 시도 |
+| `RECORD_NOT_AVAILABLE` | 409 | 기록 불가 상태 (매칭 미성사 또는 경기 전) |
+| `RECORD_ALREADY_EXISTS` | 409 | 같은 매칭에 이미 전적 기록함 |
 | `TEAM_ADMIN_LIMIT` | 400 | 팀 관리자 5명 초과 |
 | `ADMIN_NOT_FOUND` | 404 | |
 | `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
@@ -187,7 +194,8 @@ v1.3.0 추가 필드:
 ### TeamSummary (목록/카드에 박히는 축약형)
 ```json
 { "id": 3, "name": "FC 새벽", "region": "서울 강서구", "skillLevel": "INTERMEDIATE",
-  "ageGroup": "THIRTIES", "memberCount": 18, "logoUrl": null }
+  "ageGroup": "THIRTIES", "memberCount": 18, "logoUrl": null,
+  "averageRating": 4.5, "reviewCount": 4 }
 ```
 
 ### TeamResponse
@@ -200,7 +208,9 @@ v1.3.0 추가 필드:
 ```
 
 `reviewCount`(받은 리뷰 수), `averageRating`(1~5 평균, **소수 첫째 자리 반올림**. 리뷰 없으면
-`null` — FE는 "평가 없음" 표시). v1.2.0 추가. `TeamSummary`에는 넣지 않는다 (목록 카드 변경 최소화).
+`null` — FE는 "평가 없음" 표시). v1.2.0 추가. **v1.10.0부터 `TeamSummary`에도 들어간다**
+(홈 카드 별점 — v1.2.0의 제외 결정을 사용자 승인으로 번복. BE는 목록 조회에서 팀별
+집계를 배치로 실어 N+1을 피할 것).
 
 ### PageResponse&lt;T&gt;
 ```json
@@ -409,6 +419,27 @@ PATCH 지우기는 v1.5.1 규칙):
 - `POST /api/teams/{teamId}/records` — 소유자만. 201 → `TeamRecord`
 - `DELETE /api/teams/{teamId}/records/{recordId}` — 소유자만. 204. 없는 기록 404 `RECORD_NOT_FOUND`
 - 수정은 없다 — 잘못 넣었으면 지우고 다시 (기록 무결성보다 단순함 우선, v1 결정)
+
+### 매칭에서 기록 만들기 (v1.10.0)
+
+`TeamRecord` 응답에 `requestId`(nullable) 추가 — 매칭에서 생성된 기록은 원 매칭을 가리키고,
+수동 입력 기록은 `null`.
+
+**POST /api/requests/{requestId}/record — 인증 필요, 매칭 당사자 팀만 (v1.9 권한표상 OWNER)**
+
+```json
+{ "ourScore": 3, "opponentScore": 1, "memo": "후반 역전승" }
+```
+
+- 상대팀명·경기일은 서버가 매칭에서 채운다 (`opponentName` = 상대 팀 이름,
+  `playedOn` = `matchAt`의 날짜). 리뷰(§7)와 같은 패턴 — 양 팀이 각자 자기 관점으로 기록
+- 조건: `status` ACCEPTED + `matchAt` 과거 — 아니면 409 `RECORD_NOT_AVAILABLE`.
+  내 팀이 이 매칭으로 이미 기록했으면 409 `RECORD_ALREADY_EXISTS`. 제3자 403
+- 201 → `TeamRecord` (requestId 채워짐)
+- `RequestResponse`에 `myRecordWritten`(boolean) 추가 — `myReviewWritten`과 같은 규칙.
+  FE는 `ACCEPTED && matchAt < now && !myRecordWritten`일 때 "전적 기록하기" 버튼 노출
+- 매칭 기록도 일반 기록과 같은 목록·요약에 합산된다. 삭제는 기존 DELETE로 (삭제하면
+  `myRecordWritten`이 다시 false — 재기록 가능)
 
 ## 4-2. 팀 관리자 (v1.9.0)
 
@@ -786,8 +817,8 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 
 ## 9. v1 범위 밖 (구현하지 말 것)
 
-실시간 채팅, 이미지 업로드(팀 로고 포함), 전적 자동 연동(매칭→기록), 스쿼드/포메이션 보드,
-기록 수정, 팀원-계정 연결,
+실시간 채팅, 이미지 업로드(팀 로고 포함), 스쿼드/포메이션 보드,
+기록 수정, 팀원-계정 연결, 경기 종료 리마인드 푸시(기록·리뷰 유도 알림),
 리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),
 다중 기기 push token, 알림 히스토리 화면, 알림 설정(끄기/켜기),
 홈 목록 지도 뷰, 좌표 반경 검색, 정적 지도 이미지
