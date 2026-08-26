@@ -1,6 +1,7 @@
 package com.kickoff.be.team.entity;
 
 import com.kickoff.be.common.BaseTimeEntity;
+import com.kickoff.be.matchrequest.entity.MatchRequest;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -54,15 +55,31 @@ public class TeamRecord extends BaseTimeEntity {
     @Column(length = 200)
     private String memo;
 
+    /**
+     * 이 기록을 만든 매칭 (계약서 §4-1, v1.10.0). 손으로 넣은 기록은 <b>null</b> 이다.
+     *
+     * 스코어는 여전히 사람이 적는다 — 자동으로 채워지는 건 상대 팀 이름과 경기 날짜뿐이다.
+     * 앱이 결과를 알 방법이 없으니 그게 맞고, 그래서 "전적 자동 연동"이 아니라 "연결"이다.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "request_id")
+    private MatchRequest request;
+
     @Builder
     private TeamRecord(Team team, LocalDate playedOn, String opponentName,
-                       int ourScore, int opponentScore, String memo) {
+                       int ourScore, int opponentScore, String memo, MatchRequest request) {
         this.team = team;
         this.playedOn = playedOn;
         this.opponentName = opponentName;
         this.ourScore = ourScore;
         this.opponentScore = opponentScore;
         this.memo = memo;
+        this.request = request;
+    }
+
+    /** 매칭에서 만들어진 기록이면 그 매칭 id, 손으로 넣었으면 null (계약서 §4-1). */
+    public Long getRequestId() {
+        return request == null ? null : request.getId();
     }
 
     /** 저장하지 않고 스코어에서 계산한다 — 자세한 이유는 {@link MatchResult} 에 적어 뒀다. */

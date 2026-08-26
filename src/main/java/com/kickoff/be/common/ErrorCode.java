@@ -27,6 +27,9 @@ public enum ErrorCode {
     TEAM_MEMBER_LIMIT(HttpStatus.BAD_REQUEST, "팀원은 30명을 넘을 수 없습니다."),
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팀원입니다."),
     RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 경기 기록입니다."),
+    /** 매칭에서 기록 만들기 (계약서 §4-1, v1.10.0). */
+    RECORD_NOT_AVAILABLE(HttpStatus.CONFLICT, "아직 전적을 기록할 수 없는 경기입니다."),
+    RECORD_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 이 경기의 전적을 기록했습니다."),
     /** 팀 관리자 (계약서 §4-2, v1.9.0). */
     ALREADY_TEAM_ADMIN(HttpStatus.CONFLICT, "이미 이 팀의 관리자입니다."),
     TEAM_ADMIN_LIMIT(HttpStatus.BAD_REQUEST, "관리자는 5명을 넘을 수 없습니다."),

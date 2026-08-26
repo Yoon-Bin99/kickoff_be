@@ -24,6 +24,11 @@ public record RequestResponse(
         PaymentInfo payment,
         @JsonProperty("depositPaid") boolean depositPaid,
         @JsonProperty("myReviewWritten") boolean myReviewWritten,
+        /**
+         * 내 팀이 이 매칭으로 전적을 기록했는지 (계약서 §4-1, v1.10.0).
+         * myReviewWritten 과 같은 규칙 — 요청자의 팀 기준이라 양 팀이 서로 다른 값을 본다.
+         */
+        @JsonProperty("myRecordWritten") boolean myRecordWritten,
         OffsetDateTime createdAt
 ) {
 
@@ -32,7 +37,7 @@ public record RequestResponse(
      * 서로 다른 값을 보므로 엔티티에서 끌어낼 수 없고, 호출자가 보는 이의 팀으로 계산해 넘긴다.
      */
     public static RequestResponse of(MatchRequest request, Long viewerId,
-                                     boolean myReviewWritten) {
+                                     boolean myReviewWritten, boolean myRecordWritten) {
         MatchPost post = request.getPost();
         return new RequestResponse(
                 request.getId(),
@@ -50,6 +55,7 @@ public record RequestResponse(
                 paymentFor(request, viewerId),
                 request.isDepositPaid(),
                 myReviewWritten,
+                myRecordWritten,
                 request.getCreatedAt()
         );
     }

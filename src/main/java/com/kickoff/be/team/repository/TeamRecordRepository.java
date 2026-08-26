@@ -2,11 +2,14 @@ package com.kickoff.be.team.repository;
 
 import com.kickoff.be.team.dto.RecordSummary;
 import com.kickoff.be.team.entity.TeamRecord;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface TeamRecordRepository extends JpaRepository<TeamRecord, Long> {
 
@@ -15,6 +18,27 @@ public interface TeamRecordRepository extends JpaRepository<TeamRecord, Long> {
     Page<TeamRecord> findByTeamIdOrdered(Long teamId, Pageable pageable);
 
     Optional<TeamRecord> findByIdAndTeamId(Long id, Long teamId);
+
+    /**
+     * 같은 팀이 같은 매칭으로 이미 기록했는지 (계약서 §4-1, v1.10.0).
+     *
+     * 밑줄로 연관을 명시한다. 엔티티에 편의용 {@code getRequestId()} 가 있어서, 밑줄이 없으면
+     * Spring Data 가 그걸 영속 속성으로 착각해 {@code t.requestId} 로 쿼리를 만들고 기동
+     * 후 첫 호출에서 UnknownPathException 으로 터진다.
+     */
+    boolean existsByRequest_IdAndTeamId(Long requestId, Long teamId);
+
+    /**
+     * 신청 목록의 myRecordWritten 을 한 번에 채운다. 신청마다 exists 를 날리면 N+1 이다 —
+     * 리뷰의 findReviewedRequestIds 와 같은 방식이다.
+     */
+    @Query("""
+            select r.request.id from TeamRecord r
+            where r.team.id = :teamId
+              and r.request.id in :requestIds
+            """)
+    List<Long> findRecordedRequestIds(@Param("teamId") Long teamId,
+                                      @Param("requestIds") Collection<Long> requestIds);
 
     /**
      * 전적 요약 (계약서 §4-1). result 컬럼이 없으므로 스코어를 비교해 센다 —

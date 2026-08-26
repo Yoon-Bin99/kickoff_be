@@ -12,12 +12,14 @@ public record TeamRecordResponse(
         int ourScore,
         int opponentScore,
         MatchResult result,
-        String memo
+        String memo,
+        /** 매칭에서 만든 기록이면 그 매칭 id, 손으로 넣었으면 null (계약서 §4-1, v1.10.0). */
+        Long requestId
 ) {
 
     public static TeamRecordResponse of(TeamRecord record) {
         return new TeamRecordResponse(record.getId(), record.getPlayedOn(),
                 record.getOpponentName(), record.getOurScore(), record.getOpponentScore(),
-                record.getResult(), record.getMemo());
+                record.getResult(), record.getMemo(), record.getRequestId());
     }
 }

@@ -120,14 +120,15 @@ public abstract class IntegrationTestSupport {
 
     @BeforeEach
     void resetDatabase() {
-        // 외래키 순서대로 — 리뷰가 신청을, 신청이 글을, 글이 팀을, 팀이 사용자를 참조한다
+        // 외래키 순서대로 — 리뷰가 신청을, 신청이 글을, 글이 팀을, 팀이 사용자를 참조한다.
+        // 경기 기록은 v1.10.0 부터 신청도 참조하므로 신청보다 먼저 지운다.
         reviewRepository.deleteAll();
+        teamRecordRepository.deleteAll();
         requestRepository.deleteAll();
         postRepository.deleteAll();
         // 팀 페이지 자식들 (v1.8.0·v1.9.0). 팀보다 먼저 지워야 한다 — 특히 team_admins 는
         // 사용자도 참조해서, 빠뜨리면 팀·사용자 삭제가 참조 무결성 위반으로 터진다.
         teamMemberRepository.deleteAll();
-        teamRecordRepository.deleteAll();
         teamAdminRepository.deleteAll();
         teamRepository.deleteAll();
         // 소셜 연동은 사용자를 참조하므로 사용자보다 먼저 지운다

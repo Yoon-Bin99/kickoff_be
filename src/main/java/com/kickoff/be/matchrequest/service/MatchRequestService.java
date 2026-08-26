@@ -12,6 +12,7 @@ import com.kickoff.be.post.repository.MatchPostRepository;
 import com.kickoff.be.push.dto.MatchPushEvent;
 import com.kickoff.be.push.dto.PushEventType;
 import com.kickoff.be.review.repository.ReviewRepository;
+import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
@@ -34,6 +35,7 @@ public class MatchRequestService {
     private final MatchPostRepository postRepository;
     private final TeamRepository teamRepository;
     private final ReviewRepository reviewRepository;
+    private final TeamRecordRepository teamRecordRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -62,8 +64,8 @@ public class MatchRequestService {
                 .message(request == null ? null : request.message())
                 .build());
         publish(PushEventType.REQUEST_RECEIVED, post.getTeam().getOwner().getId(), saved);
-        // 방금 만든 신청이라 리뷰가 달렸을 수 없다.
-        return RequestResponse.of(saved, user.getId(), false);
+        // 방금 만든 신청이라 리뷰도 전적도 있을 수 없다.
+        return RequestResponse.of(saved, user.getId(), false, false);
     }
 
     /** 한 글에 온 신청 — 글 작성자만 볼 수 있다. */
@@ -197,14 +199,19 @@ public class MatchRequestService {
         Long viewerTeamId = viewerTeamId(viewer);
         boolean reviewed = viewerTeamId != null && reviewRepository
                 .existsByRequestIdAndReviewerTeamId(request.getId(), viewerTeamId);
-        return RequestResponse.of(request, viewer.getId(), reviewed);
+        boolean recorded = viewerTeamId != null && teamRecordRepository
+                .existsByRequest_IdAndTeamId(request.getId(), viewerTeamId);
+        return RequestResponse.of(request, viewer.getId(), reviewed, recorded);
     }
 
     private List<RequestResponse> toResponses(List<MatchRequest> requests, User viewer) {
         Long viewerId = viewer == null ? null : viewer.getId();
-        Set<Long> reviewed = reviewedRequestIds(viewerTeamId(viewer), requests);
+        Long viewerTeamId = viewerTeamId(viewer);
+        Set<Long> reviewed = reviewedRequestIds(viewerTeamId, requests);
+        Set<Long> recorded = recordedRequestIds(viewerTeamId, requests);
         return requests.stream()
-                .map(r -> RequestResponse.of(r, viewerId, reviewed.contains(r.getId())))
+                .map(r -> RequestResponse.of(r, viewerId, reviewed.contains(r.getId()),
+                        recorded.contains(r.getId())))
                 .toList();
     }
 
@@ -221,6 +228,15 @@ public class MatchRequestService {
             return Set.of();
         }
         return Set.copyOf(reviewRepository.findReviewedRequestIds(viewerTeamId,
+                requests.stream().map(MatchRequest::getId).toList()));
+    }
+
+    /** 목록의 myRecordWritten — 위와 같은 이유로 한 번에 긁어온다 (계약서 §4-1, v1.10.0). */
+    private Set<Long> recordedRequestIds(Long viewerTeamId, List<MatchRequest> requests) {
+        if (viewerTeamId == null || requests.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(teamRecordRepository.findRecordedRequestIds(viewerTeamId,
                 requests.stream().map(MatchRequest::getId).toList()));
     }
 }
