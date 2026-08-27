@@ -8,6 +8,7 @@ import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.post.repository.MatchPostRepository;
+import com.kickoff.be.chat.repository.ChatMessageRepository;
 import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
@@ -107,6 +108,8 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected ReviewRepository reviewRepository;
     @Autowired
+    protected ChatMessageRepository chatMessageRepository;
+    @Autowired
     protected SocialAccountRepository socialAccountRepository;
     @Autowired
     protected StubOAuthClient kakaoStub;
@@ -127,6 +130,8 @@ public abstract class IntegrationTestSupport {
         // 경기 기록은 v1.10.0 부터 신청도 참조하므로 신청보다 먼저 지운다.
         reviewRepository.deleteAll();
         teamRecordRepository.deleteAll();
+        // 채팅은 신청과 팀을 참조한다 (v1.12.0)
+        chatMessageRepository.deleteAll();
         requestRepository.deleteAll();
         postRepository.deleteAll();
         // 팀 페이지 자식들 (v1.8.0·v1.9.0). 팀보다 먼저 지워야 한다 — 특히 team_admins 는
