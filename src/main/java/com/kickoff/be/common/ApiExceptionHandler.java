@@ -8,6 +8,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -72,6 +73,19 @@ public class ApiExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException e) {
         return respond(ErrorResponse.of(ErrorCode.NOT_FOUND));
+    }
+
+    /**
+     * 경로는 맞는데 메서드가 틀린 경우 (계약서 §0, v1.12.1).
+     *
+     * 바로 위 경로 오타 처리와 같은 이유로 따로 받는다. 일반 500 으로 떨어지면 클라이언트가
+     * 자기 실수를 서버 장애로 읽는다 — 실제로 FE 가 accept 를 PATCH 로 부르고 INTERNAL_ERROR
+     * 를 받아 "배포 직후 매칭이 깨졌다"는 잘못된 가설을 쫓은 일이 있었다.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException e) {
+        return respond(ErrorResponse.of(ErrorCode.METHOD_NOT_ALLOWED));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

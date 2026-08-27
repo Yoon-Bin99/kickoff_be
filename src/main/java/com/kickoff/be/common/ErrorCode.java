@@ -60,6 +60,13 @@ public enum ErrorCode {
     PLACE_SEARCH_FAILED(HttpStatus.BAD_GATEWAY, "장소 검색에 실패했습니다."),
 
     /** 아래 둘은 계약서 표에는 없지만, 모든 4xx/5xx 가 같은 형식으로 나가야 해서 둔다. */
+    /**
+     * 경로는 있는데 메서드가 틀린 경우 (계약서 §0, v1.12.1).
+     *
+     * NOT_FOUND 와 같은 취지다 — 클라이언트 실수를 서버 장애로 오인하지 않게 한다.
+     * 실제로 FE 가 accept 를 PATCH 로 부르고 500 을 받아 서버 회귀로 판단한 일이 있었다.
+     */
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 

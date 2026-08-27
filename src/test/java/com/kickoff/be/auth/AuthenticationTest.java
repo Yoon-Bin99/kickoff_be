@@ -1,11 +1,14 @@
 package com.kickoff.be.auth;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.kickoff.be.support.IntegrationTestSupport;
+import com.kickoff.be.matchrequest.entity.MatchRequest;
+import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.user.entity.User;
 import io.jsonwebtoken.Jwts;
@@ -158,6 +161,36 @@ class AuthenticationTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, bearer(user)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    /**
+     * 위 404 와 짝이다 (계약서 §0, v1.12.1). 경로는 맞는데 메서드가 틀린 경우.
+     *
+     * 500 으로 나가면 클라이언트가 자기 실수를 서버 장애로 읽는다 — 실제로 FE 가 accept 를
+     * PATCH 로 부르고 INTERNAL_ERROR 를 받아 "배포 직후 매칭이 깨졌다"는 잘못된 가설을
+     * 쫓은 일이 있었다. 그 실사례로 계약이 405 를 신설했다.
+     */
+    @Test
+    @DisplayName("틀린 HTTP 메서드는 500 이 아니라 405 로 나간다")
+    void wrongMethodReturnsMethodNotAllowed() throws Exception {
+        User user = createUser("owner@example.com", "김주장", "010-1111-1111");
+        Team team = createTeam(user, "FC 새벽", "서울 강서구");
+        MatchPost post = createPost(team, "경기 구합니다");
+        User applicantOwner = createUser("applicant@example.com", "이감독", "010-2222-2222");
+        MatchRequest request = pendingRequest(post,
+                createTeam(applicantOwner, "마포 유나이티드", "서울 마포구"));
+
+        // 계약서는 POST 다. PATCH 로 부르면 405 여야 한다
+        mockMvc.perform(patch("/api/requests/{id}/accept", request.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user)))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
+
+        // 그리고 정상 메서드는 그대로 동작해야 한다 — 405 를 붙이다 막아버리면 더 큰 일이다
+        mockMvc.perform(post("/api/requests/{id}/accept", request.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACCEPTED"));
     }
 
     @Test
