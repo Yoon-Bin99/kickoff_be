@@ -1,8 +1,13 @@
-# Kickoff API 계약 v1 (현재 v1.12.1)
+# Kickoff API 계약 v1 (현재 v1.13.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.13.0 (2026-08-28): 채팅 탭·나가기 — `GET /api/users/me/chats`(내 채팅방 목록),
+> `POST /api/requests/{id}/chat/leave`(나가기 — 영구 숨김·상대 방에 SYSTEM 메시지·
+> 나간 시점 이전 내역 비공개·푸시 중단, 재전송하면 복귀), `ChatMessage.type`
+> (TEXT/SYSTEM) 추가. FE 하단 탭 5개(홈/팀/매칭/채팅/마이).
+>
 > v1.12.1 (2026-08-28): `METHOD_NOT_ALLOWED`(405) 신설 — 존재하는 경로를 틀린 HTTP
 > 메서드로 부르면 500이 아니라 405. 경로 오타의 404(`NOT_FOUND`)와 같은 취지 —
 > 클라이언트 실수를 서버 장애로 오인하지 않게 한다 (FE가 accept를 PATCH로 불러
@@ -830,7 +835,7 @@ PENDING 신청 취소 → `CANCELED`. 204. PENDING이 아니면 409 `REQUEST_NOT
 ### ChatMessage
 
 ```json
-{ "id": 45, "requestId": 7, "senderTeamId": 3,
+{ "id": 45, "requestId": 7, "type": "TEXT", "senderTeamId": 3,
   "content": "그럼 7시까지 구장에서 뵙겠습니다!",
   "createdAt": "2026-08-28T21:15:00+09:00" }
 ```
@@ -838,6 +843,11 @@ PENDING 신청 취소 → `CANCELED`. 204. PENDING이 아니면 409 `REQUEST_NOT
 `senderTeamId`로 내 팀/상대 팀 말풍선을 구분한다. 양 팀의 이름·정보는
 `RequestResponse`의 `applicantTeam`/`postTeam`에 이미 있으므로 메시지에는 싣지 않는다.
 `id`는 방 안에서 시간순 단조 증가 — 폴링 커서로 쓴다.
+
+`type`(v1.13.0): `"TEXT" | "SYSTEM"`. SYSTEM은 서버가 만드는 안내 줄로
+`senderTeamId: null`이고 `content`가 안내 문구다 (현재는 나가기 안내 하나 —
+"상대 팀이 채팅방을 나갔습니다"). FE는 말풍선이 아니라 가운데 회색 안내로 그린다.
+SYSTEM 메시지는 푸시를 보내지 않는다.
 
 ### GET /api/requests/{requestId}/chat — 인증 필요, 매칭 당사자 팀 OWNER만
 
@@ -878,6 +888,51 @@ PENDING 신청 취소 → `CANCELED`. 204. PENDING이 아니면 409 `REQUEST_NOT
 data: `{ "type": "CHAT_MESSAGE", "requestId": 7, "postId": 12 }`. 탭 시 해당 매칭의
 채팅방으로 이동. 메시지마다 발송한다 (묶음·스로틀은 v2). best-effort — 발송 실패가
 메시지 저장을 실패시키면 안 된다 (§8과 동일).
+v1.13.0: 방을 나간 상대에게는 발송하지 않는다. SYSTEM 메시지도 발송하지 않는다.
+
+### 채팅 탭·방 목록 (v1.13.0)
+
+FE 하단 탭이 5개가 된다: **홈 / 팀 / 매칭 / 채팅 / 마이**. 채팅 탭이 방 목록 화면이다.
+
+#### GET /api/users/me/chats — 인증 필요
+
+내 팀이 당사자인 **ACCEPTED 매칭**의 채팅방 목록. **내가 나간 방은 제외**된다.
+
+```json
+[ { "requestId": 16, "postId": 22, "postTitle": "다음 주 토요일 11인제 상대 구합니다",
+    "matchAt": "2026-09-02T06:30:00+09:00", "chatOpen": true,
+    "otherTeam": "<TeamSummary>",
+    "lastMessage": "<ChatMessage | null>" } ]
+```
+
+- `otherTeam`: 상대 팀 (내가 글 작성 팀이면 신청 팀, 반대면 글 작성 팀)
+- `lastMessage`: 내게 보이는 마지막 메시지 (나간 시점 이전은 제외 후 계산). 메시지가
+  없으면 `null` — 방은 목록에 나온다 (조율을 시작하라는 뜻이므로 숨기지 않는다)
+- 정렬: `lastMessage.createdAt` DESC, 메시지 없는 방은 그 뒤에 수락 최신순
+- 팀이 없으면 빈 배열 (조회성 API 공통 규칙)
+- 페이징 없음 — 한 팀의 진행 중 매칭 수는 작다 (필요해지면 v2)
+
+### 나가기 (v1.13.0)
+
+#### POST /api/requests/{requestId}/chat/leave — 인증 필요, 매칭 당사자 팀 OWNER만
+
+내 팀이 방을 나간다. 204 (이미 나간 상태에서 또 불러도 204 — 멱등).
+거절 케이스는 GET /chat과 동일 (권한 403 먼저, ACCEPTED 아니면 409, 없으면 404).
+
+나가기의 효과:
+1. **내 방 목록에서 사라진다 — 영구.** 상대가 새 메시지를 보내도 목록에 다시 나타나지
+   않고, `CHAT_MESSAGE` 푸시도 내게 오지 않는다
+2. **상대 방에는 SYSTEM 메시지**("상대 팀이 채팅방을 나갔습니다")가 남는다 — 상대가
+   답 없는 방에서 기다리지 않게 한다
+3. **나간 시점 이전 내역은 내게 보이지 않는다.** 이후 매칭 카드로 재입장하면 나간
+   시점 이후 메시지만 온다 (`GET /chat`이 걸러서 준다 — FE가 거를 필요 없음)
+4. **재입장해서 전송하면 복귀다.** 전송 성공 시 숨김이 풀려 목록에 다시 나오고 푸시도
+   재개된다 (복귀 SYSTEM 메시지는 없다). 매치가 끝난 방(`CHAT_CLOSED`)은 전송이
+   없으므로 복귀 경로도 없다
+- 나가기는 채팅에만 영향을 준다 — 매칭·리뷰·전적 등 다른 기능은 그대로다
+
+FE: 나가기는 채팅방 안에서 제공하고(위치는 FE 재량), **되돌릴 수 없는 동작이므로 확인
+다이얼로그를 거친다.** 문구에 "지난 대화를 다시 볼 수 없게 됩니다"를 포함할 것.
 
 ## 7. 리뷰·평점 (v1.2.0)
 
