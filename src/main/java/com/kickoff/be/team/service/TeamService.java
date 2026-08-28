@@ -22,6 +22,8 @@ import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.user.entity.User;
 import java.time.Year;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,9 @@ public class TeamService {
 
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 50;
+
+    /** 검색어에서 지울 공백 (계약서 §4, v1.14.0). 탭·줄바꿈까지 포함한다. */
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private final TeamRepository teamRepository;
     private final ReviewRepository reviewRepository;
@@ -80,13 +85,13 @@ public class TeamService {
     }
 
     /**
-     * 팀 찾기 (계약서 §4, v1.11.0). 인증 불필요.
+     * 팀 찾기 (계약서 §4, v1.11.0 / 매칭·정렬은 v1.14.0). 인증 불필요.
      *
      * 카드에 평점이 실리므로 팀별 집계를 배치로 모은다 — 카드마다 조회하면 N+1 이다.
      */
     @Transactional(readOnly = true)
     public PageResponse<TeamSummary> search(String keyword, String region, int page, int size) {
-        Page<Team> teams = teamRepository.search(blankToNull(keyword), blankToNull(region),
+        Page<Team> teams = teamRepository.search(normalizeKeyword(keyword), blankToNull(region),
                 PageRequest.of(Math.max(page, 0), clampSize(size)));
         Map<Long, ReviewStats> stats = reviewRepository.statsMapOf(
                 teams.getContent().stream().map(Team::getId).toList());
@@ -104,6 +109,31 @@ public class TeamService {
     /** 빈 문자열은 필터를 안 건 것과 같다 — 목록 조회와 같은 처리다. */
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    /**
+     * 검색어 정규화 (계약서 §4, v1.14.0) — 공백을 지우고 소문자로 내린다.
+     *
+     * 쿼리가 팀 이름에 하는 것과 같은 처리를 검색어에 미리 해 둔다. 여기서 하는 이유는
+     * 두 가지다. 파라미터를 함수로 감싸면 DB 가 매 행마다 계산해야 하고, 무엇보다
+     * <b>자바와 SQL 의 소문자 변환이 갈릴 여지</b>를 한쪽으로 몰아 둘 수 있다.
+     *
+     * {@code Locale.ROOT} 를 명시하는 게 중요하다. 인자 없는 {@code toLowerCase()} 는
+     * <b>실행 환경의 기본 로캘</b>을 쓰는데, 터키어 로캘에서는 'I' 가 점 없는 'ı' 로
+     * 내려간다. 그러면 "FC Istanbul" 을 "istanbul" 로 검색했을 때 서버 로캘에 따라
+     * 찾히기도 안 찾히기도 한다 — 에러 없이 결과만 달라지고, 우리 환경에서는 재현조차
+     * 안 되는 종류의 고장이다.
+     *
+     * 공백은 자바 쪽에서 모든 공백문자를 지우고 SQL 쪽은 보통 공백만 지운다. 일부러
+     * 어긋내 둔 것이다 — 탭이나 줄바꿈이 섞여 들어오는 쪽은 붙여넣기가 일어나는 검색창이지
+     * 팀 이름이 아니다. 넓게 지우는 쪽을 사용자 입력에 둔다.
+     */
+    private String normalizeKeyword(String keyword) {
+        String trimmed = blankToNull(keyword);
+        if (trimmed == null) {
+            return null;
+        }
+        return WHITESPACE.matcher(trimmed).replaceAll("").toLowerCase(Locale.ROOT);
     }
 
     /** 인증 불필요 — viewer 가 null 이면 isMine 은 false 이고 myRole 은 null 이다. */
