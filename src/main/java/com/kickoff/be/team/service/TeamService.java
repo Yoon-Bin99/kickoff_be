@@ -91,7 +91,7 @@ public class TeamService {
      */
     @Transactional(readOnly = true)
     public PageResponse<TeamSummary> search(String keyword, String region, int page, int size) {
-        Page<Team> teams = teamRepository.search(normalizeKeyword(keyword), blankToNull(region),
+        Page<Team> teams = teamRepository.search(normalizeKeyword(keyword), escapeRegion(region),
                 PageRequest.of(Math.max(page, 0), clampSize(size)));
         Map<Long, ReviewStats> stats = reviewRepository.statsMapOf(
                 teams.getContent().stream().map(Team::getId).toList());
@@ -138,7 +138,19 @@ public class TeamService {
     }
 
     /**
-     * LIKE 와일드카드를 리터럴로 만든다 (계약서 §4, v1.14.0).
+     * 지역 필터 (계약서 §4). 와일드카드만 리터럴로 만든다.
+     *
+     * keyword 와 달리 공백을 지우지도, 소문자로 내리지도 않는다. 계약이 region 에 정한
+     * 것은 부분 일치뿐이고, 대소문자는 쿼리가 양쪽에 lower 를 걸어 이미 무시한다.
+     * "서울 강서구"처럼 공백이 의미를 가르는 값이라 붙여 버리면 오히려 넓어진다.
+     */
+    private String escapeRegion(String region) {
+        String trimmed = blankToNull(region);
+        return trimmed == null ? null : escapeLike(trimmed);
+    }
+
+    /**
+     * LIKE 와일드카드를 리터럴로 만든다 (계약서 §4, v1.14.0). keyword·region 공용이다.
      *
      * 검색창에 친 {@code %} 는 "이름에 % 가 든 팀"을 찾겠다는 뜻이지 "전부 보여 달라"가
      * 아니다. 그대로 넘기면 {@code %} 하나로 모든 팀이, {@code _} 하나로 한 글자 이상인

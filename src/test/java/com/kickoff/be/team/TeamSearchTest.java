@@ -131,6 +131,37 @@ class TeamSearchTest extends IntegrationTestSupport {
                         contains("100% 클럽", "우리 100% 클럽")));
     }
 
+    @Test
+    @DisplayName("region 도 와일드카드를 리터럴로 다룬다 — 한 API 안에서 규칙이 갈리면 안 된다")
+    void regionEscapesWildcardsToo() throws Exception {
+        team("퍼센트 클럽", "서울 100% 구역");
+        team("마포 유나이티드", "서울 마포구");
+
+        // 이스케이프가 없으면 여기서 2건(전체)이 나온다
+        mockMvc.perform(get("/api/teams").param("region", "%"))
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].name").value("퍼센트 클럽"));
+        mockMvc.perform(get("/api/teams").param("region", "_"))
+                .andExpect(jsonPath("$.content", hasSize(0)));
+
+        // 평범한 지역 검색은 그대로다
+        mockMvc.perform(get("/api/teams").param("region", "서울"))
+                .andExpect(jsonPath("$.content", hasSize(2)));
+    }
+
+    @Test
+    @DisplayName("region 은 공백을 지우지 않는다 — keyword 와 규칙이 다르다")
+    void regionKeepsWhitespace() throws Exception {
+        team("마포 유나이티드", "서울 마포구");
+
+        // 지역은 "서울 강서구"처럼 공백이 의미를 가르는 값이라 붙여 버리면 오히려 넓어진다.
+        // 계약이 region 에 정한 것은 부분 일치뿐이다
+        mockMvc.perform(get("/api/teams").param("region", "서울 마포구"))
+                .andExpect(jsonPath("$.content", hasSize(1)));
+        mockMvc.perform(get("/api/teams").param("region", "서울마포구"))
+                .andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
     // ── 정확도 정렬 (v1.14.0)
 
     @Test

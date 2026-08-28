@@ -25,8 +25,9 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
      *
      * escape '!' 가 붙은 건 검색어의 %·_ 를 리터럴로 다루기 위해서다 (계약서 v1.14.0).
      * 이스케이프는 서비스가 걸어서 넘기고, 여기서는 그 문자를 무엇으로 볼지만 알려 준다.
-     * <b>두 LIKE 에 모두 붙어야 한다</b> — where 에만 붙이면 찾기는 맞는데 전방일치 판정만
-     * 옛 규칙으로 돌아가서, 결과는 맞고 순서만 틀리는 형태로 어긋난다.
+     * <b>LIKE 세 곳에 모두 붙어야 한다</b> — 이름 검색, 전방일치 판정, 지역 필터다.
+     * 전방일치 쪽을 빠뜨리면 찾기는 맞는데 판정만 옛 규칙으로 돌아가서, 결과는 맞고
+     * 순서만 틀리는 형태로 어긋난다 (건수만 보는 테스트로는 안 잡힌다).
      *
      * cast(:x as string) 는 없어도 될 것 같지만 필요하다. 파라미터가 null 일 때 H2 는
      * 그냥 넘어가지만 PostgreSQL 은 타입을 정하지 못해 lower(bytea) 로 해석하고 터진다 —
@@ -41,7 +42,8 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
             where (:keyword is null
                    or lower(replace(t.name, ' ', ''))
                       like concat('%', cast(:keyword as string), '%') escape '!')
-              and (:region is null or lower(t.region) like lower(concat('%', cast(:region as string), '%')))
+              and (:region is null
+                   or lower(t.region) like lower(concat('%', cast(:region as string), '%')) escape '!')
             order by case when :keyword is null then 0
                           when lower(replace(t.name, ' ', ''))
                                like concat(cast(:keyword as string), '%') escape '!' then 0
