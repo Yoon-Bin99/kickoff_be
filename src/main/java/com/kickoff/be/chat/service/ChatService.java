@@ -64,12 +64,13 @@ public class ChatService {
     private static final long NO_WATERMARK = 0L;
 
     /**
-     * 정렬: 마지막 메시지 최신순, 메시지 없는 방은 그 뒤에 수락 최신순 (계약서 §6-1).
+     * 정렬: 마지막 메시지 최신순, 메시지 없는 방은 그 뒤에 <b>신청의 마지막 상태
+     * 변경(updatedAt) 최신순</b> (계약서 §6-1).
      *
-     * "수락 시각" 컬럼이 따로 없어 뒤쪽은 updatedAt 순으로 나열한다 — 수락된 신청의 마지막
-     * 상태 변경은 대개 수락 그 자체다. 그 값은 응답에 없으므로 목록을 만들기 전에 미리
-     * 정렬해 두고, 여기서는 앞쪽(메시지 있는 방)만 다시 줄 세운다 — 자바의 정렬은 안정적이라
-     * 뒤쪽의 기존 순서가 유지된다.
+     * acceptedAt 컬럼을 두지 않는 건 계약이 확정한 선택이다 — 수락이 보통 마지막 변경이라
+     * 사실상 수락 순이고, 입금 확인이 있으면 그만큼 위로 온다. updatedAt 은 응답에 없으므로
+     * 목록을 만들기 전에 미리 정렬해 두고, 여기서는 앞쪽(메시지 있는 방)만 다시 줄 세운다 —
+     * 자바의 정렬은 안정적이라 뒤쪽의 기존 순서가 유지된다.
      */
     private static final Comparator<ChatRoomResponse> ROOM_ORDER = Comparator
             .comparing((ChatRoomResponse room) -> room.lastMessage() != null)
