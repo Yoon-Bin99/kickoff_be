@@ -51,6 +51,11 @@ public class SecurityConfig {
                         // 개발용 H2 콘솔
                         .requestMatchers("/h2-console/**").permitAll()
 
+                        // 카카오톡 카드형 공유용 브랜딩 이미지. 계약서의 API 표면이 아니라
+                        // 정적 자원이다 — 카카오 서버가 미리보기를 만들려고 토큰 없이
+                        // 가져가므로 반드시 공개여야 한다.
+                        .requestMatchers(HttpMethod.GET, "/share-card.png").permitAll()
+
                         // 인증 불필요 (계약서 §3)
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login",
                                 // refresh token 자체가 자격 증명이라 access 없이 부른다 (v1.7.0).

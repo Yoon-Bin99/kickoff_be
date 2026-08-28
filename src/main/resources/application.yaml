@@ -18,6 +18,15 @@ spring:
       datetime:
         write-dates-as-timestamps: false
         adjust-dates-to-context-time-zone: false
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          # 정적 자원은 지금 공유 카드 이미지 한 장뿐이다 (GET /share-card.png).
+          # 카카오가 카드 이미지를 자기 쪽에 캐시하므로 길게 잡아도 되지만, 브랜딩을
+          # 고쳤을 때 하루 안에는 새 그림이 도는 편이 낫다.
+          max-age: 1d
+          cache-public: true
   jpa:
     open-in-view: false
     properties:
