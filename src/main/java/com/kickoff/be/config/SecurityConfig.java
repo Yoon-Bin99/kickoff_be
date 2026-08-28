@@ -54,7 +54,14 @@ public class SecurityConfig {
                         // 카카오톡 카드형 공유용 브랜딩 이미지. 계약서의 API 표면이 아니라
                         // 정적 자원이다 — 카카오 서버가 미리보기를 만들려고 토큰 없이
                         // 가져가므로 반드시 공개여야 한다.
-                        .requestMatchers(HttpMethod.GET, "/share-card.png").permitAll()
+                        //
+                        // <b>메서드를 지정하지 않는다.</b> GET 만 열어 두면 HEAD 가
+                        // anyRequest().authenticated() 로 떨어져 401 이 된다 — 스프링 시큐리티는
+                        // 메서드를 정확히 대조하지 HEAD 를 GET 으로 쳐 주지 않는다. 이미지
+                        // 수집기가 HEAD 로 먼저 찔러 보는 경우가 있어서, 그때 카드에 이미지만
+                        // 통째로 빠진다. 우리 쪽 로그에는 401 한 줄이 남을 뿐이라 원인을 찾기
+                        // 어렵다. 공개 파일 한 장이라 메서드로 좁혀서 지킬 것도 없다.
+                        .requestMatchers("/share-card.png").permitAll()
 
                         // 인증 불필요 (계약서 §3)
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login",

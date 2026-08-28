@@ -2,6 +2,7 @@ package com.kickoff.be.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +31,17 @@ class ShareCardTest extends IntegrationTestSupport {
     @DisplayName("토큰 없이 200 으로 받아진다 — 카카오 서버가 토큰 없이 가져간다")
     void servedWithoutAuthentication() throws Exception {
         mockMvc.perform(get("/share-card.png"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", MediaType.IMAGE_PNG_VALUE));
+    }
+
+    @Test
+    @DisplayName("HEAD 도 200 이다 — 이미지 수집기가 HEAD 로 먼저 찔러 볼 수 있다")
+    void headIsAllowedToo() throws Exception {
+        // 처음에 GET 만 permitAll 했다가 실제로 당했다. 스프링 시큐리티는 메서드를 정확히
+        // 대조하므로 HEAD 는 anyRequest().authenticated() 로 떨어져 401 이 됐다. GET 이
+        // 200 이라 프로브로는 멀쩡해 보였고, 카드에 이미지만 빠지는 형태로만 드러난다.
+        mockMvc.perform(head("/share-card.png"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", MediaType.IMAGE_PNG_VALUE));
     }
