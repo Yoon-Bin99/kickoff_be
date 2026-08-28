@@ -72,6 +72,65 @@ class TeamSearchTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.totalElements").value(0));
     }
 
+    // ── 와일드카드 리터럴 (v1.14.0)
+
+    @Test
+    @DisplayName("% 는 리터럴이다 — 전부 보여 달라는 뜻이 아니다")
+    void percentIsLiteral() throws Exception {
+        team("100% 클럽", "서울 중구");
+        team("마포 유나이티드", "서울 마포구");
+
+        // 이스케이프가 없으면 여기서 2건(전체)이 나온다. 에러가 아니라 결과가 너무 많이
+        // 나올 뿐이라, 화면만 봐서는 "검색이 잘 되네"로 지나치기 쉽다
+        search("%")
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].name").value("100% 클럽"));
+    }
+
+    @Test
+    @DisplayName("_ 도 리터럴이다 — 한 글자 아무거나가 아니다")
+    void underscoreIsLiteral() throws Exception {
+        team("A_B 클럽", "서울 중구");
+        team("마포 유나이티드", "서울 마포구");
+
+        // 이스케이프가 없으면 _ 가 임의의 한 글자라 두 팀 다 걸린다
+        search("_")
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].name").value("A_B 클럽"));
+
+        // 반대 방향도 본다 — A_B 는 "AB" 로 찾히면 안 된다
+        search("ab").andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("이스케이프 문자로 쓴 ! 자체도 검색된다")
+    void escapeCharacterItselfIsSearchable() throws Exception {
+        team("우리! 팀", "서울 중구");
+        team("마포 유나이티드", "서울 마포구");
+
+        // ! 를 이스케이프 문자로 골랐으므로, 사용자가 친 ! 를 먼저 감싸지 않으면
+        // 패턴이 "%!%" 가 되어 % 를 리터럴로 해석해 버린다 — 엉뚱한 결과가 나온다
+        search("!")
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].name").value("우리! 팀"));
+    }
+
+    @Test
+    @DisplayName("와일드카드가 든 검색어도 전방일치 판정을 받는다 — 정렬 쪽 escape 가 빠지면 어긋난다")
+    void escapingAppliesToOrderingToo() throws Exception {
+        // 전방일치인 쪽을 먼저 만들어, 생성일 DESC 만으로는 이 순서가 안 나오게 한다
+        team("100% 클럽", "서울 중구");
+        team("우리 100% 클럽", "서울 중구");
+
+        // where 에만 escape 를 붙이면 둘 다 찾히기는 한다 — 그래서 건수만 보는 테스트로는
+        // 안 잡힌다. 정렬 쪽 LIKE 는 !%를 리터럴 !로 읽어 전방일치를 놓치고, 결과는 맞는데
+        // 순서만 틀린 형태로 어긋난다
+        search("100%")
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[*].name",
+                        contains("100% 클럽", "우리 100% 클럽")));
+    }
+
     // ── 정확도 정렬 (v1.14.0)
 
     @Test

@@ -23,6 +23,11 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
      * "마포"로 찾을 때 "마포 유나이티드"가 "서울마포클럽"보다 위에 와야 한다. keyword 가
      * 없으면 case 가 전부 0 이 되어 예전과 같은 생성일 DESC 로 돌아간다.
      *
+     * escape '!' 가 붙은 건 검색어의 %·_ 를 리터럴로 다루기 위해서다 (계약서 v1.14.0).
+     * 이스케이프는 서비스가 걸어서 넘기고, 여기서는 그 문자를 무엇으로 볼지만 알려 준다.
+     * <b>두 LIKE 에 모두 붙어야 한다</b> — where 에만 붙이면 찾기는 맞는데 전방일치 판정만
+     * 옛 규칙으로 돌아가서, 결과는 맞고 순서만 틀리는 형태로 어긋난다.
+     *
      * cast(:x as string) 는 없어도 될 것 같지만 필요하다. 파라미터가 null 일 때 H2 는
      * 그냥 넘어가지만 PostgreSQL 은 타입을 정하지 못해 lower(bytea) 로 해석하고 터진다 —
      * 목록 조회에서 실제로 당했던 것과 같은 함정이다(v1.5.0).
@@ -35,11 +40,11 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
             join fetch t.owner
             where (:keyword is null
                    or lower(replace(t.name, ' ', ''))
-                      like concat('%', cast(:keyword as string), '%'))
+                      like concat('%', cast(:keyword as string), '%') escape '!')
               and (:region is null or lower(t.region) like lower(concat('%', cast(:region as string), '%')))
             order by case when :keyword is null then 0
                           when lower(replace(t.name, ' ', ''))
-                               like concat(cast(:keyword as string), '%') then 0
+                               like concat(cast(:keyword as string), '%') escape '!' then 0
                           else 1 end,
                      t.createdAt desc, t.id desc
             """)

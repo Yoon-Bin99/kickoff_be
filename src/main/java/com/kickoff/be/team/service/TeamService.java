@@ -133,7 +133,27 @@ public class TeamService {
         if (trimmed == null) {
             return null;
         }
-        return WHITESPACE.matcher(trimmed).replaceAll("").toLowerCase(Locale.ROOT);
+        return escapeLike(
+                WHITESPACE.matcher(trimmed).replaceAll("").toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * LIKE 와일드카드를 리터럴로 만든다 (계약서 §4, v1.14.0).
+     *
+     * 검색창에 친 {@code %} 는 "이름에 % 가 든 팀"을 찾겠다는 뜻이지 "전부 보여 달라"가
+     * 아니다. 그대로 넘기면 {@code %} 하나로 모든 팀이, {@code _} 하나로 한 글자 이상인
+     * 팀이 전부 나온다 — 에러가 아니라 결과가 너무 많이 나올 뿐이라 눈에 잘 안 띈다.
+     *
+     * 이스케이프 문자로 역슬래시가 아니라 {@code !} 를 쓴다. 역슬래시는 자바 문자열,
+     * JPQL 문자열, DB 의 문자열 리터럴 규칙(PostgreSQL 의 standard_conforming_strings)을
+     * 차례로 지나며 몇 겹으로 해석되는데, 그 층이 어긋나면 조용히 다른 패턴이 된다.
+     * {@code !} 는 어느 층에서도 특별하지 않아 셀 것이 없다.
+     *
+     * <b>순서가 중요하다.</b> 이스케이프 문자 자신을 먼저 처리해야 한다. 뒤로 미루면
+     * {@code %} 를 감싸며 넣은 {@code !} 까지 다시 이스케이프돼 패턴이 망가진다.
+     */
+    private String escapeLike(String value) {
+        return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
     }
 
     /** 인증 불필요 — viewer 가 null 이면 isMine 은 false 이고 myRole 은 null 이다. */
