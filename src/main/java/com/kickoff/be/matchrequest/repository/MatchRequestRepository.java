@@ -68,6 +68,22 @@ public interface MatchRequestRepository extends JpaRepository<MatchRequest, Long
     @EntityGraph(attributePaths = {"applicantTeam", "applicantTeam.owner"})
     List<MatchRequest> findByPostIdAndStatusAndIdNot(Long postId, RequestStatus status, Long id);
 
+    /**
+     * 내가 주장인 팀이 당사자인 <b>수락된</b> 매칭 — 곧 내 채팅방 목록이다 (계약서 §6-1, v1.13.0).
+     *
+     * 채팅은 주장만 들어오므로 소유자 기준으로 바로 거른다. 사용자가 팀을 여럿 가질 수
+     * 있어서 팀 id 로 좁히지 않고 owner 로 묻는다 — 그래야 팀을 먼저 조회하는 왕복이 준다.
+     * 나가기로 숨긴 방은 여기서 빼지 않는다: 워터마크가 팀 단위라 서비스에서 함께 판정한다.
+     */
+    @EntityGraph(attributePaths = {"post", "post.team", "post.team.owner",
+            "applicantTeam", "applicantTeam.owner"})
+    @Query("""
+            select r from MatchRequest r
+            where r.status = com.kickoff.be.matchrequest.entity.RequestStatus.ACCEPTED
+              and (r.post.team.owner.id = :userId or r.applicantTeam.owner.id = :userId)
+            """)
+    List<MatchRequest> findAcceptedRoomsOf(@Param("userId") Long userId);
+
     boolean existsByPostIdAndApplicantTeamIdAndStatusIn(Long postId, Long applicantTeamId,
                                                         Collection<RequestStatus> statuses);
 
