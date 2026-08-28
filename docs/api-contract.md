@@ -1,8 +1,13 @@
-# Kickoff API 계약 v1 (현재 v1.13.0)
+# Kickoff API 계약 v1 (현재 v1.14.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.14.0 (2026-08-28): 팀 검색 개선 — `GET /api/teams`의 `keyword` 매칭을 정규화
+> (공백 제거·대소문자 무시) 부분 일치로, 정렬을 정확도 순(정규화 전방일치 → 포함,
+> 그룹 내 생성일 DESC)으로 개정. FE 팀 찾기에 지역(시/도) 필터 노출(기존 `region`
+> 파라미터 사용 — API 변경 없음). 오타 유사도 검색(trigram 등)은 범위 밖.
+>
 > v1.13.0 (2026-08-28): 채팅 탭·나가기 — `GET /api/users/me/chats`(내 채팅방 목록),
 > `POST /api/requests/{id}/chat/leave`(나가기 — 영구 숨김·상대 방에 SYSTEM 메시지·
 > 나간 시점 이전 내역 비공개·푸시 중단, 재전송하면 복귀), `ChatMessage.type`
@@ -384,11 +389,18 @@ FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한�
 
 200 → `TeamResponse`, 팀 없으면 404 `TEAM_NOT_FOUND`
 
-### GET /api/teams — 인증 불필요 (v1.11.0, 팀 찾기)
+### GET /api/teams — 인증 불필요 (v1.11.0, 팀 찾기 / v1.14.0 매칭·정렬 개정)
 
-쿼리 (전부 optional): `keyword`(팀 이름 부분 일치), `region`(부분 일치),
+쿼리 (전부 optional): `keyword`(팀 이름 — 아래 정규화 매칭), `region`(부분 일치),
 `page`(기본 0), `size`(기본 20, 최대 50).
-200 → `PageResponse<TeamSummary>`, 생성일 DESC (동률 id DESC).
+200 → `PageResponse<TeamSummary>`.
+
+- **keyword 매칭 (v1.14.0)**: 검색어와 팀 이름 양쪽에서 **공백을 제거하고 대소문자를
+  무시**한 뒤 부분 일치. "인천스트라이커즈"·"fc서울"처럼 띄어쓰기·케이스가 달라도
+  찾아진다. 오타 유사도(편집거리·trigram)는 범위 밖 (§9).
+- **정렬 (v1.14.0)**: `keyword`가 있으면 정확도 순 — ① 정규화한 팀 이름이 정규화한
+  검색어로 **시작**하는 팀 ② 나머지 포함 팀. 각 그룹 안에서는 생성일 DESC (동률 id
+  DESC). `keyword`가 없으면 기존대로 생성일 DESC (동률 id DESC).
 
 ### GET /api/teams/{teamId} — 인증 불필요
 
@@ -1027,6 +1039,7 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 
 ## 9. v1 범위 밖 (구현하지 말 것)
 
+팀 검색 오타 유사도(편집거리·trigram),
 채팅 실시간 전송(WebSocket — v1은 폴링), 채팅 읽음 표시·안읽음 배지,
 채팅 메시지 수정·삭제·신고, 채팅 이미지 첨부, 채팅 푸시 묶음·스로틀,
 이미지 업로드(팀 로고 포함), 스쿼드/포메이션 보드,
