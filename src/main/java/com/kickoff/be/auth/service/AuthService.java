@@ -36,8 +36,23 @@ public class AuthService {
 
     @Transactional
     public AuthResponse signup(SignupRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
+        // 유니크 규칙 (계약서 §3, v1.16.0). 폼 순서대로 본다 — FE 가 받은 코드로 해당
+        // 입력칸에 포커스를 돌리므로, 여러 개가 겹쳤을 때 위쪽 칸부터 알려주는 게 낫다.
+        // 이메일은 대소문자를 무시해 본다 (계약서 §3, v1.16.0). Kim@ 과 kim@ 은 같은
+        // 주소이므로 사람이 보기에 같은 계정을 두 개 만들 수 있으면 안 된다.
+        //
+        // DB 제약은 아직 정확 일치다 — 대소문자만 다른 기존 쌍이 운영에 있을 수 있어
+        // 유니크 제약 정비와 함께 미뤘다 (docs/pending/V12 참고). 그래서 지금은
+        // "판정은 무시, 제약은 일치"로 어긋나 있는데, 느슨한 쪽이 판정이라 새 중복은
+        // 들어오지 않는다.
+        if (userRepository.existsByEmailIgnoreCase(request.email())) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+        if (userRepository.existsByNicknameIgnoreCase(request.nickname())) {
+            throw new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS);
+        }
+        if (userRepository.existsByPhone(request.phone())) {
+            throw new BusinessException(ErrorCode.PHONE_ALREADY_EXISTS);
         }
         // 전화번호 인증 (계약서 §3-2, v1.15.0). 이미 있는 이메일을 먼저 걸러내는 순서가
         // 중요하다 — 어차피 실패할 요청에 토큰을 태워 버리면 재시도 때 다시 인증해야 한다.

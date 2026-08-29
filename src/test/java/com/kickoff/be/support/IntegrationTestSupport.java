@@ -57,7 +57,15 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
         StubSmsConfig.class})
 public abstract class IntegrationTestSupport {
 
-    protected static final String PASSWORD = "pass1234";
+    /**
+     * 테스트 계정의 비밀번호. v1.16.0 부터 가입 규칙이 영문·숫자·특수문자를 요구하므로
+     * 느낌표가 붙어 있다 — 이걸로 가입한 뒤 같은 값으로 로그인하는 흐름이 대부분이다.
+     *
+     * dev 시드(DataInitializer)의 pass1234 는 그대로 둔다. 규칙은 가입에만 걸리고 기존
+     * 계정에 소급하지 않으므로, 시드가 규칙을 어겨도 로그인은 된다 — 그 성질 자체를
+     * SignupHardeningTest 가 검증한다.
+     */
+    protected static final String PASSWORD = "pass1234!";
     protected static final String BANK = "카카오뱅크";
     protected static final String ACCOUNT_NUMBER = "3333-01-1234567";
     protected static final String ACCOUNT_HOLDER = "김주장";
@@ -170,9 +178,18 @@ public abstract class IntegrationTestSupport {
     }
 
     protected User createUser(String email, String nickname, String phone) {
+        return createUserWithPassword(email, nickname, phone, PASSWORD);
+    }
+
+    /**
+     * 비밀번호를 지정해 만든다. 가입 API 를 거치지 않으므로 v1.16.0 의 비밀번호 규칙을
+     * 타지 않는다 — "규칙을 어기는 기존 계정"을 만들어 로그인이 되는지 보는 데 쓴다.
+     */
+    protected User createUserWithPassword(String email, String nickname, String phone,
+                                          String rawPassword) {
         return userRepository.save(User.builder()
                 .email(email)
-                .password(passwordEncoder.encode(PASSWORD))
+                .password(passwordEncoder.encode(rawPassword))
                 .nickname(nickname)
                 .phone(phone)
                 .build());

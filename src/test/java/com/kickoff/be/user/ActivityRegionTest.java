@@ -122,7 +122,7 @@ class ActivityRegionTest extends IntegrationTestSupport {
     }
 
     private ResultActions signup(String email, String extraFields) throws Exception {
-        String body = "{\"email\": \"" + email + "\", \"password\": \"pass1234\","
+        String body = "{\"email\": \"" + email + "\", \"password\": \"pass1234!\","
                 + " \"nickname\": \"새사용자\", \"phone\": \"010-9999-9999\"";
         if (extraFields != null) {
             body += ", " + extraFields;

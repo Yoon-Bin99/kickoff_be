@@ -41,6 +41,18 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Patchable.rejectClear(request.nickname(), "nickname");
         Patchable.rejectClear(request.phone(), "phone");
+        // 유니크 규칙 (계약서 §3, v1.16.0). 자기 자신의 기존 값은 중복이 아니다 —
+        // 안 그러면 닉네임을 그대로 두고 전화번호만 고치는 요청이 자기 닉네임에 걸린다.
+        if (Patchable.isPresent(request.nickname())
+                && userRepository.existsByNicknameIgnoreCaseAndIdNot(
+                        Patchable.valueOf(request.nickname()), user.getId())) {
+            throw new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS);
+        }
+        if (Patchable.isPresent(request.phone())
+                && userRepository.existsByPhoneAndIdNot(
+                        Patchable.valueOf(request.phone()), user.getId())) {
+            throw new BusinessException(ErrorCode.PHONE_ALREADY_EXISTS);
+        }
         // 전화번호를 넣거나 바꾸는 요청만 인증을 탄다 (계약서 §3-2, v1.15.0).
         // phone 을 건드리지 않는 PATCH 는 예전 그대로다 — 닉네임만 고치는데 문자 인증을
         // 요구하면 소셜 가입자가 프로필을 못 고친다.

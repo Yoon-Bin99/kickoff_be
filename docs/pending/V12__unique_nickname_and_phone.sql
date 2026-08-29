@@ -1,0 +1,46 @@
+-- ⚠️ 아직 적용하지 않는다. Flyway 가 스캔하지 않는 곳(docs/)에 일부러 두었다.
+--
+-- v1.16.0 배포에서 이 파일만 뺐다 (supervisor 판단). 이유는 운영에 이미 중복이 있는지
+-- 밖에서 확인할 방법이 없었기 때문이다 — 팀이 없는 사용자는 어떤 API 에도 노출되지 않고
+-- 사용자 목록 API 도 없다. 중복이 있는 채로 올리면 Flyway 가 실패하고, Flyway 실패는
+-- 곧 기동 실패라 서비스가 뜨지 않는다.
+--
+-- 앱 레벨 유니크 검사(409)는 v1.16.0 에 이미 들어갔으므로 <b>새 중복은 생기지 않는다</b>.
+-- 남은 것은 기존 중복뿐이다. 아래 두 쿼리가 0행인 것을 확인한 뒤 이 파일을
+-- src/main/resources/db/migration/ 으로 옮기고 배포하면 된다.
+--
+--   select nickname, count(*) from users group by nickname having count(*) > 1;
+--   select phone, count(*) from users where phone is not null
+--    group by phone having count(*) > 1;
+--
+-- 이메일도 같이 볼 것. v1.16.0 부터 중복 판정이 대소문자 무시로 바뀌었는데 DB 제약은
+-- 여전히 정확 일치라, 대소문자만 다른 기존 쌍이 있으면 그것도 정리 대상이다.
+--
+--   select lower(email), count(*) from users group by lower(email) having count(*) > 1;
+--
+
+-- 닉네임·전화번호 유니크 (계약서 §3, v1.16.0).
+--
+-- V1~V11 은 이미 배포됐으므로 수정하지 않는다. 고치면 Flyway 체크섬이 깨져 기동이 막힌다.
+-- 이메일 유니크는 V1 부터 있었다 (users.email varchar(100) unique).
+--
+-- **이 마이그레이션은 기존 데이터에 중복이 있으면 실패한다.** 그리고 Flyway 실패는
+-- 기동 실패다 — 즉 배포가 통째로 멈춘다. 그래서 붙이기 전에 운영·시드의 중복을 먼저
+-- 확인했다. 확인 없이 올리면 "배포했더니 서버가 안 뜬다"가 되고, 그때는 롤백 말고는
+-- 손쓸 방법이 없다.
+--
+-- phone 은 null 을 유니크 대상에서 제외해야 한다. 소셜 가입자는 전화번호 없이 계정이
+-- 만들어지므로 null 이 여럿 생긴다. 표준 SQL 에서 unique 제약의 null 은 서로 다른 값으로
+-- 취급되므로 별도 부분 인덱스 없이 그냥 걸면 된다 — H2 에 부분 인덱스가 없어서 V7·V8
+-- 에서도 같은 성질에 기댔다.
+-- ⚠️ 닉네임 제약은 이 줄 그대로 쓰면 안 된다. v1.16.0 부터 <b>중복 판정이 대소문자를
+-- 무시</b>하므로(계약서 §3), 제약도 같은 기준이어야 한다. 아래처럼 함수 인덱스로 걸 것:
+--
+--   create unique index uk_users_nickname on users (lower(nickname));
+--
+-- H2 도 lower() 함수 인덱스를 지원하지만 두 DB 에서 실제로 확인하고 올려야 한다.
+-- 아래 정확 일치 제약을 그대로 쓰면 앱은 "kim 과 Kim 은 같다"고 막는데 DB 는 둘 다
+-- 받아들여, 판정과 제약이 어긋난 채로 남는다 (지금 운영이 그 상태다 — 앱만 막고 있다).
+-- 이메일도 같은 이유로 lower(email) 기준이어야 한다 (V1 의 unique 는 정확 일치다).
+alter table users add constraint uk_users_nickname unique (nickname);
+alter table users add constraint uk_users_phone unique (phone);

@@ -8,10 +8,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.kickoff.be.support.IntegrationTestSupport;
 import com.kickoff.be.support.PhoneVerificationTestRepository;
+import com.kickoff.be.user.entity.User;
 import com.kickoff.be.verification.entity.PhoneVerification;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -180,12 +182,17 @@ class PhoneVerificationTest extends IntegrationTestSupport {
     // ── 토큰
 
     @Test
-    @DisplayName("토큰은 1회용이다 — 두 번째 가입에는 쓸 수 없다")
+    @DisplayName("토큰은 1회용이다 — 같은 토큰을 두 번 쓸 수 없다")
     void tokenIsSingleUse() throws Exception {
-        String token = verify(PHONE);
+        // 자기 번호를 다시 인증해서 자기 자신에게 PATCH 하는 모양이다. 가입 두 번으로는
+        // 이걸 볼 수 없다 — v1.16.0 부터 전화번호가 유니크라, 토큰을 한 번 쓰고 나면 그
+        // 번호는 이미 누군가의 것이어서 두 번째 시도는 1회용에 걸리기 전에 409 로 끝난다.
+        // 그래서 유니크에 걸리지 않는 유일한 경로(자기 자신)로 성질만 떼어 본다.
+        User owner = createUser("solo@example.com", "혼자쓰는", "010-9100-0001");
+        String token = verify("010-9100-0001");
 
-        signup("one@example.com", PHONE, token).andExpect(status().isCreated());
-        signup("two@example.com", PHONE, token)
+        patchPhone(owner, "010-9100-0001", token).andExpect(status().isOk());
+        patchPhone(owner, "010-9100-0001", token)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PHONE_NOT_VERIFIED"));
     }
@@ -219,7 +226,7 @@ class PhoneVerificationTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email": "old-client@example.com", "password": "pass1234",
+                                {"email": "old-client@example.com", "password": "pass1234!",
                                  "nickname": "구버전", "phone": "010-7777-1234"}
                                 """))
                 .andExpect(status().isCreated());
@@ -264,9 +271,18 @@ class PhoneVerificationTest extends IntegrationTestSupport {
         return mockMvc.perform(post("/api/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"email": "%s", "password": "pass1234", "nickname": "가입자",
+                        {"email": "%s", "password": "pass1234!", "nickname": "가입자",
                          "phone": "%s", "verificationToken": "%s"}
                         """.formatted(email, phone, token)));
+    }
+
+    private ResultActions patchPhone(User user, String phone, String token) throws Exception {
+        return mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .patch("/api/users/me")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\": \"%s\", \"verificationToken\": \"%s\"}"
+                        .formatted(phone, token)));
     }
 
     /** 발송 → 확인까지 마치고 토큰을 돌려준다. */

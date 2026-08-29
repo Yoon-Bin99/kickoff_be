@@ -92,18 +92,25 @@ public class SocialLoginService {
 
     /**
      * 제공자 닉네임을 그대로 쓰되 겹치면 뒤에 숫자를 붙인다 (계약서 §3-1 규칙 3).
-     * 닉네임에 유니크 제약은 걸지 않는다 — 이메일 가입에는 원래 없던 제약이라
-     * 여기서 만들면 기존 사용자와 시드가 규칙을 소급해 위반하게 된다.
+     *
+     * v1.16.0 부터 닉네임에 <b>DB 유니크 제약이 걸린다</b>. 그래서 이 숫자 붙이기는 이제
+     * 취향이 아니라 필수다 — 여기서 겹친 이름을 그대로 저장하려 하면 소셜 로그인이
+     * 제약 위반으로 실패한다. 소셜 가입자에게는 409 를 돌려줄 수 없다(자기가 고른 이름이
+     * 아니다). 그래서 이메일 가입은 409 로 되돌리고, 소셜은 여기서 알아서 비켜간다.
+     *
+     * 비켜갈 때도 <b>대소문자를 무시해서</b> 본다. 중복 판정이 대소문자 무시인데 여기만
+     * 정확 일치로 보면, "kim" 이 있는 상태에서 "Kim" 을 통과시켜 놓고 나중에 유니크
+     * 제약(함수 인덱스)에서 터진다.
      */
     private String uniqueNickname(String raw) {
         String base = normalize(raw);
-        if (!userRepository.existsByNickname(base)) {
+        if (!userRepository.existsByNicknameIgnoreCase(base)) {
             return base;
         }
         for (int suffix = 2; suffix < MAX_SUFFIX; suffix++) {
             String tail = String.valueOf(suffix);
             String candidate = trimTo(base, NICKNAME_MAX - tail.length()) + tail;
-            if (!userRepository.existsByNickname(candidate)) {
+            if (!userRepository.existsByNicknameIgnoreCase(candidate)) {
                 return candidate;
             }
         }

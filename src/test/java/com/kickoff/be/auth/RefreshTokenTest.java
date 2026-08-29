@@ -29,7 +29,7 @@ import org.springframework.test.web.servlet.ResultActions;
 class RefreshTokenTest extends IntegrationTestSupport {
 
     private static final String EMAIL = "kim@example.com";
-    private static final String PASSWORD = "pass1234";
+    private static final String PASSWORD = "pass1234!";
 
     @BeforeEach
     void setUpUser() throws Exception {
@@ -193,8 +193,12 @@ class RefreshTokenTest extends IntegrationTestSupport {
     private ResultActions signup(String email) throws Exception {
         return mockMvc.perform(post("/api/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
+                // 닉네임·전화번호도 유니크라(v1.16.0) 이메일마다 다른 값을 써야 한다.
+                // 고정값을 쓰면 두 번째 가입이 409 로 막혀, 토큰을 보려던 테스트가
+                // "accessToken 이 없다"로 엉뚱하게 실패한다.
                 .content("{\"email\": \"" + email + "\", \"password\": \"" + PASSWORD + "\","
-                        + " \"nickname\": \"김주장\", \"phone\": \"010-1111-1111\"}"));
+                        + " \"nickname\": \"주장" + Math.abs(email.hashCode() % 10000) + "\","
+                        + " \"phone\": \"010-1111-" + String.format("%04d", Math.abs(email.hashCode() % 10000)) + "\"}"));
     }
 
     private ResultActions login() throws Exception {

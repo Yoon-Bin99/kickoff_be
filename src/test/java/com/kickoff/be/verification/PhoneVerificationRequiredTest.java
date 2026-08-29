@@ -36,7 +36,7 @@ class PhoneVerificationRequiredTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email": "no-token@example.com", "password": "pass1234",
+                                {"email": "no-token@example.com", "password": "pass1234!",
                                  "nickname": "무토큰", "phone": "%s"}
                                 """.formatted(PHONE)))
                 .andExpect(status().isBadRequest())
@@ -51,7 +51,7 @@ class PhoneVerificationRequiredTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email": "verified@example.com", "password": "pass1234",
+                                {"email": "verified@example.com", "password": "pass1234!",
                                  "nickname": "인증됨", "phone": "%s", "verificationToken": "%s"}
                                 """.formatted(PHONE, token)))
                 .andExpect(status().isCreated());

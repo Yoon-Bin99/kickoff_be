@@ -33,7 +33,7 @@ class AuthenticationTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"new@example.com","password":"pass1234",
+                                {"email":"new@example.com","password":"pass1234!",
                                  "nickname":"김주장","phone":"010-1234-5678"}
                                 """))
                 .andExpect(status().isCreated())
@@ -68,7 +68,7 @@ class AuthenticationTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"dup@example.com","password":"pass1234",
+                                {"email":"dup@example.com","password":"pass1234!",
                                  "nickname":"다른사람","phone":"010-2222-2222"}
                                 """))
                 .andExpect(status().isConflict())
@@ -204,8 +204,11 @@ class AuthenticationTest extends IntegrationTestSupport {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                // hasItems 인 이유: v1.16.0 부터 password 는 길이와 구성이 별개 규칙이라
+                // 한 필드에 항목이 둘 실릴 수 있다. 여기서 보고 싶은 건 "빠진 필드가
+                // 없는가"이지 "정확히 넷인가"가 아니다.
                 .andExpect(jsonPath("$.fieldErrors[*].field")
-                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                        .value(org.hamcrest.Matchers.hasItems(
                                 "email", "password", "nickname", "phone")));
     }
 

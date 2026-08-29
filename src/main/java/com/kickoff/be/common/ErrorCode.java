@@ -59,6 +59,10 @@ public enum ErrorCode {
     PHONE_REQUIRED(HttpStatus.BAD_REQUEST, "전화번호를 먼저 등록해야 합니다."),
     PLACE_SEARCH_FAILED(HttpStatus.BAD_GATEWAY, "장소 검색에 실패했습니다."),
 
+    /** 가입 폼 강화 (계약서 §3, v1.16.0). 이메일 중복은 예전부터 EMAIL_ALREADY_EXISTS 다. */
+    NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
+    PHONE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 전화번호입니다."),
+
     /** 전화번호 문자 인증 (계약서 §3-2, v1.15.0). */
     PHONE_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "전화번호 인증이 필요합니다."),
     VERIFICATION_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않습니다."),

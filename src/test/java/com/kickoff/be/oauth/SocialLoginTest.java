@@ -83,7 +83,7 @@ class SocialLoginTest extends IntegrationTestSupport {
         assertThat(socialAccountRepository.findProvidersByUserId(existing.getId())).isEmpty();
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"kim@example.com\",\"password\":\"pass1234\"}"))
+                        .content("{\"email\":\"kim@example.com\",\"password\":\"pass1234!\"}"))
                 .andExpect(status().isOk());
     }
 
@@ -252,7 +252,7 @@ class SocialLoginTest extends IntegrationTestSupport {
         // email 이 null 이라 애초에 지목할 수단이 없고, 존재를 알려주지도 않는다
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"social@example.com\",\"password\":\"pass1234\"}"))
+                        .content("{\"email\":\"social@example.com\",\"password\":\"pass1234!\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
     }

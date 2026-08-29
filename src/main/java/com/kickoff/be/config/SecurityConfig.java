@@ -81,6 +81,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/oauth/*/authorize",
                                 "/api/auth/oauth/*/callback").permitAll()
 
+                        // 가입 폼의 사전 중복 확인 (계약서 §3, v1.16.0). 가입 전에
+                        // 부르므로 인증이 있을 수 없다.
+                        .requestMatchers(HttpMethod.GET, "/api/auth/availability").permitAll()
+
                         // "/me" 는 반드시 "/{id}" 패턴보다 먼저 걸어야 한다
                         .requestMatchers(HttpMethod.GET, "/api/teams/me", "/api/posts/me").authenticated()
 
