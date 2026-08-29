@@ -1,8 +1,14 @@
-# Kickoff API 계약 v1 (현재 v1.14.0)
+# Kickoff API 계약 v1 (현재 v1.15.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.15.0 (2026-08-28): 전화번호 문자 인증 — §3-2 신설: 가입·전화번호 변경 시 SMS
+> 인증번호로 번호 소유를 확인한다. `POST /api/auth/phone/verifications`(발송),
+> `.../confirm`(검증 → verificationToken), signup·PATCH /users/me의 phone에
+> verificationToken 요구. 에러 5종, `SMS_ENABLED` env. 실명 본인인증(PASS 등
+> 본인확인기관)은 범위 밖 — 사업자 등록 후 v2.
+>
 > v1.14.0-용어 (2026-08-28): 팀 소유자(OWNER)의 사용자 노출 호칭을 "주장" → **"감독"**
 > 으로 통일 (사용자 결정). API 필드·역할 enum은 변경 없음 — 화면·푸시 문구만.
 >
@@ -165,6 +171,11 @@
 | `CHAT_CLOSED` | 409 | 매치 일시가 지난 채팅방에 메시지 전송 시도 |
 | `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
 | `METHOD_NOT_ALLOWED` | 405 | 존재하는 경로를 지원하지 않는 HTTP 메서드로 호출 (v1.12.1) |
+| `PHONE_NOT_VERIFIED` | 400 | verificationToken 없음·무효·전화번호 불일치 (v1.15.0) |
+| `VERIFICATION_CODE_MISMATCH` | 400 | 인증번호 불일치 (v1.15.0) |
+| `VERIFICATION_EXPIRED` | 400 | 인증번호·토큰 만료 (v1.15.0) |
+| `VERIFICATION_RATE_LIMITED` | 429 | 인증번호 발송 한도 초과 (v1.15.0) |
+| `SMS_SEND_FAILED` | 502 | 문자 발송 외부 API 실패 (v1.15.0) |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
 참고 사항:
@@ -372,6 +383,59 @@ FE가 직접 호출하지 않는다. 성공/실패 모두 `redirect`로 302 한�
 `phone`이 `null`인 사용자가 팀을 만들면 400 `PHONE_REQUIRED`. 매칭 성사 시 `contact`로
 전화번호가 공개되는 구조라, 팀 대표는 전화번호가 있어야 한다. FE는 이 코드를 받으면
 전화번호 입력 화면으로 유도한다.
+
+## 3-2. 전화번호 문자 인증 (v1.15.0)
+
+전화번호가 **본인 소유인지** SMS 인증번호로 확인한다. 실명 확인이 아니다 — 실명
+본인인증(PASS·본인확인기관)은 범위 밖(§9, 사업자 등록 후 v2).
+
+인증이 필요한 자리: ① 이메일 가입의 `phone` ② `PATCH /api/users/me`로 phone을
+**넣거나 바꿀 때** (소셜 가입자의 최초 등록 포함). phone을 건드리지 않는 PATCH는
+무관하다.
+
+### POST /api/auth/phone/verifications — 인증 불필요
+
+```json
+{ "phone": "010-1234-5678" }
+```
+
+- 6자리 숫자 인증번호를 SMS로 발송한다. **유효 3분.** 204 응답 (본문 없음 —
+  코드는 절대 응답에 싣지 않는다)
+- 같은 번호로 재요청하면 이전 코드는 무효가 되고 새 코드가 발송된다
+- 레이트리밋: 같은 번호 기준 **1분에 1회, 1시간에 5회** — 초과 시 429
+  `VERIFICATION_RATE_LIMITED`. 발송 실패는 502 `SMS_SEND_FAILED`
+- `phone` 형식은 signup과 동일 검증 (`010-0000-0000`)
+
+### POST /api/auth/phone/verifications/confirm — 인증 불필요
+
+```json
+{ "phone": "010-1234-5678", "code": "482913" }
+```
+
+200 응답:
+
+```json
+{ "verificationToken": "..." }
+```
+
+- `verificationToken`은 **10분 유효, 1회용**이고 그 전화번호에 묶인다
+- 불일치 400 `VERIFICATION_CODE_MISMATCH` — **5회 연속 실패 시 코드 무효** (재발송부터
+  다시). 만료·코드 없음 400 `VERIFICATION_EXPIRED`
+
+### 기존 API 변경
+
+- **`POST /api/auth/signup`**: 요청에 `verificationToken` 필수. 없거나 무효거나
+  `phone`과 안 맞으면 400 `PHONE_NOT_VERIFIED`
+- **`PATCH /api/users/me`**: `phone`을 포함하는 요청은 `verificationToken` 필수 (같은
+  규칙). phone이 없는 요청은 기존 그대로
+- 소셜 가입(OAuth)은 가입 시점에 phone이 없으므로 변경 없음 — 이후 등록이 PATCH
+  규칙을 탄다
+
+### 환경변수 (BE)
+
+`SMS_ENABLED` (기본 false — dev에서는 실제 발송을 생략하고 코드를 서버 로그로만
+남긴다. 운영 true), SMS 제공자 API 키 (제공자는 BE 재량 — 쿨SMS/솔라피 권장).
+발송 문구: "[킥오프] 인증번호 {코드}를 입력해 주세요."
 
 ## 4. 팀
 
@@ -1043,6 +1107,7 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 
 ## 9. v1 범위 밖 (구현하지 말 것)
 
+실명 본인인증(PASS·본인확인기관 연동 — 사업자 등록 후 v2),
 팀 검색 오타 유사도(편집거리·trigram),
 채팅 실시간 전송(WebSocket — v1은 폴링), 채팅 읽음 표시·안읽음 배지,
 채팅 메시지 수정·삭제·신고, 채팅 이미지 첨부, 채팅 푸시 묶음·스로틀,
