@@ -12,6 +12,7 @@ import com.kickoff.be.user.dto.UserUpdateRequest;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.team.repository.TeamMemberRepository;
 import com.kickoff.be.user.repository.UserRepository;
+import com.kickoff.be.verification.service.PhoneVerificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class UserService {
     private final TeamMemberRepository teamMemberRepository;
     private final TeamRepository teamRepository;
     private final SocialAccountRepository socialAccountRepository;
+    private final PhoneVerificationService verificationService;
 
     /**
      * 프로필 보완 (계약서 §3). 전부 optional 이고, 안 보낸 필드는 그대로다.
@@ -39,6 +41,13 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Patchable.rejectClear(request.nickname(), "nickname");
         Patchable.rejectClear(request.phone(), "phone");
+        // 전화번호를 넣거나 바꾸는 요청만 인증을 탄다 (계약서 §3-2, v1.15.0).
+        // phone 을 건드리지 않는 PATCH 는 예전 그대로다 — 닉네임만 고치는데 문자 인증을
+        // 요구하면 소셜 가입자가 프로필을 못 고친다.
+        if (Patchable.isPresent(request.phone())) {
+            verificationService.consume(Patchable.valueOf(request.phone()),
+                    request.verificationToken());
+        }
         user.updateProfile(Patchable.valueOf(request.nickname()),
                 Patchable.valueOf(request.phone()));
         syncRosterNames(user, Patchable.valueOf(request.nickname()));

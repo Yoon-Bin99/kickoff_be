@@ -28,6 +28,16 @@ public record SignupRequest(
          * 건너뛸 수 있고, 안 주면 전국이다. 나중에 PATCH 로 채울 수 있다.
          */
         @Size(max = 20, message = "활동 지역은 20자를 넘을 수 없습니다.")
-        String activityRegion
+        String activityRegion,
+
+        /**
+         * 전화번호 인증 토큰 (계약서 §3-2, v1.15.0).
+         *
+         * <b>@NotBlank 를 붙이지 않은 게 의도다.</b> 필수 여부는
+         * PHONE_VERIFICATION_REQUIRED 스위치가 정하는데, 여기서 형식 검증으로 막으면
+         * 스위치가 꺼져 있어도 400 VALIDATION_FAILED 가 나가 구버전 앱이 깨진다.
+         * 계약이 정한 코드는 PHONE_NOT_VERIFIED 이기도 하다.
+         */
+        String verificationToken
 ) {
 }

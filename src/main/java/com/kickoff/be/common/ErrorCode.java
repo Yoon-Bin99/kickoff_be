@@ -59,6 +59,13 @@ public enum ErrorCode {
     PHONE_REQUIRED(HttpStatus.BAD_REQUEST, "전화번호를 먼저 등록해야 합니다."),
     PLACE_SEARCH_FAILED(HttpStatus.BAD_GATEWAY, "장소 검색에 실패했습니다."),
 
+    /** 전화번호 문자 인증 (계약서 §3-2, v1.15.0). */
+    PHONE_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "전화번호 인증이 필요합니다."),
+    VERIFICATION_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않습니다."),
+    VERIFICATION_EXPIRED(HttpStatus.BAD_REQUEST, "인증번호가 만료되었습니다. 다시 받아 주세요."),
+    VERIFICATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요."),
+    SMS_SEND_FAILED(HttpStatus.BAD_GATEWAY, "인증번호 발송에 실패했습니다."),
+
     /** 아래 둘은 계약서 표에는 없지만, 모든 4xx/5xx 가 같은 형식으로 나가야 해서 둔다. */
     /**
      * 경로는 있는데 메서드가 틀린 경우 (계약서 §0, v1.12.1).

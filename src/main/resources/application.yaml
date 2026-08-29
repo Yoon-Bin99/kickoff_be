@@ -49,6 +49,15 @@ kickoff:
   push:
     # 기본 off. dev 에서 실수로 실기기에 알림이 나가지 않게 한다 (계약서 §8).
     enabled: ${PUSH_ENABLED:false}
+  sms:
+    # 기본 off (계약서 §3-2). dev 에서는 실제로 보내지 않고 인증번호를 서버 로그로만 남긴다.
+    # 운영에서 켜려면 제공자 어댑터가 함께 있어야 한다 — 없으면 502 로 실패한다.
+    enabled: ${SMS_ENABLED:false}
+  verification:
+    # signup·PATCH 의 전화번호에 verificationToken 을 강제할지 (계약서 §3-2, 기본 false).
+    # 토큰 없이 가입하는 구버전 앱이 도는 동안 꺼 둔다. 꺼져 있어도 토큰이 오면 검증한다.
+    # 롤아웃 순서: BE 배포 → FE 배포 → preview 재빌드·배포 → true 전환.
+    phone-required: ${PHONE_VERIFICATION_REQUIRED:false}
   # 시드 데이터 투입 여부. 배포 환경 기본값은 off — 운영 DB 에 예제 데이터가 들어가면 안 된다.
   # 첫 배포 직후 화면 확인용으로만 SEED_DATA=true 로 한 번 켠다.
   seed-data: ${SEED_DATA:false}

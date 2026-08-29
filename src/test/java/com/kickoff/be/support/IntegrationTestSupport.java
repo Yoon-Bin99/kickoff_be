@@ -21,6 +21,7 @@ import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.repository.UserRepository;
+import com.kickoff.be.verification.repository.PhoneVerificationRepository;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +53,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({StubOAuthConfig.class, StubPushConfig.class, StubPlaceConfig.class})
+@Import({StubOAuthConfig.class, StubPushConfig.class, StubPlaceConfig.class,
+        StubSmsConfig.class})
 public abstract class IntegrationTestSupport {
 
     protected static final String PASSWORD = "pass1234";
@@ -123,6 +125,10 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected StubPlaceSearchClient placeSearchClient;
     @Autowired
+    protected StubSmsClient smsClient;
+    @Autowired
+    protected PhoneVerificationRepository phoneVerificationRepository;
+    @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
     protected JwtTokenProvider tokenProvider;
@@ -145,6 +151,9 @@ public abstract class IntegrationTestSupport {
         // 가입 신청은 팀과 사용자를 함께 참조한다 (v1.11.0)
         teamJoinRequestRepository.deleteAll();
         teamRepository.deleteAll();
+        // 전화번호 인증은 아무것도 참조하지 않지만, 레이트리밋이 남으면 다음 테스트의
+        // 발송이 429 로 막힌다 (v1.15.0)
+        phoneVerificationRepository.deleteAll();
         // 소셜 연동은 사용자를 참조하므로 사용자보다 먼저 지운다
         socialAccountRepository.deleteAll();
         userRepository.deleteAll();
@@ -152,6 +161,7 @@ public abstract class IntegrationTestSupport {
         naverStub.reset();
         pushClient.reset();
         placeSearchClient.reset();
+        smsClient.reset();
     }
 
     /** 소셜 가입 직후처럼 전화번호가 없는 사용자. */

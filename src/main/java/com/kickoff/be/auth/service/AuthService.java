@@ -15,6 +15,7 @@ import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.dto.UserResponse;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.repository.UserRepository;
+import com.kickoff.be.verification.service.PhoneVerificationService;
 import java.time.OffsetDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,12 +32,16 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final RefreshTokenProvider refreshTokenProvider;
+    private final PhoneVerificationService verificationService;
 
     @Transactional
     public AuthResponse signup(SignupRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
+        // 전화번호 인증 (계약서 §3-2, v1.15.0). 이미 있는 이메일을 먼저 걸러내는 순서가
+        // 중요하다 — 어차피 실패할 요청에 토큰을 태워 버리면 재시도 때 다시 인증해야 한다.
+        verificationService.consume(request.phone(), request.verificationToken());
         User user = userRepository.save(User.builder()
                 .email(request.email())
                 .password(passwordEncoder.encode(request.password()))

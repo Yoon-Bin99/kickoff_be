@@ -67,7 +67,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login",
                                 // refresh token 자체가 자격 증명이라 access 없이 부른다 (v1.7.0).
                                 // 만료된 access 로 이 경로를 부르는 게 정상 흐름이기도 하다.
-                                "/api/auth/refresh").permitAll()
+                                "/api/auth/refresh",
+                                // 전화번호 문자 인증 (계약서 §3-2, v1.15.0). 가입 전에
+                                // 부르는 API 라 인증이 있을 수 없다.
+                                //
+                                // 여기가 막히면 기능만 죽는 게 아니다. FE 는 이 경로를
+                                // 헤더 없이 불러 401 이면 "§3-2 를 모르는 옛 서버"로
+                                // 판정한다 — permitAll 이 빠지면 신버전이 스스로를 옛
+                                // 서버라고 말하는 셈이 되어, 인증 UI 가 통째로 사라진다.
+                                "/api/auth/phone/verifications",
+                                "/api/auth/phone/verifications/confirm").permitAll()
                         // 소셜 로그인 (계약서 §3-1) — 콜백은 제공자가 부르므로 토큰이 없다
                         .requestMatchers(HttpMethod.GET, "/api/auth/oauth/*/authorize",
                                 "/api/auth/oauth/*/callback").permitAll()
