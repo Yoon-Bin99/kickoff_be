@@ -92,6 +92,24 @@ class PhoneVerificationRequiredTest extends IntegrationTestSupport {
                         .content("{\"nickname\": \"바뀐닉\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nickname").value("바뀐닉"));
+
+        // 활동 지역만 바꾸는 요청도 같다 — 홈 화면의 지역 설정이 이 경로를 쓴다.
+        // FE 는 phone 이 없는 요청에 토큰을 아예 싣지 않으므로, 서버가 여기서 토큰을
+        // 요구하면 지역 설정이 그냥 깨진다 (FE 교차 검증에서 짚어 준 경로다).
+        mockMvc.perform(patch("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activityRegion\": \"서울\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activityRegion").value("서울"));
+
+        // 지우는 것도 마찬가지다 (v1.6.0 의 명시적 null)
+        mockMvc.perform(patch("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activityRegion\": null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activityRegion").doesNotExist());
     }
 
     @Test
