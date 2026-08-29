@@ -1,8 +1,13 @@
-# Kickoff API 계약 v1 (현재 v1.15.0)
+# Kickoff API 계약 v1 (현재 v1.16.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.16.0 (2026-08-29): 가입 폼 강화 — ① 닉네임·전화번호도 유니크 (이메일은 기존부터).
+> `GET /api/auth/availability`로 사전 중복 확인, 에러 `NICKNAME_ALREADY_EXISTS`·
+> `PHONE_ALREADY_EXISTS` 신설, signup·PATCH /users/me에 적용 ② 비밀번호 규칙 강화:
+> 8~64자 + 영문·숫자·특수문자 각 1개 이상 ③ FE 이메일 분리 입력(도메인 드롭다운+직접입력).
+>
 > v1.15.0 (2026-08-28): 전화번호 문자 인증 — §3-2 신설: 가입·전화번호 변경 시 SMS
 > 인증번호로 번호 소유를 확인한다. `POST /api/auth/phone/verifications`(발송),
 > `.../confirm`(검증 → verificationToken), signup·PATCH /users/me의 phone에
@@ -172,6 +177,8 @@
 | `NOT_FOUND` | 404 | 매핑되지 않은 경로/리소스 (FE는 "요청한 페이지를 찾을 수 없습니다") |
 | `METHOD_NOT_ALLOWED` | 405 | 존재하는 경로를 지원하지 않는 HTTP 메서드로 호출 (v1.12.1) |
 | `PHONE_NOT_VERIFIED` | 400 | verificationToken 없음·무효·전화번호 불일치 (v1.15.0) |
+| `NICKNAME_ALREADY_EXISTS` | 409 | 닉네임 중복 (v1.16.0) |
+| `PHONE_ALREADY_EXISTS` | 409 | 전화번호 중복 (v1.16.0) |
 | `VERIFICATION_CODE_MISMATCH` | 400 | 인증번호 불일치 (v1.15.0) |
 | `VERIFICATION_EXPIRED` | 400 | 인증번호·토큰 만료 (v1.15.0) |
 | `VERIFICATION_RATE_LIMITED` | 429 | 인증번호 발송 한도 초과 (v1.15.0) |
@@ -271,8 +278,36 @@ v1.3.0 추가 필드:
 { "email": "kim@example.com", "password": "pass1234", "nickname": "김주장", "phone": "010-1234-5678" }
 ```
 
-- `email` 이메일 형식 필수 / `password` 8~64자 필수 / `nickname` 2~20자 필수 / `phone` `010-0000-0000` 형식 필수
+- `email` 이메일 형식 필수 / `password` **8~64자 + 영문·숫자·특수문자 각 1개 이상**
+  (v1.16.0 — 위반은 400 `VALIDATION_FAILED`, fieldErrors에 규칙 안내. 기존 계정의
+  로그인·비밀번호는 소급하지 않는다) / `nickname` 2~20자 필수 / `phone` `010-0000-0000` 형식 필수
 - `activityRegion` optional (v1.6.0, 최대 20자) — FE 가입 화면은 선택을 권하지만 건너뛸 수 있다
+- **유니크 규칙 (v1.16.0)**: `email`(기존), `nickname`, `phone` 모두 중복 불가 —
+  409 `EMAIL_ALREADY_EXISTS` / `NICKNAME_ALREADY_EXISTS` / `PHONE_ALREADY_EXISTS`.
+  `PATCH /api/users/me`의 nickname·phone 변경에도 같은 규칙(자기 자신의 기존 값은 허용).
+  phone은 null(소셜 미등록)을 유니크 대상에서 제외한다
+
+### GET /api/auth/availability — 인증 불필요 (v1.16.0)
+
+가입 폼의 **사전 중복 확인**. 쿼리로 `email`·`nickname`·`phone` 중 1개 이상.
+
+`GET /api/auth/availability?email=kim@example.com&nickname=김감독` → 200:
+
+```json
+{ "email": false, "nickname": true }
+```
+
+- **요청한 키만** 응답에 담긴다. `true` = 사용 가능
+- email·**nickname 모두 대소문자 무시 비교** — signup·PATCH의 409 판정도 동일하다
+  (availability와 최종 판정이 어긋나면 안 된다). nickname을 무시 비교로 두는 이유:
+  "FCseoul"/"FCSeoul" 같은 겉모습이 같은 이름의 공존은 사칭·혼동 여지만 만든다.
+  저장은 입력한 표기 그대로다. phone은 `010-0000-0000` 형식 그대로 비교
+- 형식이 틀린 값은 400 `VALIDATION_FAILED`
+- 이건 UX 보조다 — 확인과 제출 사이의 경합은 최종 제출의 409가 진실이고, FE는 409를
+  받으면 해당 필드로 포커스를 돌린다
+- 인증이 없는 API라 **"자기 자신의 값은 허용" 규칙은 여기 적용되지 않는다** (그건
+  signup·PATCH의 409 판정 이야기다). 로그인 사용자가 자기 값을 물으면 `false`가
+  오므로, FE는 자기 기존 값(대소문자 무시 비교)은 아예 묻지 않는다
 
 201 응답
 
