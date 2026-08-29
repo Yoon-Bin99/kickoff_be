@@ -17,6 +17,8 @@ import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.repository.UserRepository;
 import com.kickoff.be.verification.service.PhoneVerificationService;
 import java.time.OffsetDateTime;
+import java.util.Optional;
+import java.util.Comparator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -73,7 +75,7 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
+        User user = findForLogin(request.email())
                 .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
         // 소셜로만 가입한 계정은 비밀번호가 없다. 전용 에러 코드를 만들지 않는 이유는
         // 계정이 존재한다는 사실 자체를 알려주지 않기 위해서다 (계약서 §3-1).
@@ -82,6 +84,25 @@ public class AuthService {
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
         return toAuthResponse(user);
+    }
+
+    /**
+     * 로그인 대상 계정 찾기 (계약서 §3, v1.16.0) — 대소문자를 무시한다.
+     *
+     * 가입 때 중복 판정이 대소문자를 무시하므로 로그인도 같은 기준이어야 한다. 아니면
+     * kim@ 으로 가입한 사람이 Kim@ 으로는 못 들어오는데, 가입을 다시 하려 해도 중복이라
+     * 막힌다 — 어느 쪽으로도 못 가는 상태가 된다.
+     *
+     * <b>정확 일치를 먼저 본다.</b> DB 제약이 아직 정확 일치라 케이스만 다른 두 계정이
+     * 이론상 함께 있을 수 있는데, 그때 자기 주소를 정확히 친 사람이 남의 계정으로
+     * 들어가면 안 된다. 정확 일치가 없을 때만 무시 검색으로 내려가고, 거기서도 여럿이면
+     * 가장 오래된 계정을 고른다 — 무엇을 고르든 한 명이어야 하고, 그 선택이 조회마다
+     * 달라지면 안 된다.
+     */
+    private Optional<User> findForLogin(String email) {
+        return userRepository.findByEmail(email)
+                .or(() -> userRepository.findAllByEmailIgnoreCase(email).stream()
+                        .min(Comparator.comparing(User::getId)));
     }
 
     @Transactional(readOnly = true)

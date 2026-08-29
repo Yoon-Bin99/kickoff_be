@@ -76,6 +76,44 @@ class SignupHardeningTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.accessToken").isNotEmpty());
     }
 
+    // ── 로그인 조회 (v1.16.0)
+
+    @Test
+    @DisplayName("로그인도 이메일 대소문자를 무시한다 — 가입 판정과 같은 기준이어야 한다")
+    void loginIgnoresEmailCase() throws Exception {
+        createUser("case@example.com", "케이스", "010-4500-0001");
+
+        // 기준이 어긋나면 kim@ 으로 가입한 사람이 Kim@ 으로는 못 들어오는데, 다시
+        // 가입하려 해도 중복이라 막힌다 — 어느 쪽으로도 못 가는 상태가 된다
+        login("CASE@Example.com").andExpect(status().isOk());
+        login("case@example.com").andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("케이스만 다른 계정이 둘 있으면 정확히 친 쪽으로 들어간다")
+    void exactMatchWinsOverCaseInsensitive() throws Exception {
+        // DB 제약이 아직 정확 일치라(V12 보류) 이런 쌍이 이론상 존재할 수 있다.
+        // 자기 주소를 정확히 친 사람이 남의 계정으로 들어가면 안 된다.
+        createUser("dup@example.com", "소문자쪽", "010-4500-0002");
+        createUser("DUP@example.com", "대문자쪽", "010-4500-0003");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"DUP@example.com\", \"password\": \"%s\"}"
+                                .formatted(PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.nickname").value("대문자쪽"));
+
+        // 어느 쪽과도 정확히 맞지 않으면 무시 검색으로 내려간다. 여럿이면 가장 오래된
+        // 계정 — 무엇을 고르든 결과가 조회마다 달라지지만 않으면 된다
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"Dup@Example.com\", \"password\": \"%s\"}"
+                                .formatted(PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.nickname").value("소문자쪽"));
+    }
+
     // ── 유니크 규칙
 
     @Test
@@ -236,6 +274,13 @@ class SignupHardeningTest extends IntegrationTestSupport {
                 .content("""
                         {"email": "%s", "password": "%s", "nickname": "%s", "phone": "%s"}
                         """.formatted(email, password, nickname, phone)));
+    }
+
+    private ResultActions login(String email) throws Exception {
+        return mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\": \"%s\", \"password\": \"%s\"}"
+                        .formatted(email, PASSWORD)));
     }
 
     private ResultActions patchMe(User user, String body) throws Exception {
