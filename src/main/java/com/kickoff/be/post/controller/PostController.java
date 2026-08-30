@@ -6,7 +6,6 @@ import com.kickoff.be.post.dto.PostCreateRequest;
 import com.kickoff.be.post.dto.PostDetail;
 import com.kickoff.be.post.dto.PostSummary;
 import com.kickoff.be.post.dto.PostUpdateRequest;
-import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.post.service.PostService;
 import com.kickoff.be.team.entity.SkillLevel;
@@ -36,14 +35,19 @@ public class PostController {
     @GetMapping
     public ResponseEntity<PageResponse<PostSummary>> search(
             @RequestParam(required = false) String region,
-            @RequestParam(required = false) FieldType fieldType,
             @RequestParam(required = false) SkillLevel skillLevel,
             @RequestParam(required = false, defaultValue = "OPEN") PostStatus status,
             @RequestParam(required = false) String keyword,
+
+            // 날짜·시간대 (계약서 §5, v1.18.0). 콤마로 여러 개를 받는다.
+            // 형식·개수 검증은 서비스가 한다 — 여기서 @Pattern 으로 막으면 계약이 정한
+            // 안내 문구("최대 14개" 같은) 대신 밋밋한 형식 오류만 나간다.
+            @RequestParam(required = false) String dates,
+            @RequestParam(required = false) String times,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(
-                postService.search(region, fieldType, skillLevel, status, keyword, page, size));
+                postService.search(region, skillLevel, status, keyword, dates, times, page, size));
     }
 
     /** "/me" 는 "/{postId}" 보다 먼저 선언해야 경로가 겹치지 않는다. */

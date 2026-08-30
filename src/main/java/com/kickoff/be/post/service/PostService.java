@@ -15,7 +15,6 @@ import com.kickoff.be.post.dto.PostCreateRequest;
 import com.kickoff.be.post.dto.PostDetail;
 import com.kickoff.be.post.dto.PostSummary;
 import com.kickoff.be.post.dto.PostUpdateRequest;
-import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.post.repository.MatchPostRepository;
@@ -61,14 +60,16 @@ public class PostService {
      * 지난 경기는 status 필터와 무관하게 빠진다.
      */
     @Transactional(readOnly = true)
-    public PageResponse<PostSummary> search(String region, FieldType fieldType, SkillLevel skillLevel,
-                                            PostStatus status, String keyword, int page, int size) {
+    public PageResponse<PostSummary> search(String region, SkillLevel skillLevel,
+                                            PostStatus status, String keyword,
+                                            String dates, String times, int page, int size) {
         Pageable pageable = PageRequest.of(
                 Math.max(page, 0),
                 clampSize(size),
                 Sort.by(Sort.Direction.ASC, "matchAt"));
         Page<MatchPost> posts = postRepository.search(OffsetDateTime.now(),
-                blankToNull(region), fieldType, skillLevel, status, blankToNull(keyword), pageable);
+                blankToNull(region), skillLevel, status, blankToNull(keyword),
+                DateFilter.parse(dates), TimeSlotFilter.parseToStoredHours(times), pageable);
         return toSummaryPage(posts);
     }
 
@@ -100,7 +101,6 @@ public class PostService {
                 .matchAt(request.matchAt())
                 .location(request.location())
                 .region(request.region())
-                .fieldType(request.fieldType())
                 .preferredSkillLevel(request.preferredSkillLevel())
                 .rentalFee(request.rentalFee())
                 .depositAmount(request.depositAmount())
@@ -130,8 +130,7 @@ public class PostService {
         applyClearableFields(post, request);
         post.update(Patchable.valueOf(request.title()), Patchable.valueOf(request.content()),
                 Patchable.valueOf(request.matchAt()), Patchable.valueOf(request.location()),
-                Patchable.valueOf(request.region()), Patchable.valueOf(request.fieldType()),
-                Patchable.valueOf(request.status()));
+                Patchable.valueOf(request.region()), Patchable.valueOf(request.status()));
         // 병합된 결과를 기준으로 본다. 계좌는 작성자도 다시 읽을 수 없어서,
         // PATCH 본문만 보고 판단하면 금액만 고치는 정상 요청이 막혀버린다.
         requireAccountWhenDepositSet(post.getDepositAmount(), post.getBankName(),
@@ -160,7 +159,6 @@ public class PostService {
         Patchable.rejectClear(request.matchAt(), "matchAt");
         Patchable.rejectClear(request.location(), "location");
         Patchable.rejectClear(request.region(), "region");
-        Patchable.rejectClear(request.fieldType(), "fieldType");
         Patchable.rejectClear(request.status(), "status");
     }
 
