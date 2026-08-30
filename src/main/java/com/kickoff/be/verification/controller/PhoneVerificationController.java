@@ -39,7 +39,6 @@ public class PhoneVerificationController {
     @PostMapping("/confirm")
     public ResponseEntity<VerificationTokenResponse> confirm(
             @Valid @RequestBody PhoneVerificationConfirmRequest request) {
-        return ResponseEntity.ok(new VerificationTokenResponse(
-                verificationService.confirm(request.phone(), request.code())));
+        return ResponseEntity.ok(verificationService.confirm(request.phone(), request.code()));
     }
 }

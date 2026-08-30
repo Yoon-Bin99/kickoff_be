@@ -145,6 +145,11 @@ public class User extends BaseTimeEntity {
     }
 
     /** 소셜로만 가입해 비밀번호가 없는 계정인지. */
+    /** 소셜로만 가입한 계정은 이메일이 없을 수 있다 (계약서 §3-1). */
+    public boolean hasEmail() {
+        return email != null && !email.isBlank();
+    }
+
     public boolean hasPassword() {
         return password != null && !password.isBlank();
     }

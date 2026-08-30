@@ -173,6 +173,17 @@ public abstract class IntegrationTestSupport {
     }
 
     /** 소셜 가입 직후처럼 전화번호가 없는 사용자. */
+    /**
+     * 이메일 없이 만든다 — 소셜로만 가입한 계정의 모양이다 (계약서 §3-1).
+     * 비밀번호도 없다: 소셜 계정은 비밀번호 로그인을 하지 않는다.
+     */
+    protected User createUserWithoutEmail(String nickname, String phone) {
+        return userRepository.save(User.builder()
+                .nickname(nickname)
+                .phone(phone)
+                .build());
+    }
+
     protected User createUserWithoutPhone(String email, String nickname) {
         return createUser(email, nickname, null);
     }

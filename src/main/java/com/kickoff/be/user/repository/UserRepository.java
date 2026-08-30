@@ -39,6 +39,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByPhone(String phone);
 
     /**
+     * 인증 확인 응답의 existingAccount 용 (계약서 §3-2, v1.17.0).
+     *
+     * phone 은 v1.16.0 부터 앱 레벨에서 유니크라 최대 한 명이다. 다만 DB 제약은 아직
+     * 미적용(docs/pending/V12)이라 이론상 여럿일 수 있어 Optional 대신 최신 한 건을
+     * 집는다 — 여기서 IncorrectResultSizeDataAccessException 이 나면 인증 확인이
+     * 통째로 500 이 된다. 로그인 조회에서 같은 이유로 같은 선택을 했다.
+     */
+    java.util.Optional<User> findFirstByPhoneOrderByIdAsc(String phone);
+
+    /**
      * 이메일 중복 판정은 대소문자를 무시한다 (계약서 §3, v1.16.0).
      *
      * availability 와 signup 이 <b>같은 기준</b>을 써야 한다. 한쪽만 무시하면

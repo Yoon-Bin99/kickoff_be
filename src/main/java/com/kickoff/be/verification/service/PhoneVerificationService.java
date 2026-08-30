@@ -2,8 +2,13 @@ package com.kickoff.be.verification.service;
 
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.sms.client.SmsClient;
 import com.kickoff.be.sms.client.SmsProperties;
+import com.kickoff.be.user.entity.User;
+import com.kickoff.be.user.repository.UserRepository;
+import com.kickoff.be.verification.dto.ExistingAccountResponse;
+import com.kickoff.be.verification.dto.VerificationTokenResponse;
 import com.kickoff.be.verification.entity.PhoneVerification;
 import com.kickoff.be.verification.repository.PhoneVerificationRepository;
 import java.security.SecureRandom;
@@ -44,6 +49,8 @@ public class PhoneVerificationService {
     private static final int TOKEN_BYTES = 32;
 
     private final PhoneVerificationRepository repository;
+    private final UserRepository userRepository;
+    private final SocialAccountRepository socialAccountRepository;
     private final SmsClient smsClient;
     private final SmsProperties smsProperties;
     private final PasswordEncoder passwordEncoder;
@@ -109,7 +116,7 @@ public class PhoneVerificationService {
      * PhoneVerificationTest 가 6번째 시도의 응답으로 이걸 잡는다.
      */
     @Transactional(noRollbackFor = BusinessException.class)
-    public String confirm(String phone, String code) {
+    public VerificationTokenResponse confirm(String phone, String code) {
         OffsetDateTime now = OffsetDateTime.now();
         PhoneVerification verification = repository.findFirstByPhoneOrderByIdDesc(phone)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VERIFICATION_EXPIRED));
@@ -126,7 +133,36 @@ public class PhoneVerificationService {
 
         String token = newToken();
         verification.issueToken(passwordEncoder.encode(token), now.plus(TOKEN_TTL));
-        return token;
+        return new VerificationTokenResponse(token, existingAccountOf(phone));
+    }
+
+    /**
+     * 이 번호로 이미 가입된 계정 (계약서 §3-2, v1.17.0). 없으면 null 이다.
+     *
+     * <b>확인 성공 뒤에만 부른다.</b> 발송 단계에 두면 남의 번호를 넣어 가입 여부와
+     * 가입 수단을 캐낼 수 있다 — 여기까지 온 사람은 그 번호로 온 문자를 읽은 사람이다.
+     */
+    private ExistingAccountResponse existingAccountOf(String phone) {
+        return userRepository.findFirstByPhoneOrderByIdAsc(phone)
+                .map(user -> user.hasEmail()
+                        ? new ExistingAccountResponse("EMAIL", EmailMasker.mask(user.getEmail()))
+                        : new ExistingAccountResponse(firstProviderOf(user), null))
+                .orElse(null);
+    }
+
+    /**
+     * 이메일이 없는 계정은 소셜로만 가입한 계정이다. 연동이 여럿이면 첫 번째를 쓴다
+     * (계약서 §3-2) — 조회가 id 순이라 처음 연동한 제공자다.
+     *
+     * 이론상 이메일도 소셜 연동도 없는 계정은 없지만, 있다면 EMAIL 이라고 답해서는 안
+     * 된다. 로그인할 수단이 없다는 사실을 EMAIL 로 감추면 사용자가 오지 않을 메일함을
+     * 뒤진다.
+     */
+    private String firstProviderOf(User user) {
+        return socialAccountRepository.findProvidersByUserId(user.getId()).stream()
+                .findFirst()
+                .map(Enum::name)
+                .orElse("EMAIL");
     }
 
     /**
