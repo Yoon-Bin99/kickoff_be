@@ -533,6 +533,26 @@ public class DataInitializer implements ApplicationRunner {
                 .provider(AuthProvider.KAKAO)
                 .providerUserId("seed-kakao-1")
                 .build());
+
+        // 전화번호가 <b>없는</b> 계정 — v1.17.0 의 소셜 게이트(phone 이 null 인 사용자를
+        // 화면에서 막는 것)를 FE 가 밟으려면 이 상태가 필요하다. 위 계정은 번호가 있어
+        // 조건에 안 걸린다.
+        //
+        // <b>실제 OAuth 첫 로그인 직후와 한 가지가 다르다.</b> 진짜 그 상태에는 이메일도
+        // 비밀번호도 없는데, 그러면 FE 가 이 계정으로 로그인할 방법이 없다(비밀번호
+        // 로그인 불가, 로컬에서 OAuth 를 태울 수도 없다). 그래서 이메일·비밀번호를 주되
+        // KAKAO 연동도 함께 걸어 뒀다 — 게이트 조건은 phone == null 하나뿐이라 동작은
+        // 같고, 화면에서는 소셜 연동된 계정으로 보인다.
+        User pending = userRepository.save(User.builder()
+                .email("nophone@example.com")
+                .password(passwordEncoder.encode(RAW_PASSWORD))
+                .nickname("번호없는카카오")
+                .build());
+        socialAccountRepository.save(SocialAccount.builder()
+                .user(pending)
+                .provider(AuthProvider.KAKAO)
+                .providerUserId("seed-kakao-2")
+                .build());
     }
 
     /** 좌표 없는 글 — 장소를 직접 입력한 경우다. FE 는 상세에서 지도 영역을 숨긴다. */
