@@ -3,6 +3,7 @@ package com.kickoff.be.verification.service;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.sms.client.SmsClient;
+import com.kickoff.be.sms.client.SmsProperties;
 import com.kickoff.be.verification.entity.PhoneVerification;
 import com.kickoff.be.verification.repository.PhoneVerificationRepository;
 import java.security.SecureRandom;
@@ -44,6 +45,7 @@ public class PhoneVerificationService {
 
     private final PhoneVerificationRepository repository;
     private final SmsClient smsClient;
+    private final SmsProperties smsProperties;
     private final PasswordEncoder passwordEncoder;
     private final VerificationProperties properties;
 
@@ -77,8 +79,18 @@ public class PhoneVerificationService {
      * 예외가 500 으로 나갔고, 테스트가 그걸 잡았다.
      */
     private void dispatch(String phone, String code) {
+        String text = MESSAGE_FORMAT.formatted(code);
+
+        // 발송 여부는 여기서 정한다. 어댑터 안에 두면 제공자 어댑터가 붙는 순간 그 검사가
+        // 사라진다 — 실제로 솔라피 어댑터를 @Primary 로 등록했더니 SMS_ENABLED=false 인
+        // dev 에서도 문자가 나가는 상태가 됐다. 스위치는 어느 어댑터가 붙어 있든 같은
+        // 자리에서 걸려야 한다.
+        if (!smsProperties.enabled()) {
+            log.info("[SMS 생략 — SMS_ENABLED=false] to={} / {}", phone, text);
+            return;
+        }
         try {
-            smsClient.send(phone, MESSAGE_FORMAT.formatted(code));
+            smsClient.send(phone, text);
         } catch (BusinessException e) {
             throw e;
         } catch (RuntimeException e) {
