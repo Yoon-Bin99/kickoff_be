@@ -1,8 +1,16 @@
-# Kickoff API 계약 v1 (현재 v1.17.0)
+# Kickoff API 계약 v1 (현재 v1.18.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.19.0 (2026-08-30): **11대11 전용 전환** — 서비스가 11대11 축구만 취급하기로
+> 확정(사용자 결정). `FieldType` 열거형과 모집글의 `fieldType` 필드·필터를 **폐지**.
+> 요청에 fieldType이 와도 무시(에러 아님 — 구버전 호환), 응답에는 싣지 않는다.
+>
+> v1.18.0 (2026-08-30): 홈 날짜·시간대 필터 — `GET /api/posts`에 `dates`(YYYY-MM-DD
+> 콤마 구분)·`times`(시간대 enum 콤마 구분) 쿼리. 각각 다중 선택 OR, 서로는 AND,
+> KST 기준 matchAt 판정. `TimeSlot` 열거형 신설. FE 홈에 날짜·시간대 다중 선택 UI.
+>
 > v1.17.0 (2026-08-30): 전화번호 기반 1인 1계정 — ① confirm 응답에 `existingAccount`
 > (그 번호로 이미 가입된 계정의 가입 방식·마스킹 이메일. **번호 소유를 인증한 뒤에만**
 > 노출) ② 인증 강제 상태에서 소셜 가입자의 전화번호 등록을 FE가 게이트로 강제.
@@ -214,7 +222,7 @@ SkillLevel    BEGINNER | AMATEUR | INTERMEDIATE | ADVANCED
 AgeGroup      TEENS | TWENTIES | THIRTIES | FORTIES | FIFTIES_PLUS | MIXED
               10대    20대       30대       40대      50대 이상       혼합
 
-FieldType     FUTSAL | SOCCER_6 | SOCCER_9 | SOCCER_11
+FieldType     (v1.19.0 폐지 — 11대11 전용. 값 자체가 사라짐)
               풋살     6인제      9인제      11인제
 
 PostStatus    OPEN | MATCHED | CLOSED
@@ -765,12 +773,34 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 | 파라미터 | 타입 | 설명 |
 |---|---|---|
 | `region` | string | 부분 일치 (`서울` → `서울 강서구` 매칭) |
-| `fieldType` | FieldType | |
+| ~~`fieldType`~~ | — | v1.19.0 폐지 (보내면 무시) |
 | `skillLevel` | SkillLevel | 모집글이 원하는 상대 수준 |
 | `status` | PostStatus | 기본값 `OPEN` |
 | `keyword` | string | 제목+내용 부분 일치 |
+| `dates` | string | v1.18.0 — `YYYY-MM-DD`를 콤마로 구분한 다중 날짜 (아래 규칙) |
+| `times` | string | v1.18.0 — `TimeSlot`을 콤마로 구분한 다중 시간대 (아래 규칙) |
 | `page` | number | 기본 0 |
 | `size` | number | 기본 20, 최대 50 |
+
+**dates 규칙 (v1.18.0)**: 나열된 날짜 중 **어느 하나**(OR)에 `matchAt`이 속하는 글만
+반환한다 — 날짜 판정은 **KST(+09:00) 기준 그 날의 00:00~24:00**. 다른 필터(region 등)
+와는 AND. 최대 **14개**(초과 400 `VALIDATION_FAILED`), 형식이 틀린 항목이 하나라도
+있으면 400. 과거 날짜도 허용한다(별도 취급 없음 — status 필터가 걸러준다).
+
+**times 규칙 (v1.18.0)**: `TimeSlot` 열거형 — matchAt의 KST 시각 기준.
+
+| 값 | 시간대 | FE 라벨 |
+|---|---|---|
+| `DAWN` | 05:00 ~ 08:00 | 새벽 |
+| `MORNING` | 08:00 ~ 12:00 | 오전 |
+| `AFTERNOON` | 12:00 ~ 18:00 | 오후 |
+| `EVENING` | 18:00 ~ 22:00 | 저녁 |
+| `NIGHT` | 22:00 ~ 05:00 | 심야 (자정을 넘는 유일한 구간) |
+
+- 경계는 **시작 포함, 끝 제외** (08:00 정각은 MORNING)
+- 나열한 시간대끼리 OR, `dates` 및 다른 필터와는 AND (예: `dates=토,일 & times=DAWN`
+  = "주말 새벽 경기")
+- 모르는 값은 400 `VALIDATION_FAILED`
 
 정렬은 `matchAt` 오름차순(가까운 경기 먼저) 고정.
 
@@ -783,7 +813,7 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 
 ```json
 { "id": 12, "title": "토요일 아침 풋살 상대 구합니다", "matchAt": "2026-08-30T07:00:00+09:00",
-  "location": "강서구민운동장 A구장", "region": "서울 강서구", "fieldType": "FUTSAL",
+  "location": "강서구민운동장 A구장", "region": "서울 강서구",
   "preferredSkillLevel": "INTERMEDIATE", "rentalFee": 100000, "depositAmount": 50000,
   "status": "OPEN", "requestCount": 3, "team": "<TeamSummary>",
   "createdAt": "2026-08-23T09:00:00+09:00" }
@@ -798,12 +828,12 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 ```json
 { "title": "토요일 아침 풋살 상대 구합니다", "content": "6인제로 2시간 뛸 팀 찾습니다. 매너 중요.",
   "matchAt": "2026-08-30T07:00:00+09:00", "location": "강서구민운동장 A구장",
-  "region": "서울 강서구", "fieldType": "FUTSAL", "preferredSkillLevel": "INTERMEDIATE",
+  "region": "서울 강서구", "preferredSkillLevel": "INTERMEDIATE",
   "rentalFee": 100000, "depositAmount": 50000,
   "bankName": "카카오뱅크", "accountNumber": "3333-01-1234567", "accountHolder": "김주장" }
 ```
 
-- `title` 2~60자 필수 / `content` 최대 2000자 필수 / `matchAt` 미래 시각 필수 / `location`, `region` 필수 / `fieldType` 필수 / `preferredSkillLevel` optional(null이면 무관) / `rentalFee`, `depositAmount` 0 이상 optional
+- `title` 2~60자 필수 / `content` 최대 2000자 필수 / `matchAt` 미래 시각 필수 / `location`, `region` 필수 / `preferredSkillLevel` optional(null이면 무관) / `rentalFee`, `depositAmount` 0 이상 optional / `fieldType`은 v1.19.0 폐지 — 와도 무시
 - `bankName`(최대 20자), `accountNumber`(최대 30자), `accountHolder`(최대 20자): **입금받을 계좌** — 전부 optional이지만 `depositAmount`를 넣으면 세 필드 모두 필수 (400 `VALIDATION_FAILED`)
 - 계좌 3필드는 **절대 목록/상세에 공개되지 않는다.** 오직 수락된 신청 팀에게만 `payment` 오브젝트로 내려간다 (아래 참고)
 - 팀 없으면 400 `TEAM_REQUIRED`
@@ -813,7 +843,7 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 
 ```json
 { "id": 12, "title": "...", "content": "...", "matchAt": "2026-08-30T07:00:00+09:00",
-  "location": "강서구민운동장 A구장", "region": "서울 강서구", "fieldType": "FUTSAL",
+  "location": "강서구민운동장 A구장", "region": "서울 강서구",
   "preferredSkillLevel": "INTERMEDIATE", "rentalFee": 100000, "depositAmount": 50000,
   "status": "OPEN", "viewCount": 42, "requestCount": 3, "team": "<TeamResponse>",
   "isAuthor": false, "myRequestStatus": null, "contact": null, "payment": null,
@@ -856,7 +886,7 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
   지워라 (병합 결과 기준 "금액 있으면 계좌 필수" 규칙과 일관)
 - `preferredSkillLevel` `null` → 실력 무관으로
 - `rentalFee` `null` → 대여료 미정으로
-- 필수 필드(`title`, `content`, `matchAt`, `location`, `region`, `fieldType`)와
+- 필수 필드(`title`, `content`, `matchAt`, `location`, `region`)와
   **`status`**는 `null` 불가 — 400 `VALIDATION_FAILED` (status는 optional로 보낼 수는
   있지만 지울 수는 없는 값)
 - 계좌 필드의 빈 문자열(`""`)은 `null`과 동일 취급하지 않는다 — **POST·PATCH 모두**
