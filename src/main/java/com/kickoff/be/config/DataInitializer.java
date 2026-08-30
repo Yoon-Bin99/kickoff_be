@@ -21,6 +21,9 @@ import com.kickoff.be.team.repository.TeamJoinRequestRepository;
 import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
+import com.kickoff.be.oauth.entity.AuthProvider;
+import com.kickoff.be.oauth.entity.SocialAccount;
+import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.user.repository.UserRepository;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -76,6 +79,7 @@ public class DataInitializer implements ApplicationRunner {
     private final TeamMemberRepository teamMemberRepository;
     private final TeamRecordRepository teamRecordRepository;
     private final TeamJoinRequestRepository joinRequestRepository;
+    private final SocialAccountRepository socialAccountRepository;
     private final PasswordEncoder passwordEncoder;
 
     /** 입금받을 계좌. depositAmount 를 넣는 글에만 붙는다. */
@@ -125,6 +129,8 @@ public class DataInitializer implements ApplicationRunner {
                 SkillLevel.ADVANCED, AgeGroup.FIFTIES_PLUS, 16,
                 "연령대는 높지만 실력은 자신 있습니다.");
         SeedAccount yoonAcc = new SeedAccount("토스뱅크", "1000-1234-5678", "윤코치");
+
+        seedSocialUser();
 
         // account 가 null 인 글은 depositAmount 도 null 인 "협의" 케이스.
         // dayOffset 이 음수면 이미 지난 경기다.
@@ -502,6 +508,30 @@ public class DataInitializer implements ApplicationRunner {
                 .ageGroup(ageGroup)
                 .memberCount(memberCount)
                 .introduction(introduction)
+                .build());
+    }
+
+    /**
+     * 소셜로만 가입한 계정 하나 (계약서 §3-1·§3-2).
+     *
+     * 이메일도 비밀번호도 없고 전화번호만 있다 — 카카오로 들어와 번호를 등록한 모양이다.
+     * 시드에 이런 계정이 없으면 FE 가 <b>소셜 분기를 화면으로 밟을 수 없다</b>. v1.17.0 의
+     * existingAccount 는 EMAIL·KAKAO·계정 없음 세 갈래인데, 그중 하나를 만들려면 OAuth 를
+     * 실제로 태워야 해서 로컬에서 만들 방법이 마땅치 않다.
+     *
+     * 팀을 주지 않는 것도 의도다. 팀 없는 사용자는 목록·검색 어디에도 안 나오므로 기존
+     * 화면들에 영향을 주지 않는다.
+     */
+    private void seedSocialUser() {
+        User social = userRepository.save(User.builder()
+                .nickname("카카오가입자")
+                .phone("010-7890-1234")
+                .activityRegion("서울")
+                .build());
+        socialAccountRepository.save(SocialAccount.builder()
+                .user(social)
+                .provider(AuthProvider.KAKAO)
+                .providerUserId("seed-kakao-1")
                 .build());
     }
 
