@@ -242,6 +242,20 @@ class PhoneVerificationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("PHONE_NOT_VERIFIED"));
     }
 
+    // ── 가입 정책 알림 (v1.16.1)
+
+    @Test
+    @DisplayName("스위치가 꺼져 있으면 정책도 false 라고 알린다")
+    void signupPolicyReportsSwitchOff() throws Exception {
+        // FE 는 이 값만 보고 인증 UI 를 켤지 정한다. 엔드포인트 존재로 판정하던 때는
+        // 서버가 강제하지 않는 기간에도 화면이 인증을 요구해서, SMS 제공자가 붙기 전에는
+        // 아무도 코드를 못 받아 가입이 통째로 막혔다 (FE 가 찾은 조합이다).
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/auth/signup-policy"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phoneVerificationRequired").value(false));
+    }
+
     // ── 인증 경계
 
     @Test

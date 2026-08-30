@@ -127,6 +127,18 @@ class PhoneVerificationRequiredTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("PHONE_NOT_VERIFIED"));
     }
 
+    @Test
+    @DisplayName("스위치가 켜져 있으면 정책도 true — 무헤더로 200 이다")
+    void signupPolicyReportsSwitchOn() throws Exception {
+        // 켠 상태를 따로 보는 이유는 이게 언젠가 운영의 기본값이 되기 때문이다.
+        // 값이 스위치를 따라오지 않으면, 서버는 막는데 화면은 인증을 안 시켜서
+        // 사용자가 가입 버튼을 눌러야만 400 을 만난다.
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/auth/signup-policy"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phoneVerificationRequired").value(true));
+    }
+
     /** 발송 → 확인까지 마치고 토큰을 돌려준다. */
     private String verify(String phone) throws Exception {
         mockMvc.perform(post("/api/auth/phone/verifications")

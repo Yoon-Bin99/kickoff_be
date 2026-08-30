@@ -85,6 +85,13 @@ public class SecurityConfig {
                         // 부르므로 인증이 있을 수 없다.
                         .requestMatchers(HttpMethod.GET, "/api/auth/availability").permitAll()
 
+                        // 가입 정책 알림 (계약서 §3-2, v1.16.1). 가입 화면을 그리기 전에
+                        // 부르므로 인증이 있을 수 없다. 여기가 막히면 FE 는 401 을 받고
+                        // "이 경로를 모르는 옛 서버"로 간주해 인증 UI 를 감춘다 — 스위치를
+                        // 켠 서버에서도 화면이 인증을 요구하지 않게 되어, 사용자는 가입
+                        // 버튼을 눌러야만 400 을 본다.
+                        .requestMatchers(HttpMethod.GET, "/api/auth/signup-policy").permitAll()
+
                         // "/me" 는 반드시 "/{id}" 패턴보다 먼저 걸어야 한다
                         .requestMatchers(HttpMethod.GET, "/api/teams/me", "/api/posts/me").authenticated()
 
