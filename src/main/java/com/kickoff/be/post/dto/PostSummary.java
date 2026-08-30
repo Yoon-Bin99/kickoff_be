@@ -1,6 +1,5 @@
 package com.kickoff.be.post.dto;
 
-import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.review.dto.ReviewStats;
@@ -17,7 +16,6 @@ public record PostSummary(
         OffsetDateTime matchAt,
         String location,
         String region,
-        FieldType fieldType,
         SkillLevel preferredSkillLevel,
         Integer rentalFee,
         Integer depositAmount,
@@ -37,7 +35,6 @@ public record PostSummary(
                 post.getMatchAt(),
                 post.getLocation(),
                 post.getRegion(),
-                post.getFieldType(),
                 post.getPreferredSkillLevel(),
                 post.getRentalFee(),
                 post.getDepositAmount(),

@@ -1,6 +1,5 @@
 package com.kickoff.be.post.dto;
 
-import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.team.entity.SkillLevel;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -32,9 +31,6 @@ public record PostCreateRequest(
         @NotBlank(message = "지역은 필수입니다.")
         @Size(max = 50, message = "지역은 50자를 넘을 수 없습니다.")
         String region,
-
-        @NotNull(message = "구장 유형은 필수입니다.")
-        FieldType fieldType,
 
         /** null 이면 상대 실력 무관. */
         SkillLevel preferredSkillLevel,

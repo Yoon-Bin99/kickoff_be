@@ -1,0 +1,15 @@
+-- 11대11 전용 전환 (계약서 v1.19.0). FieldType 폐지.
+--
+-- V1~V11 은 이미 배포됐으므로 수정하지 않는다.
+--
+-- <b>컬럼을 지우지 않고 not null 만 푼다.</b> 지우는 쪽이 깔끔하지만 되돌릴 수 없다 —
+-- 기존 글이 어떤 구장 유형을 원했는지가 사라진다. 지금 필요한 것은 "새 글이 이 값 없이
+-- 저장되는 것"뿐이고, 그건 not null 을 푸는 것으로 끝난다. 컬럼을 정말 지우는 건 값이
+-- 쓸모없다는 게 확실해진 뒤에 별도로 하면 된다 (되돌릴 수 없는 일은 나중에 해도 된다).
+--
+-- CHECK 제약은 그대로 둔다. SQL 에서 null 은 CHECK 를 통과하므로(UNKNOWN 은 위반이
+-- 아니다) 새 행에 방해가 되지 않는다.
+--
+-- alter ... drop not null 은 H2 와 PostgreSQL 의 문법이 갈리는 자리다. V10 에서
+-- chat_messages.sender_team_id 에 같은 구문을 써서 두 DB 모두 통과한 전례가 있다.
+alter table match_posts alter column field_type drop not null;

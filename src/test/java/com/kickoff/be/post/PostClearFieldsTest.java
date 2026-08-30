@@ -150,7 +150,7 @@ class PostClearFieldsTest extends IntegrationTestSupport {
         long postId = createPost(("\"rentalFee\": 80000"));
 
         for (String field : new String[] {
-                "title", "content", "matchAt", "location", "region", "fieldType", "status"}) {
+                "title", "content", "matchAt", "location", "region", "status"}) {
             patchPost(postId, "{\"" + field + "\": null}")
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
@@ -218,6 +218,9 @@ class PostClearFieldsTest extends IntegrationTestSupport {
                 .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         String body = "{\"title\": \"주말 경기 상대 구합니다\", \"content\": \"편하게 한 판 하실 팀\","
                 + " \"matchAt\": \"" + matchAt + "\", \"location\": \"강서구민운동장\","
+                // fieldType 은 v1.19.0 에서 폐지됐지만 <b>일부러 계속 보낸다</b>.
+                // 구버전 APK 가 이걸 실어 보내는데, 서버가 400 을 내면 그 앱들의 글쓰기가
+                // 통째로 막힌다. 모르는 필드를 무시한다는 성질을 여기서 붙잡아 둔다.
                 + " \"region\": \"서울 강서구\", \"fieldType\": \"SOCCER_11\"";
         if (extraFields != null) {
             body += ", " + extraFields;

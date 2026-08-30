@@ -124,7 +124,7 @@ class AuthorizationMatrixTest extends IntegrationTestSupport {
         User teamless = createUser("teamless@example.com", "무소속", "010-9999-9999");
         String body = """
                 {"title":"팀 없이 쓰는 글","content":"거절되어야 한다",
-                 "matchAt":"%s","location":"어딘가","region":"서울 강남구","fieldType":"FUTSAL"}
+                 "matchAt":"%s","location":"어딘가","region":"서울 강남구"}
                 """.formatted(java.time.OffsetDateTime.now().plusDays(3));
 
         mockMvc.perform(post("/api/posts")

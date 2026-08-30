@@ -116,7 +116,7 @@ class PastMatchRuleTest extends IntegrationTestSupport {
     void cannotCreatePostInThePast() throws Exception {
         String body = """
                 {"title":"과거 경기","content":"거절되어야 한다",
-                 "matchAt":"%s","location":"강서구민운동장","region":"서울 강서구","fieldType":"FUTSAL"}
+                 "matchAt":"%s","location":"강서구민운동장","region":"서울 강서구"}
                 """.formatted(OffsetDateTime.now().minusDays(1));
 
         mockMvc.perform(post("/api/posts")

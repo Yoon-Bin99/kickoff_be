@@ -167,8 +167,8 @@ class TeamAdminTest extends IntegrationTestSupport {
                         .content("""
                                 {"title": "관리자가 쓰는 글", "content": "권한 경계 확인",
                                  "matchAt": "2027-01-01T10:00:00+09:00",
-                                 "location": "강서구민운동장", "region": "서울 강서구",
-                                 "fieldType": "SOCCER_11"}"""))
+                                 "location": "강서구민운동장", "region": "서울 강서구"
+                                 }"""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("TEAM_REQUIRED"));
     }

@@ -274,8 +274,7 @@ class PostCoordinateTest extends IntegrationTestSupport {
                  "content": "6인제로 2시간 뛸 팀 찾습니다.",
                  "matchAt": "%s",
                  "location": "강서구민운동장 A구장",
-                 "region": "서울 강서구",
-                 "fieldType": "FUTSAL"%s}
+                 "region": "서울 강서구"%s}
                 """.formatted(matchAt, coordinates == null ? "" : ", " + coordinates);
         return mockMvc.perform(post("/api/posts")
                 .header(HttpHeaders.AUTHORIZATION, bearer(author))

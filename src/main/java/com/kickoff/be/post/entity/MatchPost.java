@@ -54,10 +54,6 @@ public class MatchPost extends BaseTimeEntity {
     @Column(nullable = false, length = 50)
     private String region;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private FieldType fieldType;
-
     /** null 이면 상대 실력 무관. */
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
@@ -100,7 +96,7 @@ public class MatchPost extends BaseTimeEntity {
 
     @Builder
     private MatchPost(Team team, String title, String content, OffsetDateTime matchAt, String location,
-                      String region, FieldType fieldType, SkillLevel preferredSkillLevel,
+                      String region, SkillLevel preferredSkillLevel,
                       Integer rentalFee, Integer depositAmount, String bankName,
                       String accountNumber, String accountHolder,
                       Double latitude, Double longitude) {
@@ -110,7 +106,6 @@ public class MatchPost extends BaseTimeEntity {
         this.matchAt = matchAt;
         this.location = location;
         this.region = region;
-        this.fieldType = fieldType;
         this.preferredSkillLevel = preferredSkillLevel;
         this.rentalFee = rentalFee;
         this.depositAmount = depositAmount;
@@ -135,7 +130,7 @@ public class MatchPost extends BaseTimeEntity {
      * 정반대다. 한 메서드에 섞어 두면 다음 사람이 반드시 헷갈리므로 아래 전용 메서드로 뗐다.
      */
     public void update(String title, String content, OffsetDateTime matchAt, String location,
-                       String region, FieldType fieldType, PostStatus status) {
+                       String region, PostStatus status) {
         if (title != null) {
             this.title = title;
         }
@@ -150,9 +145,6 @@ public class MatchPost extends BaseTimeEntity {
         }
         if (region != null) {
             this.region = region;
-        }
-        if (fieldType != null) {
-            this.fieldType = fieldType;
         }
         if (status != null) {
             this.status = status;

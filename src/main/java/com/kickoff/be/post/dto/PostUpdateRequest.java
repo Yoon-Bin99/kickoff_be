@@ -1,7 +1,6 @@
 package com.kickoff.be.post.dto;
 
 import com.kickoff.be.common.Patchable;
-import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.team.entity.SkillLevel;
 import jakarta.validation.constraints.Future;
@@ -37,8 +36,6 @@ public record PostUpdateRequest(
 
         @Size(min = 1, max = 50, message = "지역은 1~50자여야 합니다.")
         Patchable<String> region,
-
-        Patchable<FieldType> fieldType,
 
         Patchable<PostStatus> status,
 

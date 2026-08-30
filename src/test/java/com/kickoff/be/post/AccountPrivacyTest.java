@@ -164,7 +164,7 @@ class AccountPrivacyTest extends IntegrationTestSupport {
         String body = """
                 {"title":"계좌 없는 입금글","content":"거절되어야 한다",
                  "matchAt":"%s","location":"강서구민운동장","region":"서울 강서구",
-                 "fieldType":"FUTSAL","depositAmount":50000}
+                 "depositAmount":50000}
                 """.formatted(java.time.OffsetDateTime.now().plusDays(3));
 
         mockMvc.perform(post("/api/posts")

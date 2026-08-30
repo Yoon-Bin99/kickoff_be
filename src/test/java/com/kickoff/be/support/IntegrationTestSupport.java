@@ -4,7 +4,6 @@ import com.jayway.jsonpath.JsonPath;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
-import com.kickoff.be.post.entity.FieldType;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.post.repository.MatchPostRepository;
@@ -224,6 +223,21 @@ public abstract class IntegrationTestSupport {
         return createPost(team, title, OffsetDateTime.now().plusDays(7), true);
     }
 
+    /** 시각과 지역을 지정해 만든다 — 날짜·시간대 필터(§5, v1.18.0) 검증용. */
+    protected MatchPost createPostIn(Team team, String title, OffsetDateTime matchAt,
+                                     String region) {
+        return postRepository.save(MatchPost.builder()
+                .team(team)
+                .title(title)
+                .content(title + " 내용입니다.")
+                .matchAt(matchAt)
+                .location(region + " 구장")
+                .region(region)
+                .preferredSkillLevel(SkillLevel.INTERMEDIATE)
+                .rentalFee(100000)
+                .build());
+    }
+
     protected MatchPost createPost(Team team, String title, OffsetDateTime matchAt,
                                    boolean withAccount) {
         return postRepository.save(MatchPost.builder()
@@ -233,7 +247,6 @@ public abstract class IntegrationTestSupport {
                 .matchAt(matchAt)
                 .location(team.getRegion() + " 구장")
                 .region(team.getRegion())
-                .fieldType(FieldType.FUTSAL)
                 .preferredSkillLevel(SkillLevel.INTERMEDIATE)
                 .rentalFee(100000)
                 .depositAmount(withAccount ? DEPOSIT_AMOUNT : null)
