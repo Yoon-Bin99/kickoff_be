@@ -1,7 +1,7 @@
 package com.kickoff.be.push.dto;
 
 /**
- * 알림 이벤트 4종 (계약서 §8). 이 값이 그대로 푸시 payload 의 {@code data.type} 으로 나가고,
+ * 알림 이벤트 5종 (계약서 §8). 이 값이 그대로 푸시 payload 의 {@code data.type} 으로 나가고,
  * FE 는 그걸 보고 어느 화면으로 이동할지 정한다 — 문자열을 바꾸면 딥링크가 깨진다.
  *
  * title/body 문구도 계약서 표에 규정돼 있어 여기 함께 둔다. 문구가 코드 여기저기 흩어지면
@@ -19,7 +19,14 @@ public enum PushEventType {
     REQUEST_REJECTED("매칭 불발", "'%s' 신청이 거절됐습니다"),
 
     /** 입금이 확인됐다 — 신청 팀에게. */
-    DEPOSIT_CONFIRMED("입금 확인", "'%s' 입금이 확인됐습니다");
+    DEPOSIT_CONFIRMED("입금 확인", "'%s' 입금이 확인됐습니다"),
+
+    /**
+     * 매칭이 취소됐다 — <b>취소한 쪽이 아니라 상대 팀</b>에게 (계약서 §6-2, v1.20.0).
+     * 양 팀 어느 쪽이든 취소할 수 있으므로 수신자가 고정이 아니다. 다른 이벤트처럼
+     * 신청 팀으로 굳혀 두면 글 작성 팀이 취소했을 때 자기 자신에게 알림이 간다.
+     */
+    MATCH_CANCELED("매칭 취소", "'%s' 매칭이 취소됐습니다");
 
     private final String title;
     private final String bodyFormat;

@@ -88,4 +88,17 @@ public class MatchRequest extends BaseTimeEntity {
     public void cancel() {
         this.status = RequestStatus.CANCELED;
     }
+
+    /**
+     * 수락된 매칭을 깬다 (계약서 §6-2, v1.20.0).
+     *
+     * {@link #cancel()} 과 값을 나눈 이유는 {@link RequestStatus} 에 적었다.
+     *
+     * <b>depositPaid 는 일부러 그대로 둔다.</b> 취소했다고 입금 사실이 없어지지는 않고,
+     * 환불 분쟁이 나면 그 기록이 유일한 근거다. 여기서 false 로 되돌리면 "입금했는데
+     * 안 했다고 나온다"가 되고, 되돌릴 방법도 없다.
+     */
+    public void cancelMatch() {
+        this.status = RequestStatus.MATCH_CANCELED;
+    }
 }

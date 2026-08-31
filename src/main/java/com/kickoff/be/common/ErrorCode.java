@@ -48,6 +48,7 @@ public enum ErrorCode {
     REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신청입니다."),
     REQUEST_NOT_PENDING(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
     REQUEST_NOT_ACCEPTED(HttpStatus.CONFLICT, "수락된 신청이 아닙니다."),
+    MATCH_CANCEL_EXPIRED(HttpStatus.CONFLICT, "이미 지난 경기는 매칭을 취소할 수 없습니다."),
     /** 매칭 채팅 (계약서 §6-1, v1.12.0). 경기 시각이 지나면 읽기 전용이다. */
     CHAT_CLOSED(HttpStatus.CONFLICT, "경기 시각이 지나 메시지를 보낼 수 없습니다."),
     REVIEW_NOT_AVAILABLE(HttpStatus.CONFLICT, "아직 리뷰를 쓸 수 없는 매칭입니다."),

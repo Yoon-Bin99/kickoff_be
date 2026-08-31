@@ -222,6 +222,17 @@ public class MatchPost extends BaseTimeEntity {
         this.status = PostStatus.CLOSED;
     }
 
+    /**
+     * 매칭이 취소되어 다시 모집 상태로 돌아간다 (계약서 §6-2, v1.20.0).
+     *
+     * 지난 경기인지는 여기서 보지 않는다 — 취소 자체가 경기 전에만 되므로 호출 시점에
+     * 이미 미래다. 그리고 목록·신청 가능 여부는 status 가 아니라
+     * {@link #acceptsRequests()} 가 matchAt 과 함께 판정한다.
+     */
+    public void reopen() {
+        this.status = PostStatus.OPEN;
+    }
+
     public void increaseViewCount() {
         this.viewCount++;
     }

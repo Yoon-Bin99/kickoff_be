@@ -68,6 +68,13 @@ public class MatchRequestController {
         return ResponseEntity.ok(requestService.confirmDeposit(requestId, user));
     }
 
+    /** 매칭 취소 — 양 팀 OWNER 모두 (계약서 §6-2, v1.20.0). */
+    @PostMapping("/api/requests/{requestId}/cancel-match")
+    public ResponseEntity<RequestResponse> cancelMatch(@PathVariable Long requestId,
+                                                       @LoginUser User user) {
+        return ResponseEntity.ok(requestService.cancelMatch(requestId, user));
+    }
+
     /** 신청한 팀만. PENDING 신청을 CANCELED 로. */
     @DeleteMapping("/api/requests/{requestId}")
     public ResponseEntity<Void> cancel(@PathVariable Long requestId, @LoginUser User user) {

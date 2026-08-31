@@ -158,6 +158,38 @@ public class MatchRequestService {
         return toResponse(request, user);
     }
 
+    /**
+     * 수락된 매칭을 취소한다 — <b>양 팀 어느 쪽이든</b> (계약서 §6-2, v1.20.0).
+     *
+     * 검사 순서가 규정돼 있다: <b>권한 먼저, 상태는 그다음</b> (계약서 §7). 뒤집으면
+     * 제3자가 409/200 의 차이로 "그 매칭이 수락된 상태인가"를 알아낼 수 있다.
+     *
+     * 취소가 닫는 것들(연락처·payment·채팅·입금확인·리뷰·전적)은 <b>여기서 따로 닫지
+     * 않는다.</b> 전부 {@link MatchRequest#isAccepted()} 를 통과하게 돼 있어서, 상태가
+     * ACCEPTED 가 아니게 되는 순간 함께 닫힌다. 각각을 여기서 또 닫으면 규칙이 두 곳에
+     * 생기고 한쪽만 고쳐지는 날이 온다.
+     */
+    @Transactional
+    public RequestResponse cancelMatch(Long requestId, User user) {
+        MatchRequest request = findRequest(requestId);
+        if (!isPartyOwner(request, user)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (!request.isAccepted()) {
+            throw new BusinessException(ErrorCode.REQUEST_NOT_ACCEPTED);
+        }
+        // 경기가 이미 지났으면 취소가 아니라 리뷰·전적의 영역이다 (계약서 §6-2).
+        if (request.getPost().hasPassed()) {
+            throw new BusinessException(ErrorCode.MATCH_CANCEL_EXPIRED);
+        }
+
+        request.cancelMatch();
+        request.getPost().reopen();
+
+        publish(PushEventType.MATCH_CANCELED, counterpartOwnerId(request, user), request);
+        return toResponse(request, user);
+    }
+
     /** 신청 취소 — 신청한 팀만. */
     @Transactional
     public void cancel(Long requestId, User user) {
@@ -187,6 +219,28 @@ public class MatchRequestService {
     /** 알림 수신자는 언제나 팀의 소유자다 (계약서 §8). */
     private Long applicantOwnerId(MatchRequest request) {
         return request.getApplicantTeam().getOwner().getId();
+    }
+
+    private Long postOwnerId(MatchRequest request) {
+        return request.getPost().getTeam().getOwner().getId();
+    }
+
+    /** 매칭 당사자 두 팀의 소유자인지 — 매칭 취소는 양쪽 다 할 수 있다 (계약서 §6-2). */
+    private boolean isPartyOwner(MatchRequest request, User user) {
+        return request.getPost().isWrittenBy(user.getId())
+                || request.getApplicantTeam().isOwnedBy(user.getId());
+    }
+
+    /**
+     * 취소 알림을 받을 쪽 — <b>취소한 사람의 반대편</b> (계약서 §6-2).
+     *
+     * 한쪽으로 굳혀 두면 그쪽이 취소했을 때 자기 자신에게 알림이 간다. 화면은 멀쩡하고
+     * 상대는 매칭이 깨진 걸 모른 채 경기장에 나간다 — 에러가 없어서 드러나지도 않는다.
+     */
+    private Long counterpartOwnerId(MatchRequest request, User canceler) {
+        return request.getPost().isWrittenBy(canceler.getId())
+                ? applicantOwnerId(request)
+                : postOwnerId(request);
     }
 
     private MatchRequest findRequest(Long requestId) {
