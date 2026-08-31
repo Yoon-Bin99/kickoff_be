@@ -1,8 +1,13 @@
-# Kickoff API 계약 v1 (현재 v1.18.0)
+# Kickoff API 계약 v1 (현재 v1.20.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.20.0 (2026-08-31): 매칭 취소 — §6-2 신설: 수락된 매칭을 경기 전까지 양 팀 어느
+> 쪽이든 취소할 수 있다. `POST /api/requests/{id}/cancel-match`, `RequestStatus`에
+> `MATCH_CANCELED` 추가, 글은 OPEN 복구, 푸시 `MATCH_CANCELED`, 에러
+> `MATCH_CANCEL_EXPIRED`. 취소되면 연락처·채팅이 닫힌다.
+>
 > v1.19.0 (2026-08-30): **11대11 전용 전환** — 서비스가 11대11 축구만 취급하기로
 > 확정(사용자 결정). `FieldType` 열거형과 모집글의 `fieldType` 필드·필터를 **폐지**.
 > 요청에 fieldType이 와도 무시(에러 아님 — 구버전 호환), 응답에는 싣지 않는다.
@@ -196,6 +201,7 @@
 | `METHOD_NOT_ALLOWED` | 405 | 존재하는 경로를 지원하지 않는 HTTP 메서드로 호출 (v1.12.1) |
 | `PHONE_NOT_VERIFIED` | 400 | verificationToken 없음·무효·전화번호 불일치 (v1.15.0) |
 | `NICKNAME_ALREADY_EXISTS` | 409 | 닉네임 중복 (v1.16.0) |
+| `MATCH_CANCEL_EXPIRED` | 409 | 경기 시각이 지난 매칭의 취소 시도 (v1.20.0) |
 | `PHONE_ALREADY_EXISTS` | 409 | 전화번호 중복 (v1.16.0) |
 | `VERIFICATION_CODE_MISMATCH` | 400 | 인증번호 불일치 (v1.15.0) |
 | `VERIFICATION_EXPIRED` | 400 | 인증번호·토큰 만료 (v1.15.0) |
@@ -228,7 +234,7 @@ FieldType     (v1.19.0 폐지 — 11대11 전용. 값 자체가 사라짐)
 PostStatus    OPEN | MATCHED | CLOSED
               모집중  매칭완료   마감
 
-RequestStatus PENDING | ACCEPTED | REJECTED | CANCELED
+RequestStatus PENDING | ACCEPTED | REJECTED | CANCELED | MATCH_CANCELED (v1.20.0 — 수락 후 취소)
               대기중    수락됨     거절됨     취소됨
 
 Position      GK | DF | MF | FW
@@ -1146,6 +1152,47 @@ FE 하단 탭이 5개가 된다: **홈 / 팀 / 매칭 / 채팅 / 마이**. 채�
 
 FE: 나가기는 채팅방 안에서 제공하고(위치는 FE 재량), **되돌릴 수 없는 동작이므로 확인
 다이얼로그를 거친다.** 문구에 "지난 대화를 다시 볼 수 없게 됩니다"를 포함할 것.
+
+## 6-2. 매칭 취소 (v1.20.0)
+
+수락된 매칭을 **경기 전까지** 무를 수 있다. 사정이 생기거나 노쇼가 예상될 때 매칭을
+풀고 글을 다시 여는 경로다.
+
+### POST /api/requests/{requestId}/cancel-match — 인증 필요, 매칭 당사자 팀 OWNER만
+
+- **양 팀 어느 쪽이든** 취소할 수 있다 (글 작성 팀 OWNER 또는 신청 팀 OWNER)
+- 조건: 신청이 `ACCEPTED` && `matchAt`이 **미래**
+  - `ACCEPTED` 아니면 409 `REQUEST_NOT_ACCEPTED` / `matchAt`이 지났으면 409
+    `MATCH_CANCEL_EXPIRED` (경기가 이미 진행된 것으로 본다 — 리뷰·기록의 영역)
+  - 제3자·ADMIN·MEMBER는 403 `FORBIDDEN` (검사 순서 권한 먼저, §7 규칙)
+- 효과:
+  1. 신청 `status` → **`MATCH_CANCELED`** (기존 `CANCELED`는 수락 전 신청 철회 —
+     의미가 달라 값을 나눈다)
+  2. 글 `status` → **`OPEN` 복구** — 다시 신청받을 수 있다. 수락 때 자동 거절됐던
+     다른 신청들은 `REJECTED` 그대로 (재신청 허용 이력 규칙에 따라 다시 신청 가능)
+  3. **연락처·payment 비공개 복귀, 채팅 닫힘** — 채팅 접근은 기존 규칙(ACCEPTED
+     아니면 409)에 의해 자동으로 막히고, 방 목록에서도 사라진다
+  4. `depositPaid`는 그대로 보존 (환불 분쟁 시 기록)
+- 200 → `RequestResponse` (status MATCH_CANCELED)
+- 멱등 아님 — 이미 취소된 매칭에 또 부르면 409 `REQUEST_NOT_ACCEPTED`
+
+### 푸시 (§8 규약)
+
+| 이벤트 | 시점 | 수신자 | title / body 예시 |
+|---|---|---|---|
+| `MATCH_CANCELED` | 취소 | **상대 팀** OWNER | "매칭 취소" / "'{글제목}' 매칭이 취소됐습니다" |
+
+data: `{ "type": "MATCH_CANCELED", "requestId": 7, "postId": 12 }`. 탭 시 매칭 관리로.
+
+### FE 규칙
+
+- 취소 진입: 매칭 관리의 ACCEPTED 카드 (양 관점 모두). **확인 다이얼로그 필수** —
+  문구에 ① 상대 팀에게 알림이 간다 ② **입금했다면 취소 전에 환불을 확인하라**
+  (취소되면 연락처·채팅이 닫힌다) 를 포함할 것
+- `MATCH_CANCELED` 상태 뱃지: "매칭 취소됨". 취소된 카드에는 채팅·입금·리뷰·전적
+  버튼을 두지 않는다
+- 구버전 호환: 옛 서버에는 이 상태가 없으므로 FE는 모르는 status를 안전하게(회색
+  뱃지 등) 그린다
 
 ## 7. 리뷰·평점 (v1.2.0)
 
