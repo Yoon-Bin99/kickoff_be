@@ -159,6 +159,44 @@ localhost 콜백이, LAN IP로 열면 LAN IP 콜백이 제공자에게 전달된
 서로 다른 주소를 쓰게 되므로 둘 다 등록해야 하고, 한쪽만 등록하면 그쪽에서만 로그인된다.**
 고정하고 싶으면 `OAUTH_CALLBACK_BASE_URL`(예: `http://192.168.0.10:8080`)로 덮어쓸 수 있다.
 
+### 운영 배포 시 콘솔에 등록할 값
+
+**로컬용 등록만으로는 운영에서 로그인이 안 된다.** 이 절이 없어서 실제로 한 번 겪었다 —
+2026-08-31 실기기에서 카카오 로그인이 "앱 관리자 설정 오류"로 막혔고, 원인은 운영 콜백이
+콘솔에 등록된 적이 없다는 것이었다. 네이버는 등록돼 있어 정상 동작해서, 두 제공자의
+차이가 곧 원인을 가리켰다.
+
+운영 서버가 제공자에게 실제로 넘기는 값은 아래처럼 직접 확인할 수 있다. 302 를 돌려주는
+읽기 전용 요청이라 아무것도 만들지 않는다 — **콘솔에 무엇을 넣을지 추측하지 말고 이걸 볼 것.**
+
+```bash
+curl -s -o /dev/null -w '%{redirect_url}' 'https://<운영도메인>/api/auth/oauth/kakao/authorize?redirect=kickoff%3A%2F%2Fauth'
+```
+
+현재 운영(`https://kickoffbe-production-7275.up.railway.app`) 기준 등록값:
+
+| 제공자 | 콘솔 위치 | 등록할 값 |
+|---|---|---|
+| 카카오 | 제품 설정 > 카카오 로그인 > Redirect URI | `https://kickoffbe-production-7275.up.railway.app/api/auth/oauth/kakao/callback` |
+| 카카오 | 앱 설정 > 플랫폼 > Web > 사이트 도메인 | `https://kickoffbe-production-7275.up.railway.app` |
+| 네이버 | 애플리케이션 > API 설정 > Callback URL | `https://kickoffbe-production-7275.up.railway.app/api/auth/oauth/naver/callback` |
+
+**도메인이 바뀌면 세 줄을 다 다시 등록해야 한다.** Railway 는 프로젝트를 다시 만들면
+서브도메인이 바뀌므로, 그때 로그인만 조용히 죽는다 — 다른 API 는 전부 멀쩡해서 눈치채기
+어렵다.
+
+카카오는 **Redirect URI 와 Web 사이트 도메인이 별개**다. 하나만 넣으면 막힌다.
+
+콜백 오리진은 기본적으로 authorize 요청이 들어온 주소에서 만든다. Railway 같은 프록시
+뒤에서도 `https` 로 제대로 나가는데(`server.forward-headers-strategy: framework`),
+도메인을 못박고 싶으면 `OAUTH_CALLBACK_BASE_URL` 로 덮으면 된다.
+
+> ⚠️ **자동 테스트는 여기까지 검증하지 못한다.** OAuth 테스트는 전부 스텁을 쓰고
+> `kauth.kakao.com` 을 호출하는 테스트는 하나도 없다. 검증되는 것은 우리 쪽 흐름(state
+> 발급·검증, 콜백 처리, 복귀 URL 화이트리스트)뿐이고 **콘솔 등록 상태는 검증 대상이
+> 아니다.** 그래서 이 절이 곧 검증이다 — 배포하고 실기기로 한 번 눌러 보는 것까지가
+> 소셜 로그인의 완료 조건이다.
+
 ### 로그인이 안 될 때
 
 **카카오 로그인 화면이 떴다고 해서 등록이 맞다는 뜻이 아니다.** 카카오는 redirect_uri를
