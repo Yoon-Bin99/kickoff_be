@@ -37,7 +37,7 @@ class PhoneVerificationRequiredTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "no-token@example.com", "password": "pass1234!",
-                                 "nickname": "무토큰", "phone": "%s"}
+                                 "nickname": "무토큰", "phone": "%s", "termsAgreed": true}
                                 """.formatted(PHONE)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PHONE_NOT_VERIFIED"));
@@ -52,7 +52,8 @@ class PhoneVerificationRequiredTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "verified@example.com", "password": "pass1234!",
-                                 "nickname": "인증됨", "phone": "%s", "verificationToken": "%s"}
+                                 "nickname": "인증됨", "phone": "%s", "verificationToken": "%s",
+                                 "termsAgreed": true}
                                 """.formatted(PHONE, token)))
                 .andExpect(status().isCreated());
     }

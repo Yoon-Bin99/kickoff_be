@@ -1,8 +1,13 @@
-# Kickoff API 계약 v1 (현재 v1.20.0)
+# Kickoff API 계약 v1 (현재 v1.21.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.21.0 (2026-08-31): 약관·개인정보 동의 — 이메일 signup에 `termsAgreed: true` 필수
+> (아니면 400). `User.termsAgreedAt` 저장(응답 비노출). 약관·개인정보처리방침은 BE가
+> 정적 페이지(`GET /terms`, `GET /privacy` — 인증 불필요 HTML)로 서빙, FE 가입 화면에
+> 동의 체크+문서 열람. 소셜 가입자의 앱 자체 약관 동의는 §9 범위 밖(v2).
+>
 > v1.20.0 (2026-08-31): 매칭 취소 — §6-2 신설: 수락된 매칭을 경기 전까지 양 팀 어느
 > 쪽이든 취소할 수 있다. `POST /api/requests/{id}/cancel-match`, `RequestStatus`에
 > `MATCH_CANCELED` 추가, 글은 OPEN 복구, 푸시 `MATCH_CANCELED`, 에러
@@ -306,6 +311,11 @@ v1.3.0 추가 필드:
   (v1.16.0 — 위반은 400 `VALIDATION_FAILED`, fieldErrors에 규칙 안내. 기존 계정의
   로그인·비밀번호는 소급하지 않는다) / `nickname` 2~20자 필수 / `phone` `010-0000-0000` 형식 필수
 - `activityRegion` optional (v1.6.0, 최대 20자) — FE 가입 화면은 선택을 권하지만 건너뛸 수 있다
+- **약관 동의 (v1.21.0)**: 요청에 `termsAgreed: true` 필수 — 없거나 false면 400
+  `VALIDATION_FAILED` (fieldErrors에 안내). 서버는 동의 시각을 저장한다(응답 비노출).
+  약관 문서는 `GET /terms`, 개인정보처리방침은 `GET /privacy` (인증 불필요, HTML —
+  share-card와 같은 정적 서빙, API 표면 밖이지만 FE가 링크하므로 여기 적는다).
+  소셜 가입(OAuth 최초 로그인)의 앱 자체 동의는 v1 범위 밖 (§9).
 - **유니크 규칙 (v1.16.0)**: `email`(기존), `nickname`, `phone` 모두 중복 불가 —
   409 `EMAIL_ALREADY_EXISTS` / `NICKNAME_ALREADY_EXISTS` / `PHONE_ALREADY_EXISTS`.
   `PATCH /api/users/me`의 nickname·phone 변경에도 같은 규칙(자기 자신의 기존 값은 허용).
@@ -1287,6 +1297,7 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 
 실명 본인인증(PASS·본인확인기관 연동 — 사업자 등록 후 v2),
 계정 통합(한 계정에 복수 로그인 수단 연결, 기존 계정 병합·빈 소셜 계정 정리 — v2),
+소셜 가입자의 앱 자체 약관 동의 절차, 회원 탈퇴 API(현재는 문의로 수동 처리),
 팀 검색 오타 유사도(편집거리·trigram),
 채팅 실시간 전송(WebSocket — v1은 폴링), 채팅 읽음 표시·안읽음 배지,
 채팅 메시지 수정·삭제·신고, 채팅 이미지 첨부, 채팅 푸시 묶음·스로틀,

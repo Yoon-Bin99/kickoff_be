@@ -65,6 +65,9 @@ public class AuthService {
                 .nickname(request.nickname())
                 .phone(request.phone())
                 .activityRegion(request.activityRegion())
+                // 요청이 여기까지 왔다는 건 termsAgreed 가 true 라는 뜻이다 — false·누락은
+                // 검증에서 400 으로 끊긴다 (계약서 §3, v1.21.0).
+                .termsAgreedAt(OffsetDateTime.now())
                 .build());
         return toAuthResponse(user);
     }

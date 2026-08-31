@@ -198,7 +198,8 @@ class RefreshTokenTest extends IntegrationTestSupport {
                 // "accessToken 이 없다"로 엉뚱하게 실패한다.
                 .content("{\"email\": \"" + email + "\", \"password\": \"" + PASSWORD + "\","
                         + " \"nickname\": \"주장" + Math.abs(email.hashCode() % 10000) + "\","
-                        + " \"phone\": \"010-1111-" + String.format("%04d", Math.abs(email.hashCode() % 10000)) + "\"}"));
+                        + " \"phone\": \"010-1111-" + String.format("%04d", Math.abs(email.hashCode() % 10000)) + "\","
+                        + " \"termsAgreed\": true}"));
     }
 
     private ResultActions login() throws Exception {

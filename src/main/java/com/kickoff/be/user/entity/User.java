@@ -76,14 +76,27 @@ public class User extends BaseTimeEntity {
     @Column(length = 200)
     private String expoPushToken;
 
+    /**
+     * 약관·개인정보처리방침에 동의한 시각 (계약서 §3, v1.21.0).
+     *
+     * <b>nullable 이다.</b> v1.21.0 이전에 가입한 계정과 소셜 가입자는 이 값이 없다 —
+     * 소셜 가입자의 앱 자체 동의 절차는 v1 범위 밖이다(§9). not null 로 걸면 기존 계정을
+     * 어떤 시각으로든 채워 넣어야 하는데, 그건 <b>받지 않은 동의를 받은 것처럼 기록</b>하는
+     * 일이다. 동의 기록은 나중에 분쟁의 근거가 되므로 지어내지 않는다.
+     *
+     * 응답에 싣지 않는다 (계약서 §3). 화면이 쓸 값이 아니고, 서버가 보관하는 기록이다.
+     */
+    private OffsetDateTime termsAgreedAt;
+
     @Builder
     private User(String email, String password, String nickname, String phone,
-                 String activityRegion) {
+                 String activityRegion, OffsetDateTime termsAgreedAt) {
         this.email = email;
         this.password = password;
         this.nickname = nickname;
         this.phone = phone;
         this.activityRegion = activityRegion;
+        this.termsAgreedAt = termsAgreedAt;
     }
 
     /**

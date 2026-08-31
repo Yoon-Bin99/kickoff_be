@@ -63,6 +63,15 @@ public class SecurityConfig {
                         // 어렵다. 공개 파일 한 장이라 메서드로 좁혀서 지킬 것도 없다.
                         .requestMatchers("/share-card.png").permitAll()
 
+                        // 약관·개인정보처리방침 (계약서 §3, v1.21.0). 가입하기 <b>전에</b>
+                        // 읽는 문서라 토큰이 있을 수 없다. 앱 심사에서도 이 주소를 요구한다.
+                        //
+                        // share-card 와 같은 이유로 <b>메서드를 지정하지 않는다.</b> 링크
+                        // 미리보기나 크롤러가 HEAD 로 먼저 찔러 보는데, GET 만 열어 두면
+                        // 그게 401 로 떨어진다 — 스프링 시큐리티는 HEAD 를 GET 으로 쳐 주지
+                        // 않는다. share-card 에서 실제로 겪은 일이라 여기서 되풀이하지 않는다.
+                        .requestMatchers("/terms", "/privacy").permitAll()
+
                         // 인증 불필요 (계약서 §3)
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login",
                                 // refresh token 자체가 자격 증명이라 access 없이 부른다 (v1.7.0).

@@ -272,7 +272,8 @@ class SignupHardeningTest extends IntegrationTestSupport {
         return mockMvc.perform(post("/api/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"email": "%s", "password": "%s", "nickname": "%s", "phone": "%s"}
+                        {"email": "%s", "password": "%s", "nickname": "%s", "phone": "%s",
+                         "termsAgreed": true}
                         """.formatted(email, password, nickname, phone)));
     }
 

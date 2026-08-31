@@ -1,7 +1,9 @@
 package com.kickoff.be.auth.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -42,6 +44,19 @@ public record SignupRequest(
          */
         @Size(max = 20, message = "활동 지역은 20자를 넘을 수 없습니다.")
         String activityRegion,
+
+        /**
+         * 약관·개인정보처리방침 동의 (계약서 §3, v1.21.0). <b>필수이고 true 여야 한다.</b>
+         *
+         * {@code Boolean} 이고 {@code @NotNull} 을 따로 붙인 이유: Bean Validation 에서
+         * {@code @AssertTrue} 는 <b>null 을 통과시킨다</b>. primitive boolean 으로 두면
+         * 필드를 아예 안 보낸 요청이 false 로 바인딩돼 "동의 안 함"과 구별되지 않는데,
+         * 그건 구버전 앱이 보내는 모양이라 <b>누락을 거부로 오해</b>하게 된다. 둘 다 400 이라
+         * 결과는 같지만, 안내 문구가 달라야 사용자가 무엇을 해야 할지 안다.
+         */
+        @NotNull(message = "약관 동의 여부가 필요합니다. 앱을 최신 버전으로 업데이트해 주세요.")
+        @AssertTrue(message = "이용약관과 개인정보처리방침에 동의해야 가입할 수 있습니다.")
+        Boolean termsAgreed,
 
         /**
          * 전화번호 인증 토큰 (계약서 §3-2, v1.15.0).
