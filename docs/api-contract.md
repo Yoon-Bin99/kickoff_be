@@ -1303,7 +1303,10 @@ data: `{ "type": "MATCH_CANCELED", "requestId": 7, "postId": 12 }`. 탭 시 매�
 
 - `GET /api/support/chat?after=&limit=` — 내 문의방 메시지. §6-1과 같은 규칙
   (오름차순, after 없으면 최신 limit개, limit 기본 50 최대 100). 200 →
-  `{ "messages": [...] }` (chatOpen 없음 — 항상 열려 있다)
+  `{ "operatorMode": false, "messages": [...] }` (chatOpen 없음 — 항상 열려 있다)
+- **`operatorMode` (v1.22.0 확정판)**: escalate했거나 운영자가 답장한 방이면 true —
+  서버가 방 상태의 진실이다. FE는 true면 "운영자 연결하기" 버튼과 AI 안내를 감춘다
+  (말풍선 유무로 추론하지 않는다 — escalate 직후 무응답 구간이 추론으로는 안 보인다)
 - `POST /api/support/chat` — `{ "content": "..." }` (1~500자). 201 → `SupportMessage`
 
 ### 운영자 쪽 API — 인증 필요, 운영자만 (아니면 403 `FORBIDDEN`)

@@ -82,6 +82,19 @@ class SupportKnowledgeTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("FAQ 답변에 마크다운 기호가 없다 — 채팅 말풍선은 평문이다")
+    void faqAnswersArePlainText() {
+        // 파서는 답변을 그대로 넘긴다. 문서에 굵게(**)가 남으면 말풍선에 별표가 그대로
+        // 찍히는데, 서버는 200 이고 로그도 없다. 문서를 고치는 사람은 이 문장이 어디에
+        // 어떻게 그려지는지 모른다.
+        assertThat(knowledge.faq()).allSatisfy(item -> {
+            assertThat(item.answer()).as("답변 " + item.id()).doesNotContain("**");
+            assertThat(item.answer()).as("답변 " + item.id()).doesNotContain("`");
+            assertThat(item.question()).as("질문 " + item.id()).doesNotContain("**");
+        });
+    }
+
+    @Test
     @DisplayName("빌드가 docs/ 의 지식 문서를 리소스로 실어 준다")
     void documentIsOnClasspath() {
         // v1.21.0 에서 이 검사가 없어 배포 이미지에 문서가 안 실렸고, 운영에서만 500 이

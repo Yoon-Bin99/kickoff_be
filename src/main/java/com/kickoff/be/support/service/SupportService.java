@@ -63,8 +63,8 @@ public class SupportService {
     public SupportChatResponse myMessages(User user, Long after, Integer limit) {
         // 첫 조회에 방이 생긴다 (계약서 §7-1). 조회가 쓰기를 하는 게 어색하지만, 그러지
         // 않으면 FE 가 "방 만들기"를 따로 불러야 하고 그 호출을 빠뜨리면 전송이 실패한다.
-        roomOf(user);
-        return new SupportChatResponse(read(user.getId(), after, limit));
+        SupportRoom room = roomOf(user);
+        return new SupportChatResponse(room.isOperatorMode(), read(user.getId(), after, limit));
     }
 
     @Transactional
@@ -134,12 +134,22 @@ public class SupportService {
                 .toList();
     }
 
+    /**
+     * 운영자가 보는 방. 형태는 사용자 쪽과 같다 (계약서 §7-1).
+     *
+     * <b>여기서는 방을 만들지 않는다.</b> 운영자가 남의 방을 열어 보는 것뿐이라, 없는 방을
+     * 만들 이유가 없다 — 만들면 문의를 시작한 적 없는 사용자의 빈 방이 생긴다.
+     * {@code operatorMode} 는 방이 아직 없으면 false 다.
+     */
     @Transactional(readOnly = true)
     public SupportChatResponse roomMessages(User operator, Long userId, Long after,
                                             Integer limit) {
         requireOperator(operator);
         requireUserExists(userId);
-        return new SupportChatResponse(read(userId, after, limit));
+        boolean operatorMode = roomRepository.findByUser_Id(userId)
+                .map(SupportRoom::isOperatorMode)
+                .orElse(false);
+        return new SupportChatResponse(operatorMode, read(userId, after, limit));
     }
 
     @Transactional

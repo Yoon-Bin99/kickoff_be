@@ -298,6 +298,67 @@ class SupportChatTest extends IntegrationTestSupport {
                         .greaterThan((int) first)));
     }
 
+    // ── operatorMode (계약서 §7-1 확정판)
+
+    @Test
+    @DisplayName("operatorMode 는 escalate 직후 바로 true — 운영자 답이 없어도")
+    void operatorModeIsTrueRightAfterEscalation() throws Exception {
+        mockMvc.perform(get("/api/support/chat")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user)))
+                .andExpect(jsonPath("$.operatorMode").value(false));
+
+        escalate(user).andExpect(status().isNoContent());
+
+        // 여기가 이 필드의 존재 이유다. 말풍선으로 추론하면 <b>운영자를 불렀지만 아직
+        // 답이 없는 구간</b>이 안 보이고, 화면에는 "운영자 연결하기"가 계속 떠 있다 —
+        // 사용자는 이미 부른 버튼을 또 누른다.
+        mockMvc.perform(get("/api/support/chat")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user)))
+                .andExpect(jsonPath("$.operatorMode").value(true))
+                .andExpect(jsonPath("$.messages").isEmpty());
+    }
+
+    @Test
+    @DisplayName("운영자가 답장하면 escalate 없이도 operatorMode 가 true 가 된다")
+    void operatorReplyTurnsOnOperatorMode() throws Exception {
+        send(user, "문의 드립니다").andExpect(status().isCreated());
+        awaitSenders(user, SupportSender.USER, SupportSender.AI);
+
+        mockMvc.perform(post("/api/support/rooms/" + user.getId() + "/chat")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(operator))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"확인했습니다.\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/support/chat")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user)))
+                .andExpect(jsonPath("$.operatorMode").value(true));
+    }
+
+    @Test
+    @DisplayName("운영자가 보는 방에도 operatorMode 가 실린다 — 형태가 같다")
+    void operatorSeesRoomState() throws Exception {
+        send(user, "문의 드립니다").andExpect(status().isCreated());
+        escalate(user).andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/support/rooms/" + user.getId() + "/chat")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(operator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operatorMode").value(true));
+    }
+
+    @Test
+    @DisplayName("운영자가 남의 방을 열어 봐도 빈 방이 생기지 않는다")
+    void operatorViewDoesNotCreateRoom() throws Exception {
+        mockMvc.perform(get("/api/support/rooms/" + other.getId() + "/chat")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(operator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operatorMode").value(false));
+
+        // 문의를 시작한 적 없는 사용자의 방이 생기면 안 된다
+        assertThat(supportRoomRepository.findByUser_Id(other.getId())).isEmpty();
+    }
+
     @Test
     @DisplayName("문의방에는 chatOpen 이 없다 — 만료가 없어서 항상 열려 있다")
     void noChatOpenField() throws Exception {
