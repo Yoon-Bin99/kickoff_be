@@ -1,8 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.21.0)
+# Kickoff API 계약 v1 (현재 v1.22.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.22.0 (2026-09-01): 고객센터 문의 채팅 — §7-1 신설: 사용자↔운영자 1:1 상시 채팅
+> (건의·문의·신고 접수 창구). 매칭 채팅 §6-1 구조 재사용(폴링·after 커서), 만료 없음.
+> 운영자는 env로 지정된 계정, 문의함(방 목록)과 답장은 운영자만. 푸시 `SUPPORT_MESSAGE`.
+>
 > v1.21.0 (2026-08-31): 약관·개인정보 동의 — 이메일 signup에 `termsAgreed: true` 필수
 > (아니면 400). `User.termsAgreedAt` 저장(응답 비노출). 약관·개인정보처리방침은 BE가
 > 정적 페이지(`GET /terms`, `GET /privacy` — 인증 불필요 HTML)로 서빙, FE 가입 화면에
@@ -1249,6 +1253,60 @@ data: `{ "type": "MATCH_CANCELED", "requestId": 7, "postId": 12 }`. 탭 시 매�
 - `TeamResponse.averageRating` = 받은 리뷰 rating 평균, 소수 첫째 자리 반올림 (`4.4666…` → `4.5`)
 - 리뷰 0건이면 `averageRating: null`, `reviewCount: 0`
 - 집계는 조회 시점 계산이든 반정규화든 BE 구현 자유 — 계약은 응답 값만 규정한다
+
+## 7-1. 고객센터 문의 (v1.22.0)
+
+사용자와 **운영자** 간의 1:1 상시 채팅. 건의·문의·신고가 모두 여기로 온다.
+매칭 채팅(§6-1)과 같은 폴링 구조지만 **별개 도메인**이다 — 만료가 없고, 상대가
+팀이 아니라 운영자다.
+
+- **방은 사용자당 하나**, 첫 조회/전송 시 암묵 생성. 닫히지 않는다
+- **운영자**: `SUPPORT_OPERATOR_EMAIL` env로 지정된 이메일의 계정 (기본 미설정 —
+  미설정이면 문의함 API는 전부 403). 운영자 판정은 서버만 안다
+- 사용자에게 운영자는 "킥오프 고객센터"로 표시된다 (계정 정보 비노출)
+
+### SupportMessage
+
+```json
+{ "id": 3, "fromOperator": false, "content": "매칭 상대가 연락이 안 돼요.",
+  "createdAt": "2026-09-01T12:00:00+09:00" }
+```
+
+`fromOperator`로 말풍선을 가른다. `id`는 방 안에서 단조 증가 — 폴링 커서.
+
+### 사용자 쪽 API — 인증 필요
+
+- `GET /api/support/chat?after=&limit=` — 내 문의방 메시지. §6-1과 같은 규칙
+  (오름차순, after 없으면 최신 limit개, limit 기본 50 최대 100). 200 →
+  `{ "messages": [...] }` (chatOpen 없음 — 항상 열려 있다)
+- `POST /api/support/chat` — `{ "content": "..." }` (1~500자). 201 → `SupportMessage`
+
+### 운영자 쪽 API — 인증 필요, 운영자만 (아니면 403 `FORBIDDEN`)
+
+- `GET /api/support/rooms` — 문의방 목록. 200 →
+  `[{ "userId": 5, "nickname": "김감독", "lastMessage": "<SupportMessage>" }]`
+  (lastMessage.createdAt DESC). 메시지 없는 방은 목록에 없다 (문의가 시작돼야 방이
+  의미를 가진다). 페이징 없음
+- `GET /api/support/rooms/{userId}/chat?after=&limit=` / `POST .../chat` — 해당
+  사용자 방 조회·답장 (형태는 사용자 쪽과 동일, 없는 사용자 404 `USER_NOT_FOUND`)
+
+### 푸시 (§8 규약)
+
+| 이벤트 | 시점 | 수신자 | title / body 예시 |
+|---|---|---|---|
+| `SUPPORT_MESSAGE` | 사용자가 전송 | 운영자 | "고객센터 문의" / "{닉네임}: {내용 앞 50자}" |
+| `SUPPORT_MESSAGE` | 운영자가 답장 | 그 사용자 | "킥오프 고객센터" / "{내용 앞 50자}" |
+
+data: `{ "type": "SUPPORT_MESSAGE", "userId": 5 }` (userId는 방 주인 — 운영자 탭용.
+사용자 탭 시에는 무시하고 자기 문의방으로). best-effort.
+
+### FE 규칙
+
+- 진입: 마이 탭에 "고객센터 문의" (모든 사용자). 채팅 화면은 §6-1 컴포넌트 재사용,
+  입력창 상시 활성, 헤더 "킥오프 고객센터"
+- **운영자 계정으로 로그인하면** 마이 탭에 "문의함"이 추가로 보인다 — 방 목록 →
+  각 방 진입·답장. 운영자 여부는 문의함 API가 403이 아닌지로 판정 (강등 패턴)
+- 빈 방 안내: "궁금한 점, 건의, 신고할 일을 남겨 주세요. 운영자가 확인 후 답변드립니다."
 
 ## 8. 푸시 알림 (v1.4.0)
 

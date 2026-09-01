@@ -10,6 +10,10 @@ COPY settings.gradle build.gradle ./
 RUN chmod +x gradlew && ./gradlew --no-daemon dependencies
 
 COPY src src
+# 약관·개인정보처리방침. processResources 가 여기서 리소스로 복사한다 (v1.21.0).
+# .dockerignore 가 docs 를 빼면서 이 두 장만 예외로 들여보낸다 — 둘 중 하나라도
+# 어긋나면 빌드는 성공하고 운영에서만 /terms·/privacy 가 500 이 난다.
+COPY docs docs
 # 테스트는 이미지 빌드에서 돌리지 않는다. 91개를 배포마다 9분씩 다시 도는 값이
 # 크고, 같은 커밋을 이미 로컬과 CI 에서 검증하기 때문이다.
 RUN ./gradlew --no-daemon clean bootJar -x test
