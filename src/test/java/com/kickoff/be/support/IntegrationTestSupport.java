@@ -19,6 +19,8 @@ import com.kickoff.be.team.repository.TeamMemberRepository;
 import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
+import com.kickoff.be.support.repository.SupportMessageRepository;
+import com.kickoff.be.support.repository.SupportRoomRepository;
 import com.kickoff.be.user.repository.UserRepository;
 import com.kickoff.be.verification.repository.PhoneVerificationRepository;
 import java.nio.charset.StandardCharsets;
@@ -53,7 +55,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import({StubOAuthConfig.class, StubPushConfig.class, StubPlaceConfig.class,
-        StubSmsConfig.class})
+        StubSmsConfig.class, StubAiSupportConfig.class})
 public abstract class IntegrationTestSupport {
 
     /**
@@ -134,6 +136,12 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected StubSmsClient smsClient;
     @Autowired
+    protected StubAiSupportClient aiClient;
+    @Autowired
+    protected SupportMessageRepository supportMessageRepository;
+    @Autowired
+    protected SupportRoomRepository supportRoomRepository;
+    @Autowired
     protected PhoneVerificationRepository phoneVerificationRepository;
     @Autowired
     protected PasswordEncoder passwordEncoder;
@@ -148,6 +156,9 @@ public abstract class IntegrationTestSupport {
         teamRecordRepository.deleteAll();
         // 채팅은 신청과 팀을 참조한다 (v1.12.0, 나가기 상태는 v1.13.0)
         chatLeaveRepository.deleteAll();
+        // 고객센터는 사용자만 참조한다 (v1.22.0). 메시지가 방보다 먼저다.
+        supportMessageRepository.deleteAll();
+        supportRoomRepository.deleteAll();
         chatMessageRepository.deleteAll();
         requestRepository.deleteAll();
         postRepository.deleteAll();

@@ -76,6 +76,13 @@ tasks.named('processResources') {
         into 'legal'
     }
 
+    // 고객센터 FAQ·AI 지식 (계약서 §7-1, v1.22.0). 같은 방식으로 나른다 —
+    // 원본은 docs/ 한 벌이고 supervisor 가 거기서 고친다.
+    from('docs') {
+        include 'support-knowledge.md'
+        into 'support'
+    }
+
     /*
      * 복사가 실제로 됐는지 확인하고, 안 됐으면 <b>빌드를 세운다.</b>
      *
@@ -88,13 +95,16 @@ tasks.named('processResources') {
      * <b>로컬 빌드와 배포 빌드가 다르다</b>는 걸 테스트로는 잡을 수 없어서 여기서 잡는다.
      */
     doLast {
-        def dir = layout.buildDirectory.dir('resources/main/legal').get().asFile
-        ['terms-of-service.md', 'privacy-policy.md'].each { name ->
-            if (!new File(dir, name).exists()) {
-                throw new GradleException("""약관 문서가 리소스에 안 실렸습니다: legal/${name}
-  docs/${name} 가 빌드 컨텍스트에 있는지 확인하세요.
+        def resources = layout.buildDirectory.dir('resources/main').get().asFile
+        ['legal/terms-of-service.md',
+         'legal/privacy-policy.md',
+         'support/support-knowledge.md'].each { name ->
+            if (!new File(resources, name).exists()) {
+                def source = name.substring(name.indexOf('/') + 1)
+                throw new GradleException("""문서가 리소스에 안 실렸습니다: ${name}
+  docs/${source} 가 빌드 컨텍스트에 있는지 확인하세요.
   도커 빌드라면 .dockerignore 의 docs 예외와 Dockerfile 의 COPY docs docs 를 함께 보세요.
-  이 검사가 없으면 리소스가 빠진 jar 가 조용히 만들어져 운영에서 /terms·/privacy 만 500 이 납니다.""")
+  이 검사가 없으면 리소스가 빠진 jar 가 조용히 만들어져 운영에서 그 문서를 읽는 API 만 500 이 납니다.""")
             }
         }
     }

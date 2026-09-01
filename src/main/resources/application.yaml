@@ -66,6 +66,22 @@ kickoff:
     # 토큰 없이 가입하는 구버전 앱이 도는 동안 꺼 둔다. 꺼져 있어도 토큰이 오면 검증한다.
     # 롤아웃 순서: BE 배포 → FE 배포 → preview 재빌드·배포 → true 전환.
     phone-required: ${PHONE_VERIFICATION_REQUIRED:false}
+  support:
+    # 운영자 계정 이메일 (계약서 §7-1, v1.22.0). <b>미설정이면 문의함 API 가 전부 403</b> 이다 —
+    # 운영자가 아무도 없는 상태를 기본값으로 둬서, 설정을 빠뜨린 배포가 남의 문의를 열어
+    # 주는 일이 없게 한다.
+    operator-email: ${SUPPORT_OPERATOR_EMAIL:}
+  ai-support:
+    # 기본 off. 꺼져 있으면 FAQ 와 운영자 연결만 동작하고 AI 는 부르지 않는다.
+    # 키가 있어도 이 스위치를 켜기 전에는 호출하지 않는다 — 크레딧이 소모되는 자리라
+    # "키를 넣었더니 돌더라"가 되면 안 된다.
+    enabled: ${AI_SUPPORT_ENABLED:false}
+    # **값을 여기 적지 말 것** — 저장소에 커밋된다. 로컬은 gitignore 된 local.yaml,
+    # 배포는 환경변수. 키가 비면 어댑터 자체가 등록되지 않는다.
+    api-key: ${ANTHROPIC_API_KEY:}
+    # 고객센터 답변 한 줄에 비싼 모델을 쓸 이유가 없다.
+    model: ${AI_SUPPORT_MODEL:claude-haiku-4-5-20251001}
+
   # 시드 데이터 투입 여부. 배포 환경 기본값은 off — 운영 DB 에 예제 데이터가 들어가면 안 된다.
   # 첫 배포 직후 화면 확인용으로만 SEED_DATA=true 로 한 번 켠다.
   seed-data: ${SEED_DATA:false}
@@ -130,6 +146,18 @@ spring:
 # 개발은 시드가 기본 on 이다. 끄고 싶으면 SEED_DATA=false.
 kickoff:
   seed-data: ${SEED_DATA:true}
+  support:
+    # 개발에서만 시드 계정 하나를 운영자로 지정한다 (계약서 §7-1, v1.22.0).
+    # 미설정이면 문의함이 전부 403 이라 FE 가 <b>"안 보이는 것"까지만</b> 확인할 수 있다.
+    #
+    # 최총무를 고른 이유는 다른 시나리오에 가장 적게 얽혀 있어서다 — 김주장은 대기 중
+    # 신청이 쌓인 페르소나이고, 정주장·윤코치는 수락된 매칭의 당사자다. 운영자 계정으로
+    # 로그인하면 마이 탭에 문의함이 추가로 뜨므로, 일반 사용자 화면을 보려면 다른 계정을
+    # 써야 한다. 얽힘이 적은 쪽을 운영자로 두면 그 전환이 덜 번거롭다.
+    #
+    # <b>운영에는 이 기본값이 없다.</b> 아래 prod 블록에 없고 최상단은 빈 값이라,
+    # SUPPORT_OPERATOR_EMAIL 을 주지 않으면 운영자는 아무도 아니다.
+    operator-email: ${SUPPORT_OPERATOR_EMAIL:choi@example.com}
 
 # 로그인 완료 후 돌아갈 수 있는 주소 (계약서 §3-1).
 # 개발 기본값은 넓다 — Expo Go 가 exp:// 로 돌아오기 때문. 운영은 아래 prod 블록 참고.

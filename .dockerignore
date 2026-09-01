@@ -32,3 +32,4 @@ Dockerfile
 docs
 !docs/terms-of-service.md
 !docs/privacy-policy.md
+!docs/support-knowledge.md

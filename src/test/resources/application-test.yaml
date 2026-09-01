@@ -37,3 +37,12 @@ kickoff:
   # SmsDisabledTest 만 이 값을 false 로 덮어 "꺼지면 안 나간다"를 따로 검증한다.
   sms:
     enabled: true
+  # AI 도 스텁으로 나가므로 켜 둔다 (문자·푸시와 같은 이유). 키가 있어야 isUsable()
+  # 이 통과하는데 실제 호출은 스텁이 받는다 — 진짜 제공자로는 절대 안 나간다.
+  # AiDisabledTest 가 이 값을 false 로 덮어 "꺼지면 AI 가 답하지 않는다"를 따로 본다.
+  ai-support:
+    enabled: true
+    api-key: test-key-not-real
+  support:
+    # 운영자 판정 대상. 이 이메일로 만든 계정만 문의함을 연다.
+    operator-email: operator@kickoff.test

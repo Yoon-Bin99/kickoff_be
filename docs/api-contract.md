@@ -6,6 +6,9 @@
 > v1.22.0 (2026-09-01): 고객센터 문의 채팅 — §7-1 신설: 사용자↔운영자 1:1 상시 채팅
 > (건의·문의·신고 접수 창구). 매칭 채팅 §6-1 구조 재사용(폴링·after 커서), 만료 없음.
 > 운영자는 env로 지정된 계정, 문의함(방 목록)과 답장은 운영자만. 푸시 `SUPPORT_MESSAGE`.
+> **3단 응대**: FAQ 퀵버튼(`GET /api/support/faq`) → AI 상담사(Claude API, 미해결 시)
+> → 운영자 연결(`POST /api/support/chat/escalate`). 메시지 발신자는 `sender`
+> (USER/AI/OPERATOR). 챗봇 UI는 고객센터 화면 안에서만 — 플로팅 버튼 없음(사용자 결정).
 >
 > v1.21.0 (2026-08-31): 약관·개인정보 동의 — 이메일 signup에 `termsAgreed: true` 필수
 > (아니면 400). `User.termsAgreedAt` 저장(응답 비노출). 약관·개인정보처리방침은 BE가
@@ -216,6 +219,7 @@
 | `VERIFICATION_EXPIRED` | 400 | 인증번호·토큰 만료 (v1.15.0) |
 | `VERIFICATION_RATE_LIMITED` | 429 | 인증번호 발송 한도 초과 (v1.15.0) |
 | `SMS_SEND_FAILED` | 502 | 문자 발송 외부 API 실패 (v1.15.0) |
+| `SUPPORT_RATE_LIMITED` | 429 | 고객센터 AI 호출 한도 초과 (v1.22.0) |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 (FE는 "잠시 후 다시 시도해주세요"로 표시) |
 
 참고 사항:
@@ -1268,11 +1272,32 @@ data: `{ "type": "MATCH_CANCELED", "requestId": 7, "postId": 12 }`. 탭 시 매�
 ### SupportMessage
 
 ```json
-{ "id": 3, "fromOperator": false, "content": "매칭 상대가 연락이 안 돼요.",
+{ "id": 3, "sender": "USER", "content": "매칭 상대가 연락이 안 돼요.",
   "createdAt": "2026-09-01T12:00:00+09:00" }
 ```
 
-`fromOperator`로 말풍선을 가른다. `id`는 방 안에서 단조 증가 — 폴링 커서.
+`sender`: `"USER" | "AI" | "OPERATOR"`. FE 표시 — AI는 "AI 상담사", OPERATOR는
+"킥오프 고객센터". `id`는 방 안에서 단조 증가 — 폴링 커서.
+
+### 3단 응대 구조 (v1.22.0)
+
+1. **FAQ 퀵버튼** — `GET /api/support/faq` (인증 필요) → `[{ "id": 1, "question":
+   "...", "answer": "..." }]`. FE가 방 상단/빈 방에 버튼으로 깔고, 누르면 질문·답변을
+   **화면에서만** 주고받은 것처럼 그린다 (서버 저장·AI 호출 없음 — 무료·즉답.
+   방 이력에는 안 남는다). 내용은 BE 리소스 파일(운영 문서에서 발췌)
+2. **AI 상담사** — 방이 운영자 연결 상태가 아니면, 사용자 메시지 저장 후 서버가
+   Claude API로 답변을 생성해 `sender: "AI"` 메시지로 저장한다(다음 폴링에 잡힘).
+   - env: `ANTHROPIC_API_KEY`, `AI_SUPPORT_ENABLED`(기본 false — 미설정·꺼짐이면 AI
+     없이 운영자 연결만 동작), 모델은 저비용 모델(BE 재량, claude-haiku 계열 권장)
+   - 시스템 프롬프트·서비스 지식은 BE 리소스 파일 (supervisor가 작성·관리)
+   - **AI 제약**: 환불·제재·보상은 약속하지 않고 운영자 연결을 권하도록 프롬프트로
+     제한. 응답 실패(타임아웃 등) 시 "운영자에게 전달해 드릴까요?" 안내 메시지로 강등
+   - 남용 방지: 사용자당 AI 호출 분당 5회 초과 시 429 `VERIFICATION_RATE_LIMITED`
+     재사용이 아니라 **`SUPPORT_RATE_LIMITED`(429) 신설**
+3. **운영자 연결** — `POST /api/support/chat/escalate` → 204. 방이 **운영자 모드**가
+   되고 이후 AI는 답하지 않는다(v1에서는 되돌리기 없음). 에스컬레이트 시점과 운영자
+   모드 방의 새 사용자 메시지에 운영자 푸시. FE는 "운영자 연결하기" 버튼을 방에
+   상시 노출하고, AI 답변 아래에도 안내를 둔다
 
 ### 사용자 쪽 API — 인증 필요
 
@@ -1294,7 +1319,7 @@ data: `{ "type": "MATCH_CANCELED", "requestId": 7, "postId": 12 }`. 탭 시 매�
 
 | 이벤트 | 시점 | 수신자 | title / body 예시 |
 |---|---|---|---|
-| `SUPPORT_MESSAGE` | 사용자가 전송 | 운영자 | "고객센터 문의" / "{닉네임}: {내용 앞 50자}" |
+| `SUPPORT_MESSAGE` | 사용자가 전송 (**운영자 모드 방만** — AI 응대 중에는 미발송, v1.22.0) | 운영자 | "고객센터 문의" / "{닉네임}: {내용 앞 50자}" |
 | `SUPPORT_MESSAGE` | 운영자가 답장 | 그 사용자 | "킥오프 고객센터" / "{내용 앞 50자}" |
 
 data: `{ "type": "SUPPORT_MESSAGE", "userId": 5 }` (userId는 방 주인 — 운영자 탭용.

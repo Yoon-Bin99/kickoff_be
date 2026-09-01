@@ -53,6 +53,13 @@ public enum ErrorCode {
     CHAT_CLOSED(HttpStatus.CONFLICT, "경기 시각이 지나 메시지를 보낼 수 없습니다."),
     REVIEW_NOT_AVAILABLE(HttpStatus.CONFLICT, "아직 리뷰를 쓸 수 없는 매칭입니다."),
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 리뷰를 작성했습니다."),
+    /*
+     * 고객센터 AI 호출 한도 (계약서 §7-1, v1.22.0). 전화번호 인증의
+     * VERIFICATION_RATE_LIMITED 를 재사용하지 않는다 — 화면도 안내도 다른 자리라,
+     * 한 코드로 묶으면 FE 가 "인증번호를 너무 많이 요청했다"는 문구를 고객센터에 띄운다.
+     */
+    SUPPORT_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS,
+            "문의가 너무 빠릅니다. 잠시 후 다시 보내 주세요."),
     UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인입니다."),
     OAUTH_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다."),
     /** v1.3.4 에서 자동 연동이 폐지돼 지금은 쓰지 않는다. 연동 기능이 생기는 v2 를 위해 남긴다. */
