@@ -570,14 +570,19 @@ public class DataInitializer implements ApplicationRunner {
         // 화면에서 막는 것)를 FE 가 밟으려면 이 상태가 필요하다. 위 계정은 번호가 있어
         // 조건에 안 걸린다.
         //
-        // <b>실제 OAuth 첫 로그인 직후와 한 가지가 다르다.</b> 진짜 그 상태에는 이메일도
-        // 비밀번호도 없는데, 그러면 FE 가 이 계정으로 로그인할 방법이 없다(비밀번호
-        // 로그인 불가, 로컬에서 OAuth 를 태울 수도 없다). 그래서 이메일·비밀번호를 주되
-        // KAKAO 연동도 함께 걸어 뒀다 — 게이트 조건은 phone == null 하나뿐이라 동작은
-        // 같고, 화면에서는 소셜 연동된 계정으로 보인다.
+        // <b>이메일도 비밀번호도 없다.</b> 계약이 "소셜 가입 계정은 email 항상 null"을
+        // 불변식으로 못박고 있고(§2, v1.3.4), 그래서 FE 는 "email 이 있으면 비밀번호도
+        // 있다"에 기대어 화면을 가른다 — v1.24.1 의 계정 관리 게이트가 그렇다.
+        //
+        // 예전에는 이 계정에 이메일·비밀번호를 넣어 뒀다. FE 가 로컬에서 로그인할 방법이
+        // 없어서였는데(비밀번호 로그인 불가, OAuth 를 태울 수도 없다), 그 편의 때문에
+        // <b>계약에 없는 조합</b>이 시드에 생겼다: 이메일은 있는데 비밀번호가 없는 계정을
+        // 게이트가 만나면, 비밀번호를 물어 놓고 어떤 값도 통과 못 하는 화면이 된다.
+        //
+        // 이제는 BE 가 로컬 access token 을 만들어 줄 수 있어 그 편의가 필요 없다.
+        // 시드는 계약과 같은 모양이어야 한다 — 시드가 못 만드는 상태는 FE 도 못 밟지만,
+        // 시드에만 있는 상태는 <b>없는 버그를 쫓게 만든다.</b>
         User pending = userRepository.save(User.builder()
-                .email("nophone@example.com")
-                .password(passwordEncoder.encode(RAW_PASSWORD))
                 .nickname("번호없는카카오")
                 .build());
         socialAccountRepository.save(SocialAccount.builder()

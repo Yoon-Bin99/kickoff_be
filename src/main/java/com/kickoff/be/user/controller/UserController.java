@@ -10,6 +10,7 @@ import com.kickoff.be.team.dto.MyTeamResponse;
 import com.kickoff.be.team.service.TeamAdminService;
 import com.kickoff.be.user.dto.AccountDeleteRequest;
 import com.kickoff.be.user.dto.PasswordChangeRequest;
+import com.kickoff.be.user.dto.PasswordVerifyRequest;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.service.AccountDeletionService;
 import com.kickoff.be.user.service.UserService;
@@ -21,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -79,6 +81,22 @@ public class UserController {
     public void changePassword(@LoginUser User user,
                                @Valid @RequestBody PasswordChangeRequest request) {
         userService.changePassword(user, request);
+    }
+
+    /**
+     * 본인 확인 (계약서 §3-4 위, v1.24.1). <b>상태를 바꾸지 않는다.</b>
+     *
+     * 계정 관리 화면 진입 게이트다. 탈퇴·비밀번호 변경이 있는 화면이라 FE 가 들어갈
+     * 때마다 묻는다 — 서버는 그 정책을 강제할 수 없고, "맞는가"에만 답한다.
+     *
+     * POST 인 것은 비밀번호를 body 로 받기 때문이다. GET 이면 쿼리스트링에 실려
+     * 로그·히스토리에 남는다.
+     */
+    @PostMapping("/me/verify-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void verifyPassword(@LoginUser User user,
+                               @Valid @RequestBody PasswordVerifyRequest request) {
+        userService.verifyPassword(user, request);
     }
 
     /**

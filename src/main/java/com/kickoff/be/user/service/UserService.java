@@ -7,6 +7,7 @@ import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.dto.PasswordChangeRequest;
+import com.kickoff.be.user.dto.PasswordVerifyRequest;
 import com.kickoff.be.user.dto.PushTokenRequest;
 import com.kickoff.be.user.dto.UserResponse;
 import com.kickoff.be.user.dto.UserUpdateRequest;
@@ -114,17 +115,53 @@ public class UserService {
     public void changePassword(User loginUser, PasswordChangeRequest request) {
         User user = userRepository.findById(loginUser.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        requireCurrentPassword(user, request.currentPassword(),
+                "소셜 계정은 비밀번호를 변경할 수 없습니다.");
+        user.updatePassword(passwordEncoder.encode(request.newPassword()));
+    }
+
+    /**
+     * 본인 확인용 비밀번호 검증 (계약서 §3-4 위, v1.24.1). <b>상태를 바꾸지 않는다.</b>
+     *
+     * 계정 관리 화면(탈퇴·비밀번호 변경이 있는 곳)의 진입 게이트다. FE 가 진입할 때마다
+     * 묻고 캐시하지 않는다 — 서버는 그 정책을 강제할 수 없고, 여기서 할 일은 "맞는가"에
+     * 정직하게 답하는 것뿐이다.
+     *
+     * <b>{@code readOnly = true} 가 방어의 일부다.</b> 성능 때문이 아니라, 이 메서드에
+     * 실수로 쓰기가 들어와도 <b>플러시가 일어나지 않아 반영되지 않기</b> 때문이다.
+     * 변이 검증으로 확인했다 — 여기에 {@code clearRefreshToken()} 을 넣어도 테스트가
+     * 하나도 안 깨지는데, readOnly 를 함께 떼면 그때 깨진다. 즉 구조와 테스트가 두 겹으로
+     * 막고 있고, <b>둘 중 하나만 사라져도 나머지가 잡는다.</b>
+     */
+    @Transactional(readOnly = true)
+    public void verifyPassword(User loginUser, PasswordVerifyRequest request) {
+        User user = userRepository.findById(loginUser.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        requireCurrentPassword(user, request.password(),
+                "소셜 계정은 비밀번호가 없습니다.");
+    }
+
+    /**
+     * 비밀번호 변경과 본인 확인이 <b>같은 규칙</b>을 쓴다 — 소셜은 400 VALIDATION_FAILED,
+     * 불일치는 400 PASSWORD_MISMATCH.
+     *
+     * 한 곳에 모은 이유: 두 API 가 사용자에게는 "비밀번호를 다시 대는" 같은 행동이라,
+     * 응답이 갈리면 화면이 이유 없이 달라진다. 나뉘어 있으면 한쪽만 고쳐지는 날이 온다.
+     *
+     * <b>불일치는 400 이지 401 이 아니다</b> — 탈퇴(§3-4)와 같은 이유다. 401 을 주면 FE
+     * 인터셉터가 세션 만료로 오인해 refresh 를 타고, 사용자는 비밀번호를 틀린 줄도
+     * 모른 채 화면이 튄다.
+     *
+     * 형식 규칙은 걸지 않는다. v1.16.0 이전 규칙으로 만들어진 계정이 실재하는데, 형식으로
+     * 먼저 거절하면 그 사람들은 <b>계정 관리에 들어갈 수조차 없다.</b>
+     */
+    private void requireCurrentPassword(User user, String password, String socialMessage) {
         if (!user.hasPassword()) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-                    "소셜 계정은 비밀번호를 변경할 수 없습니다.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, socialMessage);
         }
-        // 불일치는 400 이지 401 이 아니다 — 탈퇴(§3-4)와 같은 이유다. 401 을 주면 FE
-        // 인터셉터가 세션 만료로 오인해 refresh 를 타고, 사용자는 비밀번호를 틀린 줄도
-        // 모른 채 화면이 튄다.
-        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+        if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new BusinessException(ErrorCode.PASSWORD_MISMATCH);
         }
-        user.updatePassword(passwordEncoder.encode(request.newPassword()));
     }
 
     private UserResponse toResponse(User user) {
