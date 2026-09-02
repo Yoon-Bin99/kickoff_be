@@ -48,6 +48,14 @@ public enum ErrorCode {
     REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신청입니다."),
     REQUEST_NOT_PENDING(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
     REQUEST_NOT_ACCEPTED(HttpStatus.CONFLICT, "수락된 신청이 아닙니다."),
+    /*
+     * 회원 탈퇴 (계약서 §3-4, v1.23.0).
+     *
+     * PASSWORD_MISMATCH 가 400 인 것은 <b>일부러다.</b> 401 을 쓰면 FE 인터셉터가 세션
+     * 만료로 오인해 refresh 를 타고, 사용자는 비밀번호를 틀린 줄도 모른 채 화면이 튄다.
+     */
+    PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않습니다."),
+    ACTIVE_MATCH_EXISTS(HttpStatus.CONFLICT, "예정된 매칭이 있어 탈퇴할 수 없습니다."),
     MATCH_CANCEL_EXPIRED(HttpStatus.CONFLICT, "이미 지난 경기는 매칭을 취소할 수 없습니다."),
     /** 매칭 채팅 (계약서 §6-1, v1.12.0). 경기 시각이 지나면 읽기 전용이다. */
     CHAT_CLOSED(HttpStatus.CONFLICT, "경기 시각이 지나 메시지를 보낼 수 없습니다."),

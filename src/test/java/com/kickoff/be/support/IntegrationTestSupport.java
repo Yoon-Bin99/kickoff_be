@@ -55,7 +55,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import({StubOAuthConfig.class, StubPushConfig.class, StubPlaceConfig.class,
-        StubSmsConfig.class, StubAiSupportConfig.class})
+        StubSmsConfig.class, StubAiSupportConfig.class, StubEmailConfig.class})
 public abstract class IntegrationTestSupport {
 
     /**
@@ -138,6 +138,19 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected StubAiSupportClient aiClient;
     @Autowired
+    protected StubEmailClient emailClient;
+    @Autowired
+    protected com.kickoff.be.passwordreset.repository.PasswordResetCodeRepository
+            passwordResetCodeRepository;
+    @jakarta.persistence.PersistenceContext
+    protected jakarta.persistence.EntityManager entityManager;
+    /**
+     * 테스트에 트랜잭션이 없어서(수락 흐름처럼 여러 요청에 걸친 상태 전이를 보려고 일부러
+     * 뺐다) 벌크 update 를 직접 돌리려면 이게 필요하다.
+     */
+    @Autowired
+    protected org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+    @Autowired
     protected SupportMessageRepository supportMessageRepository;
     @Autowired
     protected SupportRoomRepository supportRoomRepository;
@@ -159,6 +172,10 @@ public abstract class IntegrationTestSupport {
         // 고객센터는 사용자만 참조한다 (v1.22.0). 메시지가 방보다 먼저다.
         supportMessageRepository.deleteAll();
         supportRoomRepository.deleteAll();
+        // 비밀번호 재설정 요청 (v1.23.0). 아무것도 참조하지 않지만 <b>반드시 비워야 한다</b> —
+        // 레이트리밋이 이 표의 행 수로 판정하므로, 남아 있으면 다음 테스트의 첫 요청이
+        // 429 로 막힌다.
+        passwordResetCodeRepository.deleteAll();
         chatMessageRepository.deleteAll();
         requestRepository.deleteAll();
         postRepository.deleteAll();

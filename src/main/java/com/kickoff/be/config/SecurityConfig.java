@@ -85,7 +85,12 @@ public class SecurityConfig {
                                 // 판정한다 — permitAll 이 빠지면 신버전이 스스로를 옛
                                 // 서버라고 말하는 셈이 되어, 인증 UI 가 통째로 사라진다.
                                 "/api/auth/phone/verifications",
-                                "/api/auth/phone/verifications/confirm").permitAll()
+                                "/api/auth/phone/verifications/confirm",
+                                // 비밀번호 재설정 (계약서 §3-3, v1.23.0). 로그인을 <b>못 하는</b>
+                                // 사람이 쓰는 API 라 토큰이 있을 수 없다. 여기가 막히면
+                                // 비밀번호를 잊은 사용자가 영영 못 들어온다.
+                                "/api/auth/password-reset",
+                                "/api/auth/password-reset/confirm").permitAll()
                         // 소셜 로그인 (계약서 §3-1) — 콜백은 제공자가 부르므로 토큰이 없다
                         .requestMatchers(HttpMethod.GET, "/api/auth/oauth/*/authorize",
                                 "/api/auth/oauth/*/callback").permitAll()

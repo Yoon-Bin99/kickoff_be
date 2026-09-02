@@ -8,13 +8,16 @@ import com.kickoff.be.user.dto.UserResponse;
 import com.kickoff.be.user.dto.UserUpdateRequest;
 import com.kickoff.be.team.dto.MyTeamResponse;
 import com.kickoff.be.team.service.TeamAdminService;
+import com.kickoff.be.user.dto.AccountDeleteRequest;
 import com.kickoff.be.user.entity.User;
+import com.kickoff.be.user.service.AccountDeletionService;
 import com.kickoff.be.user.service.UserService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
+    private final AccountDeletionService accountDeletionService;
     private final TeamAdminService teamAdminService;
     private final ChatService chatService;
 
@@ -61,5 +65,20 @@ public class UserController {
     public void updatePushToken(@LoginUser User user,
                                 @Valid @RequestBody PushTokenRequest request) {
         userService.updatePushToken(user, request);
+    }
+
+    /**
+     * 회원 탈퇴 (계약서 §3-4, v1.23.0). 되돌릴 수 없다.
+     *
+     * <b>body 가 없어도 된다.</b> 소셜 계정은 비밀번호가 없어 그냥 부른다 —
+     * {@code required = false} 를 빼면 소셜 사용자가 400 으로 막혀 영영 탈퇴할 수 없다.
+     *
+     * 이중 확인은 FE 몫이다. 서버가 두 번 물을 방법이 없다.
+     */
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMe(@LoginUser User user,
+                         @RequestBody(required = false) AccountDeleteRequest request) {
+        accountDeletionService.delete(user, request);
     }
 }

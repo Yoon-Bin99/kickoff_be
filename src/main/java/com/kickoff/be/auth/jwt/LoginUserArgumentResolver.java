@@ -33,7 +33,11 @@ public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver 
         if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
             return null;
         }
+        // 토큰은 멀쩡한데 그 사용자가 없다 — 탈퇴한 계정의 토큰이다 (계약서 §3-4).
+        // <b>404 가 아니라 401 이다.</b> 자격 증명이 더 이상 유효하지 않다는 뜻이지
+        // "그런 리소스가 없다"가 아니고, FE 인터셉터도 401 에서만 로그아웃 처리를 한다 —
+        // 404 를 주면 앱이 "사용자를 찾을 수 없습니다"를 띄운 채 로그인 상태로 남는다.
         return userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
     }
 }

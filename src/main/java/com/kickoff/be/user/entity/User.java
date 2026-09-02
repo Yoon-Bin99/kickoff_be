@@ -127,6 +127,14 @@ public class User extends BaseTimeEntity {
     }
 
     /** 로그아웃. 이미 비어 있어도 그냥 비운다 — 멱등이다 (계약서 §3). */
+    /**
+     * 비밀번호 교체 (계약서 §3-3, v1.23.0). 호출자가 이미 해시해서 넘긴다 —
+     * 엔티티가 인코더를 알면 도메인이 보안 설정에 묶인다.
+     */
+    public void updatePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
     public void clearRefreshToken() {
         this.refreshTokenHash = null;
         this.refreshTokenExpiresAt = null;
