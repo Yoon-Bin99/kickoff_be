@@ -9,6 +9,22 @@ spring:
     name: be
   profiles:
     active: dev
+  # SMTP (계약서 §3-3, v1.23.0). <b>값을 여기 적지 말 것</b> — 저장소에 커밋된다.
+  # 로컬은 gitignore 된 local.yaml, 배포는 환경변수. Gmail 은 계정 비밀번호가 아니라
+  # <b>앱 비밀번호</b>를 요구한다.
+  # 셋 중 하나라도 비면 SMTP 어댑터가 등록되지 않고 LoggingEmailClient 가 남는다.
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
   jackson:
     time-zone: Asia/Seoul
     # 계약서가 null 필드(contact, myRequestStatus 등)도 키를 유지하길 기대한다
@@ -66,6 +82,12 @@ kickoff:
     # 토큰 없이 가입하는 구버전 앱이 도는 동안 꺼 둔다. 꺼져 있어도 토큰이 오면 검증한다.
     # 롤아웃 순서: BE 배포 → FE 배포 → preview 재빌드·배포 → true 전환.
     phone-required: ${PHONE_VERIFICATION_REQUIRED:false}
+  email:
+    # 비밀번호 재설정 메일 (계약서 §3-3, v1.23.0). 기본 off — dev 에서는 실제로 보내지
+    # 않고 인증번호를 서버 로그로만 남긴다. 문자와 같은 방침이다.
+    enabled: ${EMAIL_ENABLED:false}
+    # 발신 주소. 비우면 spring.mail.username 을 쓴다 — Gmail 은 이 둘이 다르면 거절한다.
+    from: ${EMAIL_FROM:}
   support:
     # 운영자 계정 이메일 (계약서 §7-1, v1.22.0). <b>미설정이면 문의함 API 가 전부 403</b> 이다 —
     # 운영자가 아무도 없는 상태를 기본값으로 둬서, 설정을 빠뜨린 배포가 남의 문의를 열어

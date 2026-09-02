@@ -34,6 +34,9 @@ dependencies {
     // 있고 RestClient.Builder <b>빈</b>을 만들어 주는 자동설정은 이 모듈에 있다 — 빠뜨리면
     // 기동이 NoSuchBeanDefinition 으로 죽는다 (flyway 와 같은 함정).
     implementation 'org.springframework.boot:spring-boot-restclient'
+    // 비밀번호 재설정 메일 발송 (계약서 §3-3, v1.23.0). JavaMailSender 가 여기 있다.
+    // supervisor 승인 후 추가 — CLAUDE.md 가 스택 임의 변경을 금지한다.
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
