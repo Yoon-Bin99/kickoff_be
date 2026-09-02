@@ -86,6 +86,15 @@ kickoff:
     # 비밀번호 재설정 메일 (계약서 §3-3, v1.23.0). 기본 off — dev 에서는 실제로 보내지
     # 않고 인증번호를 서버 로그로만 남긴다. 문자와 같은 방침이다.
     enabled: ${EMAIL_ENABLED:false}
+    brevo:
+      # HTTP 메일 발송 (Brevo). **값을 여기 적지 말 것** — 저장소에 커밋된다.
+      #
+      # Railway 가 아웃바운드 SMTP 를 막아서(587 TCP 타임아웃, 스팸 방지 정책) SMTP 로는
+      # 운영에서 메일을 보낼 수 없다. 인증 이전 단계라 앱 비밀번호나 STARTTLS 로 풀리지
+      # 않고, 465 도 같은 정책이다. 그래서 HTTPS 로 보내는 어댑터를 1순위로 둔다.
+      #
+      # 이 키가 있으면 SMTP 설정이 함께 있어도 Brevo 가 이긴다 (EmailClientConfig 참고).
+      api-key: ${BREVO_API_KEY:}
     # 발신 주소. 비우면 spring.mail.username 을 쓴다 — Gmail 은 이 둘이 다르면 거절한다.
     from: ${EMAIL_FROM:}
   support:

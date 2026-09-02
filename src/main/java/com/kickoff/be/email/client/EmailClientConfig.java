@@ -9,41 +9,69 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.mail.javamail.JavaMailSender;
 
 /**
- * 메일 어댑터 선택 (계약서 §3-3, v1.23.0).
+ * 메일 어댑터 선택 (계약서 §3-3).
  *
- * <b>SMTP 계정이 다 차 있을 때만 등록된다.</b> 빈 값으로라도 등록하면 매 발송이 인증
- * 실패로 끝나는데, 발송이 비동기라 그 실패는 로그에만 남는다 — 사용자는 "메일이 안 온다"만
- * 보고, 우리는 "제공자가 이상하다"로 읽는다. 설정이 빠진 것과 구별되지 않는다.
+ * <b>우선순위를 한 곳에 모은 이유가 있다.</b> 예전에는 어댑터마다 {@code @Primary} 를
+ * 붙였는데, 그 방식으로 세 번째 어댑터를 더하면 <b>{@code @Primary} 빈이 둘이 되어 기동이
+ * 죽는다</b> ({@code NoUniqueBeanDefinitionException}). 운영에는 SMTP 설정이 이미 들어가
+ * 있어서, 거기에 Brevo 키를 넣는 순간 서비스 전체가 내려갔을 것이다 — 메일 하나 고치려다.
  *
- * 등록되지 않으면 {@link LoggingEmailClient} 가 남아 코드를 로그로만 남긴다. dev 의
- * 정상 상태가 그쪽이다.
+ * 지금은 {@code @Primary} 가 이 메서드 하나뿐이라 그 충돌이 <b>구조적으로 불가능</b>하고,
+ * 우선순위가 한 화면에 다 보인다.
  *
- * <b>{@code EMAIL_ENABLED} 는 등록 조건에 넣지 않는다.</b> 넣으면 "키는 있는데 꺼 둔"
- * 상태와 "키가 없는" 상태가 한 모양이 되어, 왜 메일이 안 나가는지 구별할 수 없다.
- * 스위치는 어댑터가 본다.
+ * <pre>
+ *   1. Brevo    BREVO_API_KEY 가 있으면       ← HTTP. Railway 가 SMTP 를 막아 이게 1순위다
+ *   2. SMTP     host·username·password 셋 다  ← 로컬·다른 호스팅용으로 남겨 둔다
+ *   3. Logging  아무 설정도 없으면             ← 보내지 않고 코드를 로그로. dev 의 정상 상태
+ * </pre>
+ *
+ * <b>{@code EMAIL_ENABLED} 는 여기서 보지 않는다.</b> 스위치를 선택 조건에 넣으면 "키는
+ * 있는데 꺼 둔" 상태와 "키가 없는" 상태가 한 모양이 되어, 왜 메일이 안 나가는지 구별할 수
+ * 없다. 스위치는 각 어댑터가 본다.
  */
 @Slf4j
 @Configuration
 public class EmailClientConfig {
 
+    /**
+     * 실제로 쓸 어댑터.
+     *
+     * 조건식이 "둘 중 하나라도 설정이 있을 때"인 이유: 아무 설정도 없는 dev 에서는 이
+     * 빈을 아예 만들지 않아 {@link LoggingEmailClient}({@code @Component})가 그대로 남는다.
+     */
     @Bean
     @Primary
     @ConditionalOnExpression("""
-            !'${spring.mail.host:}'.isEmpty()
-            and !'${spring.mail.username:}'.isEmpty()
-            and !'${spring.mail.password:}'.isEmpty()
+            !'${kickoff.email.brevo.api-key:}'.isEmpty()
+            or (!'${spring.mail.host:}'.isEmpty()
+                and !'${spring.mail.username:}'.isEmpty()
+                and !'${spring.mail.password:}'.isEmpty())
             """)
-    public EmailClient smtpEmailClient(JavaMailSender mailSender, EmailProperties properties,
-                                       @Value("${spring.mail.host:}") String host,
-                                       @Value("${spring.mail.username:}") String username) {
-        // 기동 로그에 남긴다. 이게 없으면 운영에서 "어댑터가 붙었는지"를 <b>메일을 한 번
-        // 보내 봐야만</b> 알 수 있다 — 설정이 빠진 배포를 발송 실패로 알게 되는 셈이다.
-        //
-        // "이후 발송은 SMTP 로 나갑니다"를 명시한다. LoggingEmailClient 의 준비 로그가
-        // 바로 위에 찍혀 있어서, 그 말이 없으면 어느 쪽이 이겼는지 로그만으로는 모른다.
-        // 비밀번호는 찍지 않는다.
-        log.info("SMTP 어댑터 등록됨 — 이후 발송은 SMTP 로 나갑니다. "
-                + "host={} username={} enabled={}", host, username, properties.enabled());
+    public EmailClient emailClient(
+            JavaMailSender mailSender, EmailProperties properties,
+            @Value("${kickoff.email.brevo.api-key:}") String brevoApiKey,
+            @Value("${spring.mail.host:}") String host,
+            @Value("${spring.mail.port:587}") String port,
+            @Value("${spring.mail.username:}") String username) {
+
+        // 발신 주소는 두 어댑터가 같은 규칙을 쓴다 — EMAIL_FROM 이 있으면 그것,
+        // 없으면 SMTP 계정. Brevo 는 <b>콘솔에서 인증한 주소</b>만 발신을 허용한다.
+        String sender = properties.from() == null || properties.from().isBlank()
+                ? username : properties.from();
+
+        if (!brevoApiKey.isBlank()) {
+            // <b>왜 그게 골라졌는지</b>까지 남긴다. SMTP 설정이 함께 있을 때 "왜 SMTP 로
+            // 안 나가지"를 로그만 보고 알 수 있어야 한다. API 키는 찍지 않는다.
+            log.info("메일 어댑터: Brevo (HTTP) — sender={}{} enabled={}", sender,
+                    host.isBlank() ? "" : " · SMTP 설정도 있으나 Brevo 가 우선 ·",
+                    properties.enabled());
+            return new BrevoEmailClient(brevoApiKey, sender);
+        }
+
+        // env 를 바꿨을 때 반영됐는지 로그로 확인할 수 있어야 한다 — 이번 조사에서
+        // "설정을 고쳤는데 그게 실제로 먹었나"를 못 보는 게 여러 번 걸렸다.
+        log.info("메일 어댑터: SMTP — host={} port={} username={} enabled={}",
+                host, port, username, properties.enabled());
         return new SmtpEmailClient(mailSender, properties, username);
     }
 }
