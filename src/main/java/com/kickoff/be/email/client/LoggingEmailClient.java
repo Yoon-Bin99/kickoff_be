@@ -20,6 +20,10 @@ public class LoggingEmailClient implements EmailClient {
 
     public LoggingEmailClient(EmailProperties properties) {
         this.properties = properties;
+        // SmtpEmailClient 쪽 등록 로그와 짝이다. 둘 중 하나는 반드시 찍히므로,
+        // 기동 로그만 봐도 어느 어댑터가 살아 있는지 알 수 있다.
+        log.info("SMTP 미설정 — 메일은 로그로만 남깁니다 (EMAIL_ENABLED={})",
+                properties.enabled());
     }
 
     @Override

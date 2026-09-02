@@ -1,5 +1,6 @@
 package com.kickoff.be.email.client;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +22,7 @@ import org.springframework.mail.javamail.JavaMailSender;
  * 상태와 "키가 없는" 상태가 한 모양이 되어, 왜 메일이 안 나가는지 구별할 수 없다.
  * 스위치는 어댑터가 본다.
  */
+@Slf4j
 @Configuration
 public class EmailClientConfig {
 
@@ -32,7 +34,13 @@ public class EmailClientConfig {
             and !'${spring.mail.password:}'.isEmpty()
             """)
     public EmailClient smtpEmailClient(JavaMailSender mailSender, EmailProperties properties,
+                                       @Value("${spring.mail.host:}") String host,
                                        @Value("${spring.mail.username:}") String username) {
+        // 기동 로그에 남긴다. 이게 없으면 운영에서 "어댑터가 붙었는지"를 <b>메일을 한 번
+        // 보내 봐야만</b> 알 수 있다 — 설정이 빠진 배포를 발송 실패로 알게 되는 셈이다.
+        // 비밀번호는 찍지 않는다.
+        log.info("SMTP 어댑터 등록됨 — host={} username={} enabled={}",
+                host, username, properties.enabled());
         return new SmtpEmailClient(mailSender, properties, username);
     }
 }

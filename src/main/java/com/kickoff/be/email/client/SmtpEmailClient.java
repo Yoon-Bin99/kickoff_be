@@ -44,5 +44,13 @@ public class SmtpEmailClient implements EmailClient {
         message.setSubject(subject);
         message.setText(body);
         mailSender.send(message);
+        // 성공을 남기는 이유: 이게 없으면 <b>"보냈는데 안 온 것"과 "아예 안 보낸 것"이
+        // 구별되지 않는다.</b> §3-3 은 계정이 없거나 소셜이면 조용히 아무것도 안 하는데,
+        // 그때도 로그가 비어 있어 조사에서 두 경우를 가를 수가 없었다. 실제로 운영에서
+        // 메일이 안 온다는 보고를 받고 그 사각을 알았다.
+        //
+        // 본문은 남기지 않는다 — 인증번호가 들어 있고, 발송이 성공했다면 그 코드는
+        // 사용자 메일함에 있다. dev 로그와 달리 운영에서는 남길 이유가 없다.
+        log.info("메일 발송 성공 to={} subject={}", to, subject);
     }
 }
