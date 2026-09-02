@@ -9,6 +9,7 @@ import com.kickoff.be.user.dto.UserUpdateRequest;
 import com.kickoff.be.team.dto.MyTeamResponse;
 import com.kickoff.be.team.service.TeamAdminService;
 import com.kickoff.be.user.dto.AccountDeleteRequest;
+import com.kickoff.be.user.dto.PasswordChangeRequest;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.service.AccountDeletionService;
 import com.kickoff.be.user.service.UserService;
@@ -65,6 +66,19 @@ public class UserController {
     public void updatePushToken(@LoginUser User user,
                                 @Valid @RequestBody PushTokenRequest request) {
         userService.updatePushToken(user, request);
+    }
+
+    /**
+     * 로그인 상태의 비밀번호 변경 (계약서 §3-3 아래, v1.24.0).
+     *
+     * 재설정(§3-3)과 다른 경로다 — 그쪽은 로그인을 <b>못 하는</b> 사람이 쓰고 인증이
+     * 없으며 성공 시 모든 세션을 끊는다. 이쪽은 로그인한 사람이 쓰고 세션을 유지한다.
+     */
+    @PatchMapping("/me/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@LoginUser User user,
+                               @Valid @RequestBody PasswordChangeRequest request) {
+        userService.changePassword(user, request);
     }
 
     /**

@@ -6,6 +6,7 @@ import com.kickoff.be.common.Patchable;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
+import com.kickoff.be.user.dto.PasswordChangeRequest;
 import com.kickoff.be.user.dto.PushTokenRequest;
 import com.kickoff.be.user.dto.UserResponse;
 import com.kickoff.be.user.dto.UserUpdateRequest;
@@ -26,6 +27,7 @@ public class UserService {
     private final TeamRepository teamRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final PhoneVerificationService verificationService;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     /**
      * 프로필 보완 (계약서 §3). 전부 optional 이고, 안 보낸 필드는 그대로다.
@@ -94,6 +96,35 @@ public class UserService {
         User user = userRepository.findById(loginUser.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.updatePushToken(request.expoPushToken());
+    }
+
+    /**
+     * 로그인 상태의 비밀번호 변경 (계약서 §3-3 아래, v1.24.0). 재설정(§3-3)과 별개 경로다.
+     *
+     * <b>refresh token 을 폐기하지 않는다.</b> 재설정과 정반대인데 이유가 다르기 때문이다 —
+     * 재설정은 <b>탈취 대응</b>이라 남의 기기에 살아 있는 세션을 끊는 게 목적이고, 이쪽은
+     * 본인이 방금 현재 비밀번호를 댄 <b>일상 변경</b>이다. 여기서 폐기하면 비밀번호를
+     * 바꿨다는 이유로 자기 앱에서 튕겨 나간다.
+     *
+     * 소셜 계정은 400 이다. 401 도 403 도 아닌 이유는 "권한이 없다"가 아니라 <b>이 계정에는
+     * 바꿀 비밀번호가 없다</b>는 뜻이기 때문이다. FE 가 메뉴를 이메일 계정에만 노출하므로
+     * 정상 경로에서는 생기지 않는다.
+     */
+    @Transactional
+    public void changePassword(User loginUser, PasswordChangeRequest request) {
+        User user = userRepository.findById(loginUser.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (!user.hasPassword()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "소셜 계정은 비밀번호를 변경할 수 없습니다.");
+        }
+        // 불일치는 400 이지 401 이 아니다 — 탈퇴(§3-4)와 같은 이유다. 401 을 주면 FE
+        // 인터셉터가 세션 만료로 오인해 refresh 를 타고, 사용자는 비밀번호를 틀린 줄도
+        // 모른 채 화면이 튄다.
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+            throw new BusinessException(ErrorCode.PASSWORD_MISMATCH);
+        }
+        user.updatePassword(passwordEncoder.encode(request.newPassword()));
     }
 
     private UserResponse toResponse(User user) {
