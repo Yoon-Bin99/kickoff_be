@@ -38,9 +38,12 @@ public class EmailClientConfig {
                                        @Value("${spring.mail.username:}") String username) {
         // 기동 로그에 남긴다. 이게 없으면 운영에서 "어댑터가 붙었는지"를 <b>메일을 한 번
         // 보내 봐야만</b> 알 수 있다 — 설정이 빠진 배포를 발송 실패로 알게 되는 셈이다.
+        //
+        // "이후 발송은 SMTP 로 나갑니다"를 명시한다. LoggingEmailClient 의 준비 로그가
+        // 바로 위에 찍혀 있어서, 그 말이 없으면 어느 쪽이 이겼는지 로그만으로는 모른다.
         // 비밀번호는 찍지 않는다.
-        log.info("SMTP 어댑터 등록됨 — host={} username={} enabled={}",
-                host, username, properties.enabled());
+        log.info("SMTP 어댑터 등록됨 — 이후 발송은 SMTP 로 나갑니다. "
+                + "host={} username={} enabled={}", host, username, properties.enabled());
         return new SmtpEmailClient(mailSender, properties, username);
     }
 }

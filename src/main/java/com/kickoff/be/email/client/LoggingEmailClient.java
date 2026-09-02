@@ -20,9 +20,14 @@ public class LoggingEmailClient implements EmailClient {
 
     public LoggingEmailClient(EmailProperties properties) {
         this.properties = properties;
-        // SmtpEmailClient 쪽 등록 로그와 짝이다. 둘 중 하나는 반드시 찍히므로,
-        // 기동 로그만 봐도 어느 어댑터가 살아 있는지 알 수 있다.
-        log.info("SMTP 미설정 — 메일은 로그로만 남깁니다 (EMAIL_ENABLED={})",
+        // <b>이 줄은 언제나 찍힌다.</b> 이 클래스는 @Component 라 SMTP 설정 여부와
+        // 무관하게 항상 만들어지고, SmtpEmailClient 가 @Primary 로 그 위에 얹힌다.
+        //
+        // 처음에는 "둘 중 하나만 찍힌다"고 적었다가 실제로 오해를 만들었다 — 운영에서
+        // 두 줄이 다 보이자 "빈이 두 개라 잘못 주입된 것 아니냐"는 조사가 붙었다.
+        // 그래서 문구에 "준비"와 "대체됨"을 넣어, 이 줄만으로는 아직 아무것도 정해지지
+        // 않았음을 드러낸다.
+        log.info("메일 로그 어댑터 준비 (SMTP 가 등록되면 대체됨, EMAIL_ENABLED={})",
                 properties.enabled());
     }
 

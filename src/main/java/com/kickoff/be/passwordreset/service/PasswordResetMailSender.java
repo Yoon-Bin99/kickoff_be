@@ -31,6 +31,11 @@ public class PasswordResetMailSender {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void on(PasswordResetCodeIssuedEvent event) {
         try {
+            // <b>실제로 주입된 어댑터</b>를 남긴다. 기동 로그 두 줄만으로는 어느 쪽이
+            // 주입됐는지 확정할 수 없어서(둘 다 빈으로 뜬다) 조사에서 한 번 막혔다.
+            // 이 한 줄이면 추론 없이 갈린다.
+            log.info("재설정 메일 발송 시도 — adapter={} to={}",
+                    emailClient.getClass().getSimpleName(), event.email());
             emailClient.send(event.email(), SUBJECT, body(event.code()));
         } catch (RuntimeException e) {
             // 로그가 유일한 흔적이다. 사용자는 204 를 받았고, 코드가 안 오면 재요청한다.
