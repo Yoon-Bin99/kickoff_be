@@ -2,6 +2,7 @@ package com.kickoff.be.common;
 
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tomcat.util.http.InvalidParameterException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -47,6 +48,27 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException e) {
         return respond(ErrorResponse.of(ErrorCode.VALIDATION_FAILED, "요청 본문을 해석할 수 없습니다."));
+    }
+
+    /**
+     * 쿼리 스트링에 무효 UTF-8 바이트가 들어온 경우 (계약서 §0, v1.24.2).
+     *
+     * <b>왜 Tomcat 클래스를 직접 잡는가.</b> 파라미터를 디코딩하다 실패하면 컨테이너가
+     * 자기 예외를 던지는데, 그게 이 클래스다({@code MalformedInputException} 을 감싸고
+     * 있다). 스프링이 감싸주는 공용 타입이 없어서 여기까지 그대로 올라오고, 잡는
+     * 핸들러가 없으면 아래 {@code handleUnexpected} 로 떨어져 <b>500</b> 이 나간다.
+     * 클라이언트가 잘못 보낸 요청이므로 400 이 맞다.
+     *
+     * 상위 타입인 {@code IllegalStateException} 을 잡으면 우리 코드의 진짜 버그까지
+     * 400 으로 감춰지므로 좁게 잡는다. 대신 서블릿 컨테이너를 Jetty·Undertow 로 바꾸면
+     * <b>이 핸들러는 죽은 코드가 된다</b> — 그때는 그 컨테이너가 던지는 타입으로 바꿔야 한다.
+     *
+     * Tomcat 의 {@code getErrorCode()} 는 쓰지 않는다. 컨테이너 내부 코드를 우리 응답에
+     * 실을 이유가 없다.
+     */
+    @ExceptionHandler(InvalidParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMalformedParameter(InvalidParameterException e) {
+        return respond(ErrorResponse.of(ErrorCode.VALIDATION_FAILED, "요청을 해석할 수 없습니다."));
     }
 
     /** 쿼리 파라미터에 정의되지 않은 열거형 값이 들어온 경우 등. */
