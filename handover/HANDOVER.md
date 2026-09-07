@@ -19,6 +19,9 @@
      @expo/cli 가 undici 오류로 크래시**하므로 nvm-windows 로 22 를 쓴다:
      `winget install --id CoreyButler.NVMforWindows -e` → `nvm install 22.19.0` → `nvm use 22.19.0`
      (nvm 함정: 설치 직후 낡은 셸에서는 `NVM_HOME`이 없어 `ERROR open \settings.txt`로 죽는다)
+   - **Git identity**: 새 PC는 `user.name`/`user.email`이 비어 첫 커밋이 `Author identity unknown`으로
+     막힌다. 각 저장소에서 `--local`로만 설정한다 (global은 이 PC의 다른 저장소까지 바꾸므로 건드리지 않음):
+     `git config --local user.name "Yoon-Bin99"` / `git config --local user.email "shp06135@naver.com"`
    - 자세한 함정은 BE README 「요구사항」 참고.
 1. **폴더 구성**: 바탕화면(또는 원하는 곳)에 루트 폴더를 만들고 그 안에 클론:
    ```
