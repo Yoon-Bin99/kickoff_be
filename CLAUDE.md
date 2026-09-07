@@ -18,7 +18,9 @@
 
 - Spring Boot 4.1.1 / Java 17 / Gradle
 - Spring Web MVC, Spring Data JPA, Spring Security, Validation
-- 인증: JWT access token 단일 (만료 7일), jjwt 0.12.6
+- 인증: JWT access(1시간) + refresh(30일) 두 토큰, jjwt 0.12.6.
+  refresh 는 서버에 해시로 저장돼 로그아웃·재로그인으로 즉시 끊을 수 있다 (v1.7.0~).
+  만료 값은 `application.yaml` 의 `jwt.access-expiration`/`refresh-expiration`
 - DB: 로컬 개발 H2, 배포 PostgreSQL
 
 Boot 4.x는 스타터 이름이 3.x와 다르다. `spring-boot-starter-web`이 아니라
@@ -47,25 +49,36 @@ Boot 4.x는 스타터 이름이 3.x와 다르다. `spring-boot-starter-web`이 �
 
 ```
 com.kickoff.be
-├── common      공통 응답/에러 (ErrorCode, BusinessException, ApiExceptionHandler, PageResponse, BaseTimeEntity ...) — 평면 유지
-├── config      SecurityConfig, CorsConfig, JpaAuditingConfig, DataInitializer — 평면 유지
+├── common      공통 응답/에러 (ErrorCode, BusinessException, ApiExceptionHandler, ErrorResponse,
+│               PageResponse, BaseTimeEntity, ContactInfo, PaymentInfo, Patchable ...) — 평면 유지
+├── config      SecurityConfig, CorsConfig, WebConfig, AsyncConfig, JpaAuditingConfig,
+│               DataInitializer — 평면 유지
 ├── auth        인증 (특성상 entity 없음)
 │   ├── controller / service / dto
-│   └── jwt     인증 인프라 — 토큰·필터·@LoginUser·리졸버, 인증/인가 실패 응답까지
-├── user
-│   ├── entity      User
-│   ├── repository  UserRepository
-│   └── dto         UserResponse
-├── team
-│   ├── entity      Team, SkillLevel, AgeGroup (엔티티에 붙는 열거형은 entity에)
-│   ├── repository / service / controller / dto
-├── post
-│   ├── entity      MatchPost, PostStatus, FieldType
-│   ├── repository / service / controller / dto
-└── matchrequest
-    ├── entity      MatchRequest, RequestStatus
-    ├── repository / service / controller / dto  (PostRequestCount 같은 조회 프로젝션은 repository에)
+│   └── jwt     인증 인프라 — access·refresh 토큰·필터·@LoginUser·리졸버, 인증/인가 실패 응답까지
+├── user            entity(User) / repository / service / controller / dto
+├── team            entity(Team, TeamMember, TeamAdmin, TeamJoinRequest, TeamRecord,
+│                   SkillLevel, AgeGroup, Position, TeamRole, JoinStatus, MatchResult) / ...
+├── post            entity(MatchPost, PostStatus, TimeSlot) / ...
+├── matchrequest    entity(MatchRequest, RequestStatus) / ...
+│                   (PostRequestCount 같은 조회 프로젝션은 repository에)
+├── review          팀 평가 (계약서 §7)
+├── chat            매칭 성사 후 1:1 채팅
+├── support         고객센터 — FAQ·AI 상담·운영자 연결 (§7-1)
+├── oauth           카카오·네이버 소셜 로그인 (§3-1)
+├── verification    전화번호 문자 인증 (§3-2)
+├── passwordreset   비밀번호 재설정 (§3-3)
+├── place           카카오 장소 검색 프록시 (§5-1)
+├── legal           약관·개인정보처리방침 정적 서빙
+├── push            Expo 푸시 (§8)          — client / dto / service
+├── sms             문자 발송 어댑터          — client
+└── email           메일 발송 어댑터          — client
 ```
+
+도메인이 열여덟이라 전부 펼치지 않았다. **레이어별 하위 패키지 원칙은 모든 도메인에
+똑같이 적용**된다 — 위에서 `/ ...` 로 줄인 자리도 `entity / repository / service /
+controller / dto` 구성이다. 외부 호출을 감싸는 도메인(push·sms·email·place·oauth·support)은
+`client` 하위 패키지에 어댑터를 둔다.
 
 ## 작업 규칙
 
@@ -92,6 +105,12 @@ Android 에뮬레이터는 호스트를 `10.0.2.2`로 보므로, FE가 그 주�
 
 ## 시드 데이터
 
-개발 프로파일에서 `DataInitializer`가 팀 5~6개와 모집글 10개 남짓을 넣는다.
-FE가 목록/필터 화면을 바로 붙여볼 수 있어야 하므로, 지역·구장유형·실력수준이
+개발 프로파일에서 `DataInitializer`가 팀 6개와 모집글 34개를 넣는다. 신청·리뷰·팀 명단·
+전적·관리자·가입신청까지 함께 들어가서, 계정마다 보이는 화면이 다르다(어느 계정이 어떤
+화면에 좋은지는 README 의 표 참고 — 시드를 바꾸면 그 표도 같이 고칠 것).
+
+FE가 목록/필터 화면을 바로 붙여볼 수 있어야 하므로, 지역·실력수준·날짜·시간대가
 골고루 섞이게 만들 것. 비밀번호는 전부 `pass1234`로 통일.
+
+구장 유형(`FieldType`)은 v1.19.0 에서 **폐지**됐다 — 11대11 전용 제품으로 정해졌다.
+시드에도 없고 엔티티에도 없다.
