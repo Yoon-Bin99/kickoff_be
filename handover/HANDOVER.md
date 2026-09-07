@@ -13,11 +13,20 @@
 
 ## 새 컴퓨터 부트스트랩 순서
 
-1. **폴더 구성**: 바탕화면(또는 원하는 곳)에 `킥오프` 폴더를 만들고 그 안에 클론:
+0. **JDK 17 + Node 22 설치** (가장 먼저 — 둘 다 없으면 아무것도 안 돈다)
+   - JDK: `winget install --id EclipseAdoptium.Temurin.17.JDK -e`
+   - Node: winget의 Node LTS 채널은 이제 24.x만 준다. **FE가 SDK 54라 Node 24+ 에서는
+     @expo/cli 가 undici 오류로 크래시**하므로 nvm-windows 로 22 를 쓴다:
+     `winget install --id CoreyButler.NVMforWindows -e` → `nvm install 22.19.0` → `nvm use 22.19.0`
+     (nvm 함정: 설치 직후 낡은 셸에서는 `NVM_HOME`이 없어 `ERROR open \settings.txt`로 죽는다)
+   - 자세한 함정은 BE README 「요구사항」 참고.
+1. **폴더 구성**: 바탕화면(또는 원하는 곳)에 루트 폴더를 만들고 그 안에 클론:
    ```
    git clone https://github.com/Yoon-Bin99/kickoff_be
    git clone https://github.com/Yoon-Bin99/kickoff_fe
    ```
+   폴더 이름은 무관하다(현재 PC 는 `kickoff`). 메모리와 이 문서의 `킥오프/docs`는
+   **이 루트 폴더 아래의 `docs`**를 뜻한다.
 2. **원본 docs 복원**: `킥오프/docs` 폴더를 만들고 `kickoff_be/docs`의 6개 md/txt 파일을
    복사한다 (원본=킥오프/docs, 사본=각 저장소 docs — 이 구조가 계약서 동기화 규칙의 전제).
 3. **Claude 메모리 복원**: 새 supervisor 세션에게 `handover/memory/`의 3파일을 자기
@@ -26,14 +35,19 @@
 4. **세션 3개 구성**: supervisor(킥오프 폴더) + BE 담당(cwd kickoff_be) + FE 담당(cwd
    kickoff_fe). BE/FE 세션에는 각 저장소의 CLAUDE.md가 역할을 알려준다.
 5. **BE 로컬 키 파일 재작성**: `kickoff_be/local.yaml`은 gitignore라 **이 백업에 없다.**
-   Railway 대시보드 → Variables의 값들을 보고 BE 세션이 재작성하면 된다 (형식은 BE
-   README 참고). 운영은 Railway에 다 있으므로 로컬 개발 전까지는 급하지 않다.
+   저장소의 `local.yaml.example`을 복사(`cp local.yaml.example local.yaml`)하고 Railway
+   대시보드 → Variables의 값을 채우면 된다. **빈 값으로 둬도 서버는 정상적으로 뜬다**(해당
+   기능만 비활성). 운영은 Railway에 다 있으므로 로컬 개발 전까지는 급하지 않다.
 6. **로컬 서버 기동**(개발 재개 시):
    - BE: `./gradlew.bat bootRun` (8080)
-   - FE: `EXPO_NO_DEPENDENCY_VALIDATION=1 REACT_NATIVE_PACKAGER_HOSTNAME=<LAN IP>
-     EXPO_PUBLIC_API_URL=https://kickoffbe-production-7275.up.railway.app
-     npx expo start --lan --port 8081`
-   - 8081은 폰용(worktree 고정 스냅샷 패턴 — 메모리 참고), 검증은 8082.
+   - FE: 두 개의 metro를 띄운다. 절차·명령 전문은 FE README 참고.
+     - **8082** = 원본 `kickoff_fe`, 작업 중 코드 검증용
+     - **8081** = `kickoff_fe_preview` worktree (`git worktree add --detach ../kickoff_fe_preview <운영 커밋>`),
+       폰이 붙는 고정 스냅샷. **worktree는 `node_modules`를 공유하지 않으므로 그 폴더에서 `npm ci`를
+       따로 돌려야 하고, gitignore된 `.env.local`도 따로 만들어야 한다.**
+     - 둘 다 `EXPO_PUBLIC_API_URL`은 운영 Railway로 (로컬 BE를 붙이면 카카오 지도 Referer가
+       미등록 도메인이 되어 지도가 안 뜬다 — FE 수정 전까지의 제약)
+     - `REACT_NATIVE_PACKAGER_HOSTNAME=<LAN IP>` 필수, 첫 기동은 `--clear`
 7. **아침 보고서 재등록**: 매일 09:07 스케줄 작업(kickoff-morning-report)은 구 노트북에
    있던 것이라 죽었다. 필요하면 새 세션에서 다시 등록.
 

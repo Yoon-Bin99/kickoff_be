@@ -16,8 +16,9 @@ COPY src src
 # .dockerignore 가 docs 를 빼면서 이 두 장만 예외로 들여보낸다 — 둘 중 하나라도
 # 어긋나면 빌드는 성공하고 운영에서만 /terms·/privacy 가 500 이 난다.
 COPY docs docs
-# 테스트는 이미지 빌드에서 돌리지 않는다. 91개를 배포마다 9분씩 다시 도는 값이
-# 크고, 같은 커밋을 이미 로컬과 CI 에서 검증하기 때문이다.
+# 테스트는 이미지 빌드에서 돌리지 않는다. 515개를 배포마다 다시 도는 값이 크고
+# (의존성 캐시가 더운 로컬에서도 2분, 캐시가 빈 이미지 빌드에서는 그 이상),
+# 같은 커밋을 이미 로컬과 CI 에서 검증하기 때문이다.
 RUN ./gradlew --no-daemon clean bootJar -x test
 
 FROM eclipse-temurin:17-jre

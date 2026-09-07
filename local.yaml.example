@@ -1,0 +1,52 @@
+# local.yaml.example — 로컬 개발용 키 파일의 템플릿 (이 파일은 커밋된다)
+#
+# 사용법: 이 파일을 저장소 루트에 `local.yaml` 로 복사하고 값을 채운다.
+#
+#   cp local.yaml.example local.yaml
+#
+# `local.yaml` 은 .gitignore 에 걸려 있어 커밋되지 않는다. 값은 Railway 대시보드의
+# Variables 에서 보고 옮겨 적는다.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 읽히는 조건: dev 프로파일에서만 (application.yaml 의
+# `spring.config.import: "optional:file:./local.yaml"`). optional 이라 파일이 없어도
+# 서버는 정상적으로 뜬다 — 해당 기능만 비활성이 될 뿐이다. 테스트(test 프로파일)와
+# 운영(prod)은 이 파일을 읽지 않는다.
+#
+# ⚠️ 이 파일은 환경변수를 이긴다. import 로 들여온 값이 `${KAKAO_CLIENT_ID:}` 자리보다
+#    나중에 얹히기 때문이다. 그래서 배포 환경에는 절대 올리지 않는다
+#    (.dockerignore 첫 줄에서 빼고 있다).
+#
+# ✅ 빈 값으로 두어도 된다. 빈 값 = 해당 기능만 비활성 = 정상 동작이다.
+#    다섯 개를 다 채울 필요는 없다. 지금 쓸 것만 채우면 된다.
+#
+# ⚠️ 채우지 않을 항목은 값을 빈 문자열("")로 두고, 아래 placeholder 문자열을
+#    그대로 남겨두지 말 것. 값이 "비어 있지 않기만" 하면 그 기능이 활성으로 등록되어,
+#    "설정 안 됨"이라는 깨끗한 응답 대신 엉뚱한 오류로 실패한다:
+#      - 소셜: 400 UNSUPPORTED_PROVIDER 대신 카카오 KOE101(무효 클라이언트 ID)
+#      - 장소: 명확한 502 대신 카카오 401 을 감싼 502
+#
+# ⚠️ SMS·메일·Anthropic 키는 로컬에 넣지 않는다. 실발송·과금 위험이 있어
+#    로컬은 SMS_ENABLED=false / EMAIL_ENABLED=false 기본값 그대로 두고 로그 어댑터를 쓴다
+#    (인증번호는 서버 로그로만 남는다).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# 소셜 로그인 (계약서 §3-1). 키가 없는 제공자는 등록되지 않고 400 UNSUPPORTED_PROVIDER.
+# 기동 로그의 `활성 소셜 제공자: [...]` 한 줄로 확인할 수 있다.
+oauth:
+  kakao:
+    # 카카오 REST API 키. JavaScript 키가 아니다.
+    client-id: PASTE_KAKAO_REST_API_KEY
+    # 콘솔에서 Client Secret 이 "사용함"이면 필수 — 없으면 토큰 교환이 KOE010 으로 막힌다.
+    client-secret: PASTE_KAKAO_CLIENT_SECRET
+  naver:
+    client-id: PASTE_NAVER_CLIENT_ID
+    client-secret: PASTE_NAVER_CLIENT_SECRET
+
+# 장소 검색 (계약서 §5-1). 키가 없으면 /api/places/search 만 502, 나머지는 정상.
+# 기동 로그의 `장소 검색 키 설정됨` / `장소 검색 키 없음 — 검색이 502 로 나간다` 로 확인.
+place:
+  kakao:
+    # ⚠️ 위 oauth.kakao.client-id 와 **다른 앱**의 키다. 소셜 키를 여기 넣으면
+    #    검색이 통째로 502 가 된다.
+    rest-key: PASTE_KAKAO_MAP_REST_KEY

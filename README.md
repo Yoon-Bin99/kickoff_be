@@ -8,7 +8,30 @@
 
 ## 요구사항
 
-Java 17. Gradle은 wrapper가 들어 있어 따로 설치할 필요 없다.
+**JDK 17**이 필요하다. Gradle은 wrapper가 들어 있어 따로 설치할 필요 없지만,
+**wrapper 자체가 JVM 위에서 돌기 때문에 JDK는 반드시 먼저 깔아야 한다.**
+JRE만으로는 빌드되지 않는다.
+
+새 PC라면 이것부터 한다.
+
+```bash
+winget install --id EclipseAdoptium.Temurin.17.JDK -e
+```
+
+설치되면 MSI가 `JAVA_HOME`을 시스템 수준으로 잡아준다. 확인:
+
+```bash
+./gradlew --version   # Launcher JVM 이 17.x 로 나오면 정상
+```
+
+> **`java -version`으로 확인하지 말 것.** 윈도우에 Oracle Java 8이 함께 깔려 있으면
+> PATH의 `java`가 `C:\Program Files (x86)\Common Files\Oracle\Java\java8path\java.exe`
+> shim을 가리켜 **8이 찍힌다.** Gradle은 `JAVA_HOME`을 우선하므로 빌드는 멀쩡한데,
+> `java -version`만 보면 JDK가 없다고 오판하게 된다. 실제로 이 상태를 한 번 겪었다.
+>
+> 설치 **이전에 열어둔 셸**은 환경변수가 낡아 `JAVA_HOME`이 비어 있을 수 있다.
+> 그때는 셸을 새로 열거나 명령 앞에 붙인다:
+> `$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"`
 
 ## 실행
 
@@ -105,16 +128,20 @@ curl -X POST http://localhost:8080/api/auth/login \
 저장소 루트의 **`local.yaml`**에 넣어두면 `bootRun`이 매번 자동으로 읽는다. 이 파일은
 `.gitignore`에 걸려 있어 커밋되지 않는다.
 
-```yaml
-# local.yaml — 커밋 금지
-oauth:
-  kakao:
-    client-id: <REST API 키>
-    client-secret: <Client Secret>
-  naver:
-    client-id: <Client ID>
-    client-secret: <Client Secret>
+템플릿이 저장소에 들어 있으니 복사해서 값만 채우면 된다.
+
+```bash
+cp local.yaml.example local.yaml
 ```
+
+**여기 템플릿을 다시 적지 말 것.** 예전에 이 자리에 인라인으로 적어 두었다가
+`place.kakao.rest-key`가 빠진 채로 굳었다. 키가 늘면 `local.yaml.example` 한 곳만
+고치면 되게 두 벌을 두지 않는다.
+
+**빈 값으로 두어도 된다** — 빈 값은 그 기능만 비활성이고 서버는 정상적으로 뜬다.
+다만 **아무 문자열이나 넣어두지는 말 것.** 활성 여부를 "비어 있지 않은가"로만
+판정하므로(`OAuthProperties.isConfigured`), 엉뚱한 값이 들어 있으면 깨끗한
+`UNSUPPORTED_PROVIDER` 대신 카카오 `KOE101` 같은 오류로 실패한다.
 
 `application.yaml`이 `spring.config.import: "optional:file:./local.yaml"`로 읽는다.
 **optional이라 파일이 없어도 서버는 정상적으로 뜬다** — 소셜 제공자만 비활성이 될 뿐이다.
@@ -237,9 +264,10 @@ JDBC URL은 기본값이 아니라 위 값으로 바꿔 넣어야 붙는다.
 ./gradlew test
 ```
 
-테스트 105개. 매칭 수락 흐름, 계좌 비공개, 권한, 지난 경기 규칙, 인증, 리뷰·평점,
-소셜 로그인, 푸시 알림을 다룬다. 소셜 로그인과 푸시는 외부 호출을 스텁으로 갈아끼워
-**실제 키 없이** 돈다. 테스트는 별도 `test` 프로파일과 별도 DB를 쓰므로 실행 중인 개발
+테스트 515개. 매칭 수락 흐름, 계좌 비공개, 권한, 지난 경기 규칙, 인증, 리뷰·평점,
+소셜 로그인, 푸시 알림에 더해 전화번호 인증·비밀번호 재설정·회원 탈퇴·채팅·고객센터·
+장소 검색·약관 문서를 다룬다. 소셜 로그인·푸시·SMS·메일·장소 검색은 외부 호출을
+스텁으로 갈아끼워 **실제 키 없이** 돈다. 테스트는 별도 `test` 프로파일과 별도 DB를 쓰므로 실행 중인 개발
 서버에 영향을 주지 않는다.
 
 ### 실제 PostgreSQL로 한 번 더 (`postgresTest`)
