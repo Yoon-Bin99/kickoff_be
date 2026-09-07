@@ -6,7 +6,9 @@ WORKDIR /workspace
 # 의존성 해석을 먼저 캐시한다. src 만 바뀐 커밋에서는 이 레이어가 그대로 재사용된다.
 COPY gradlew ./
 COPY gradle gradle
-COPY settings.gradle build.gradle ./
+# gradle.properties 를 빼먹으면 이미지 빌드만 그 설정을 못 본다. 저장소에는 박혀 있는데
+# 운영 빌드에서만 안 먹는 설정이 생기는 자리다 (인코딩·힙 크기 같은 것들).
+COPY settings.gradle build.gradle gradle.properties ./
 RUN chmod +x gradlew && ./gradlew --no-daemon dependencies
 
 COPY src src
