@@ -352,7 +352,7 @@ docker run -p 8080:8080 -e DB_URL=... -e DB_USERNAME=... -e DB_PASSWORD=... -e J
 | `OAUTH_ALLOWED_REDIRECTS` | △ | 로그인 후 복귀 허용 주소. 기본 `kickoff://*` — **아래 경고 참고** |
 | `OAUTH_CALLBACK_BASE_URL` | △ | 콜백 오리진 고정 (`https://<도메인>`). 비우면 요청 오리진에서 만든다 |
 | `KAKAO_CLIENT_ID` 등 | | 소셜 로그인 키 4종. 없으면 해당 제공자만 비활성 |
-| `KAKAO_MAP_REST_KEY` | △ | 장소 검색용 카카오 REST 키. **`KAKAO_CLIENT_ID`와 다른 앱**이다 — 헷갈려서 소셜 키를 넣으면 검색이 통째로 502가 된다. 없으면 `/api/places/search`만 502로 나가고 나머지는 정상 |
+| `KAKAO_MAP_REST_KEY` | △ | 장소 검색용 카카오 REST 키. **`KAKAO_CLIENT_ID`와 같은 앱의 키여도 된다** — 현재 운영이 그렇다. 변수를 따로 둔 것은 나중에 앱을 분리할 때 이 값만 바꾸면 되게 하려는 것이다. 다만 **로그인 키를 여기 넣을 때는 그 앱에 카카오맵/로컬 API가 켜져 있어야 한다** — 안 켜져 있으면 검색만 502가 되고 나머지는 멀쩡해서 눈치채기 어렵다. 없으면 `/api/places/search`만 502로 나가고 나머지는 정상 |
 | `SEED_DATA` | | `true`면 시드 투입. **기본 off** — 첫 배포 직후 화면 확인용으로만 켠다 |
 | `PUSH_ENABLED` | | `true`면 푸시 발송. **기본 off** — 실기기에 실수로 알림이 나가지 않게 |
 
