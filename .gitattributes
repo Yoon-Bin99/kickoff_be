@@ -1,3 +1,15 @@
 /gradlew text eol=lf
 *.bat text eol=crlf
 *.jar binary
+
+# 마크다운은 LF 로 고정한다. 이 줄이 없으면 core.autocrlf=true 인 윈도우
+# (Git for Windows 설치 기본값) 에서 CRLF 로 체크아웃되는데, 그러면
+# LegalDocumentTest 의 "중첩 목록" 검사가 빈 줄의 \r\n 을 들여쓰기로 오인해
+# 실패한다. git status 는 깨끗하게 나오므로 원인을 찾기가 아주 어렵다.
+# 실제로 새 PC 이전 때 이걸로 한 번 걸렸다.
+*.md text eol=lf
+
+# docs/ 는 확장자와 무관하게 전부 LF. 이 폴더는 세 벌로 복제된다 —
+# 원본(킥오프 루트의 docs), 이 저장소 사본, FE 저장소 사본. 계약서 동기화 규칙이
+# "세 벌이 byte 동일"을 전제로 하는데, 한쪽만 CRLF 로 체크아웃되면 그 전제가 깨진다.
+docs/** text eol=lf

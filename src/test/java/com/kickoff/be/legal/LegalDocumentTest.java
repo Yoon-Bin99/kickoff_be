@@ -88,8 +88,11 @@ class LegalDocumentTest extends IntegrationTestSupport {
                 new Unsupported("인라인 코드 `", Pattern.compile("`")),
                 new Unsupported("인용 >", Pattern.compile("^>", Pattern.MULTILINE)),
                 new Unsupported("h3 이상 ###", Pattern.compile("^#{3,} ", Pattern.MULTILINE)),
+                // 들여쓰기는 공백이나 탭이지 줄바꿈이 아니다. 여기에 \s 를 쓰면 CRLF 문서에서
+                // 빈 줄의 \r\n 두 글자를 들여쓰기로 먹고, 뒤따르는 최상위 목록을 "들여쓴 항목"
+                // 으로 오탐한다. .gitattributes 로 LF 를 고정해 두었지만 검사식 자체도 막아 둔다.
                 new Unsupported("중첩 목록(들여쓴 항목)",
-                        Pattern.compile("^(?:\\s{2,}|\\t)[-*] ", Pattern.MULTILINE)),
+                        Pattern.compile("^(?:[ ]{2,}|\\t)[-*] ", Pattern.MULTILINE)),
                 new Unsupported("수평선 ---",
                         Pattern.compile("^-{3,}\\s*$", Pattern.MULTILINE)));
 
