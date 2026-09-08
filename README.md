@@ -379,8 +379,12 @@ Successfully applied N migration(s)      ← Flyway 적용
 
 - **`local.yaml`을 배포 환경에 올리지 말 것.** 환경변수를 이긴다(위 소셜 로그인 절 참고).
   `.dockerignore` 첫 줄에서 빼고 있다
-- CORS는 개발에서 모든 오리진을 허용한다. 운영에 올리기 전에
-  [CorsConfig](src/main/java/com/kickoff/be/config/CorsConfig.java)에서 좁힐 것
+- CORS는 **운영에서도 모든 오리진을 허용한다**([CorsConfig](src/main/java/com/kickoff/be/config/CorsConfig.java)).
+  좁히지 못한 이유는 웹 미리보기를 운영 서버에 붙여 확인하는 개발 관례 때문이다 —
+  지금 좁히면 그 작업이 끊긴다. **웹을 정식 배포하는 시점에 도메인으로 좁힐 것.**
+  자격증명 허용(`allowCredentials`)은 운영에서 이미 꺼 두었다. 인증이 `Authorization`
+  헤더라 켤 이유가 없고, `*` 오리진과 함께 두면 나중에 세션 쿠키를 하나라도 도입할 때
+  아무 사이트나 그 쿠키를 태워 부를 수 있는 상태가 된다
 
 ### PostgreSQL로 한 번은 띄워보고 배포할 것
 
