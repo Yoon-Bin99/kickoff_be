@@ -93,37 +93,42 @@ public class DataInitializer implements ApplicationRunner {
             return;
         }
 
-        Team saebyeok = createTeam("kim@example.com", "김주장", "010-1234-5678", "서울",
+        // 전화번호는 010-0000-000X 로만 쓴다. 국번 0000 은 실제로 배정되지 않아 어디에도
+        // 닿지 않는다. 그럴듯한 번호(010-1234-5678 같은 것)를 넣으면 언젠가 그 번호의
+        // 주인에게 문자가 간다 — 실제로 한 번 그렇게 나갔다. 운영도 SEED_DATA 로 이 행들을
+        // 그대로 넣으므로 "개발용이니까 괜찮다"가 성립하지 않는다.
+        // 이메일도 같은 이유로 예약 도메인(@example.com)만 쓴다 (RFC 2606).
+        Team saebyeok = createTeam("kim@example.com", "김주장", "010-0000-0001", "서울",
                 "FC 새벽", "서울 강서구", "강서구민운동장",
                 SkillLevel.INTERMEDIATE, AgeGroup.THIRTIES, 18,
                 "매주 토요일 오전 7시에 모입니다. 매너 있는 경기 지향합니다.");
         SeedAccount kimAcc = new SeedAccount("카카오뱅크", "3333-01-1234567", "김주장");
 
-        Team mapo = createTeam("lee@example.com", "이감독", "010-2345-6789", "서울",
+        Team mapo = createTeam("lee@example.com", "이감독", "010-0000-0002", "서울",
                 "마포 유나이티드", "서울 마포구", "마포구립축구장",
                 SkillLevel.ADVANCED, AgeGroup.TWENTIES, 22,
                 "실력 있는 팀 환영합니다. 주말 오전 위주로 뜁니다.");
         SeedAccount leeAcc = new SeedAccount("신한은행", "110-234-567890", "이감독");
 
-        Team songpa = createTeam("park@example.com", "박캡틴", "010-3456-7890", null,
+        Team songpa = createTeam("park@example.com", "박캡틴", "010-0000-0003", null,
                 "송파 FC", "서울 송파구", "올림픽공원 축구장",
                 SkillLevel.BEGINNER, AgeGroup.MIXED, 15,
                 "이제 막 시작한 팀입니다. 즐겁게 뛰실 분들 구해요.");
         SeedAccount parkAcc = new SeedAccount("국민은행", "123456-04-567890", "박캡틴");
 
-        Team goyang = createTeam("choi@example.com", "최총무", "010-4567-8901", "경기",
+        Team goyang = createTeam("choi@example.com", "최총무", "010-0000-0004", "경기",
                 "고양 킥커스", "경기 고양시", "고양종합운동장 보조구장",
                 SkillLevel.AMATEUR, AgeGroup.FORTIES, 20,
                 "40대 위주 팀입니다. 부상 없는 경기가 최우선.");
         SeedAccount choiAcc = new SeedAccount("우리은행", "1002-345-678901", "최총무");
 
-        Team seongnam = createTeam("jung@example.com", "정주장", "010-5678-9012", "경기",
+        Team seongnam = createTeam("jung@example.com", "정주장", "010-0000-0005", "경기",
                 "성남 레인저스", "경기 성남시", "탄천종합운동장",
                 SkillLevel.INTERMEDIATE, AgeGroup.THIRTIES, 24,
                 "매주 일요일 아침에 모입니다. 11인제로 꾸준히 뜁니다.");
         SeedAccount jungAcc = new SeedAccount("하나은행", "352-0123-4567-89", "정주장");
 
-        Team incheon = createTeam("yoon@example.com", "윤코치", "010-6789-0123", null,
+        Team incheon = createTeam("yoon@example.com", "윤코치", "010-0000-0006", null,
                 "인천 스트라이커즈", "인천 남동구", "남동체육관 축구장",
                 SkillLevel.ADVANCED, AgeGroup.FIFTIES_PLUS, 16,
                 "연령대는 높지만 실력은 자신 있습니다.");
@@ -557,7 +562,7 @@ public class DataInitializer implements ApplicationRunner {
     private void seedSocialUser() {
         User social = userRepository.save(User.builder()
                 .nickname("카카오가입자")
-                .phone("010-7890-1234")
+                .phone("010-0000-0007")
                 .activityRegion("서울")
                 .build());
         socialAccountRepository.save(SocialAccount.builder()
