@@ -41,7 +41,7 @@ public class MatchPostRepositoryImpl implements MatchPostRepositoryCustom {
         // 추론해 lower(bytea) 를 찾다 실패하는 함정이 있어 cast 로 막아야 했다.
         // 조건 자체를 안 붙이면 그 함정이 생길 자리가 없다.
         if (region != null) {
-            where.add("lower(p.region) like lower(concat('%', :region, '%'))");
+            where.add("lower(p.region) like lower(concat('%', :region, '%')) escape '!'");
             params.put("region", region);
         }
         if (skillLevel != null) {
@@ -53,8 +53,8 @@ public class MatchPostRepositoryImpl implements MatchPostRepositoryCustom {
             params.put("status", status);
         }
         if (keyword != null) {
-            where.add("(lower(p.title) like lower(concat('%', :keyword, '%'))"
-                    + " or lower(p.content) like lower(concat('%', :keyword, '%')))");
+            where.add("(lower(p.title) like lower(concat('%', :keyword, '%')) escape '!'"
+                    + " or lower(p.content) like lower(concat('%', :keyword, '%')) escape '!')");
             params.put("keyword", keyword);
         }
 

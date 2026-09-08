@@ -3,6 +3,7 @@ package com.kickoff.be.team.service;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.Patchable;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.common.LikeEscape;
 import com.kickoff.be.review.dto.ReviewStats;
 import java.util.Map;
 import org.springframework.data.domain.Page;
@@ -152,20 +153,11 @@ public class TeamService {
     /**
      * LIKE 와일드카드를 리터럴로 만든다 (계약서 §4, v1.14.0). keyword·region 공용이다.
      *
-     * 검색창에 친 {@code %} 는 "이름에 % 가 든 팀"을 찾겠다는 뜻이지 "전부 보여 달라"가
-     * 아니다. 그대로 넘기면 {@code %} 하나로 모든 팀이, {@code _} 하나로 한 글자 이상인
-     * 팀이 전부 나온다 — 에러가 아니라 결과가 너무 많이 나올 뿐이라 눈에 잘 안 띈다.
-     *
-     * 이스케이프 문자로 역슬래시가 아니라 {@code !} 를 쓴다. 역슬래시는 자바 문자열,
-     * JPQL 문자열, DB 의 문자열 리터럴 규칙(PostgreSQL 의 standard_conforming_strings)을
-     * 차례로 지나며 몇 겹으로 해석되는데, 그 층이 어긋나면 조용히 다른 패턴이 된다.
-     * {@code !} 는 어느 층에서도 특별하지 않아 셀 것이 없다.
-     *
-     * <b>순서가 중요하다.</b> 이스케이프 문자 자신을 먼저 처리해야 한다. 뒤로 미루면
-     * {@code %} 를 감싸며 넣은 {@code !} 까지 다시 이스케이프돼 패턴이 망가진다.
+     * 규칙과 그 이유는 {@link LikeEscape} 에 있다. 모집글 검색(§5)이 같은 처리를 빠뜨리고
+     * 있던 것이 2026-09-08 감사에서 드러나, 두 곳이 같은 규칙을 따로 적지 않도록 옮겼다.
      */
     private String escapeLike(String value) {
-        return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        return LikeEscape.escape(value);
     }
 
     /** 인증 불필요 — viewer 가 null 이면 isMine 은 false 이고 myRole 은 null 이다. */

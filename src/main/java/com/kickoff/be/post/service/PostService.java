@@ -6,6 +6,7 @@ import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.common.PageResponse;
 import com.kickoff.be.common.Patchable;
+import com.kickoff.be.common.LikeEscape;
 import com.kickoff.be.common.PaymentInfo;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.entity.RequestStatus;
@@ -67,8 +68,13 @@ public class PostService {
                 Math.max(page, 0),
                 clampSize(size),
                 Sort.by(Sort.Direction.ASC, "matchAt"));
+        // 와일드카드를 리터럴로 만든다 (계약서 §5). 팀 검색이 v1.14.0 에서 먼저 갖춘
+        // 처리인데 여기만 빠져 있었다 — 그동안 keyword=% 하나로 모든 글이, _ 하나로
+        // 한 글자 이상인 글이 전부 나왔다. 에러가 아니라 결과가 넘칠 뿐이라 안 드러났다.
+        // 쿼리 쪽 escape '!' 절과 짝이라, 한쪽만 있으면 더 나빠진다.
         Page<MatchPost> posts = postRepository.search(OffsetDateTime.now(),
-                blankToNull(region), skillLevel, status, blankToNull(keyword),
+                LikeEscape.escape(blankToNull(region)), skillLevel, status,
+                LikeEscape.escape(blankToNull(keyword)),
                 DateFilter.parse(dates), TimeSlotFilter.parseToStoredHours(times), pageable);
         return toSummaryPage(posts);
     }
