@@ -157,6 +157,10 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected PhoneVerificationRepository phoneVerificationRepository;
     @Autowired
+    protected com.kickoff.be.verification.service.SmsDispatchQuota smsDispatchQuota;
+    @Autowired
+    protected com.kickoff.be.auth.service.LoginAttemptLimiter loginAttemptLimiter;
+    @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
     protected JwtTokenProvider tokenProvider;
@@ -197,6 +201,11 @@ public abstract class IntegrationTestSupport {
         pushClient.reset();
         placeSearchClient.reset();
         smsClient.reset();
+        // 인메모리 발송 쿼터도 비운다. 싱글턴이라 테스트끼리 카운터를 공유하고,
+        // MockMvc 요청은 전부 같은 주소로 보여 한 IP 로 묶인다 — 안 비우면 문자를 세 번
+        // 보낸 뒤의 모든 테스트가 429 를 받는다.
+        smsDispatchQuota.reset();
+        loginAttemptLimiter.resetAll();
     }
 
     /** 소셜 가입 직후처럼 전화번호가 없는 사용자. */

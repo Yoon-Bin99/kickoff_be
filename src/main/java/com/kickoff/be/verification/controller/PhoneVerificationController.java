@@ -4,6 +4,8 @@ import com.kickoff.be.verification.dto.PhoneVerificationConfirmRequest;
 import com.kickoff.be.verification.dto.PhoneVerificationRequest;
 import com.kickoff.be.verification.dto.VerificationTokenResponse;
 import com.kickoff.be.verification.service.PhoneVerificationService;
+import com.kickoff.be.common.ClientIp;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,11 +31,18 @@ public class PhoneVerificationController {
 
     private final PhoneVerificationService verificationService;
 
-    /** 204 다 — 코드는 절대 응답에 싣지 않는다 (계약서 §3-2). */
+    /**
+     * 204 다 — 코드는 절대 응답에 싣지 않는다 (계약서 §3-2).
+     *
+     * 요청자 IP 를 함께 넘긴다. 번호당 한도만으로는 번호를 바꿔 가며 무제한으로 부를 수
+     * 있어서, 요청자 축 한도를 하나 더 건다. IP 를 뽑는 일은 서블릿에 묶여 있으므로
+     * 컨트롤러에서 하고, 서비스는 문자열만 받는다.
+     */
     @PostMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void send(@Valid @RequestBody PhoneVerificationRequest request) {
-        verificationService.send(request.phone());
+    public void send(@Valid @RequestBody PhoneVerificationRequest request,
+                     HttpServletRequest httpRequest) {
+        verificationService.send(request.phone(), ClientIp.of(httpRequest));
     }
 
     @PostMapping("/confirm")

@@ -56,6 +56,7 @@ public class PhoneVerificationService {
     private final SmsProperties smsProperties;
     private final PasswordEncoder passwordEncoder;
     private final VerificationProperties properties;
+    private final SmsDispatchQuota dispatchQuota;
 
     private final SecureRandom random = new SecureRandom();
 
@@ -68,8 +69,15 @@ public class PhoneVerificationService {
      * 레이트리밋에 걸리지 않게 한다 — 못 보낸 발송을 한도에 세는 건 부당하다.
      */
     @Transactional
-    public void send(String phone) {
+    public void send(String phone, String clientIp) {
         OffsetDateTime now = OffsetDateTime.now();
+        // 축이 둘이다. 번호당 한도(계약서 §3-2)와 요청자당 한도. 요청자 축이 없으면
+        // 번호를 바꿔 가며 무제한으로 부를 수 있다 — 발송은 인증이 필요 없는 경로라
+        // 계정으로 묶을 수도 없다. 요청자 축을 먼저 보는 이유는, 그쪽이 막혔다면
+        // 번호 이력을 읽어 볼 필요조차 없기 때문이다.
+        if (!dispatchQuota.tryAcquire(clientIp)) {
+            throw new BusinessException(ErrorCode.VERIFICATION_RATE_LIMITED);
+        }
         requireWithinRateLimit(phone, now);
 
         String code = newCode();

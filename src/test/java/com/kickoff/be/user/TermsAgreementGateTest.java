@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.kickoff.be.support.IntegrationTestSupport;
 import com.kickoff.be.user.entity.User;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -44,7 +45,11 @@ class TermsAgreementGateTest extends IntegrationTestSupport {
     @DisplayName("동의를 기록하면 204 이고 시각이 채워진다")
     void agreeRecordsTime() throws Exception {
         User social = createUserWithoutEmail("카카오가입자", "010-3333-3333");
-        OffsetDateTime before = OffsetDateTime.now();
+        // 초 단위로 자른다. DB 가 시각을 마이크로초까지만 저장해서, 나노초를 가진
+        // OffsetDateTime.now() 와 그대로 비교하면 <b>방금 저장한 값이 "더 이르다"</b>고
+        // 나온다 (100 나노초 차이로 실패한다). H2 도 PostgreSQL 도 같은 성질이라
+        // 자르지 않으면 어느 DB 에서든 간헐적으로 깨진다.
+        OffsetDateTime before = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS);
 
         agree(social).andExpect(status().isNoContent());
 
