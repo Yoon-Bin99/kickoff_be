@@ -18,4 +18,18 @@ public interface PasswordResetCodeRepository extends JpaRepository<PasswordReset
      * 무관해지고, 429 가 존재 신호가 되지 않는다.
      */
     long countByEmailAndCreatedAtAfter(String email, OffsetDateTime since);
+
+    /**
+     * 탈퇴할 때 그 주소의 재설정 이력을 지운다 (방침 §3-1 "탈퇴 시 지체 없이 파기").
+     * 이메일이 평문 컬럼이라 남겨 두면 탈퇴한 사람의 주소가 계속 남는다.
+     */
+    long deleteByEmail(String email);
+
+    /**
+     * 보관 기간이 지난 행을 지운다 (방침 §3-2).
+     *
+     * 이 표는 인증 이력과 달리 <b>부정 이용 추적에 쓸 이유가 없다</b> — 재설정은 본인
+     * 계정에만 일어난다. 그래서 인증(30일)보다 짧게 잡는다.
+     */
+    long deleteByCreatedAtBefore(OffsetDateTime cutoff);
 }

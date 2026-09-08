@@ -3,7 +3,9 @@ package com.kickoff.be.user.service;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.passwordreset.repository.PasswordResetCodeRepository;
 import com.kickoff.be.team.repository.TeamRepository;
+import com.kickoff.be.verification.repository.PhoneVerificationRepository;
 import com.kickoff.be.user.dto.AccountDeleteRequest;
 import com.kickoff.be.user.entity.User;
 import com.kickoff.be.user.repository.AccountDeletionRepository;
@@ -35,6 +37,8 @@ public class AccountDeletionService {
 
     private final AccountDeletionRepository deletionRepository;
     private final TeamRepository teamRepository;
+    private final PhoneVerificationRepository phoneVerificationRepository;
+    private final PasswordResetCodeRepository passwordResetCodeRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -46,10 +50,10 @@ public class AccountDeletionService {
             requireNoUpcomingMatch(team);
             deleteTeam(team);
         }
+        deleteIdentityTraces(user);
         deleteUserScoped(user.getId());
 
-        // 전화번호 유니크가 풀려 같은 번호로 재가입할 수 있다 (계약서 §3-4). 전화 인증
-        // 이력(phone_verifications)은 부정 이용 방지 목적으로 남긴다 — 방침 §3-2 와 같다.
+        // 전화번호 유니크가 풀려 같은 번호로 재가입할 수 있다 (계약서 §3-4).
         log.info("회원 탈퇴 완료 — userId={}, 팀 삭제={}", user.getId(), team != null);
     }
 
@@ -117,6 +121,31 @@ public class AccountDeletionService {
         deletionRepository.deleteAdminsOfTeam(teamId);
         deletionRepository.deleteJoinRequestsOfTeam(teamId);
         deletionRepository.deleteTeam(teamId);
+    }
+
+    /**
+     * 인증 이력에 남은 전화번호·이메일을 지운다 (방침 §3-1 "탈퇴 시 지체 없이 파기").
+     *
+     * 이 두 표는 <b>users 를 참조하지 않는다.</b> 가입 전에도 쓰이기 때문이다 — 전화 인증은
+     * 가입 자격을 만드는 절차이고, 비밀번호 재설정은 로그인하지 못하는 사람이 쓴다. 그래서
+     * 외래키가 없고, users 행을 지워도 따라 사라지지 않는다. 번호·주소 문자열로 직접 지운다.
+     *
+     * 코드와 토큰은 BCrypt 해시라 그 자체로는 문제가 없다. 지우는 대상은 <b>평문으로 남는
+     * 번호와 주소</b>다.
+     *
+     * <b>부작용 하나를 적어 둔다.</b> 이력이 사라지면 그 번호의 발송 레이트리밋 카운터도
+     * 함께 초기화된다 — 탈퇴가 한도를 푸는 우회로가 되는 셈이다. 탈퇴는 비밀번호 확인과
+     * 예정 매칭 검사를 지나야 하는 무거운 동작이라 실익이 없다고 보고 그대로 둔다.
+     * 예전 주석이 이 표를 "부정 이용 방지 목적으로 남긴다"고 한 것도 그 값을 본 것인데,
+     * 남의 개인정보를 계속 들고 있는 대가로 얻기에는 작다.
+     */
+    private void deleteIdentityTraces(User user) {
+        if (user.hasPhone()) {
+            phoneVerificationRepository.deleteByPhone(user.getPhone());
+        }
+        if (user.hasEmail()) {
+            passwordResetCodeRepository.deleteByEmail(user.getEmail());
+        }
     }
 
     /** 팀을 안 가진 계정도 지나는 경로. 남의 팀 소속·문의·소셜 연동이 여기서 정리된다. */

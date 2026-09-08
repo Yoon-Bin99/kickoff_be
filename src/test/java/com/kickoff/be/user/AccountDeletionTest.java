@@ -11,7 +11,9 @@ import com.kickoff.be.chat.entity.ChatLeave;
 import com.kickoff.be.chat.entity.ChatMessage;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.post.entity.MatchPost;
+import com.kickoff.be.passwordreset.entity.PasswordResetCode;
 import com.kickoff.be.support.IntegrationTestSupport;
+import com.kickoff.be.verification.entity.PhoneVerification;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.user.entity.User;
 import java.time.OffsetDateTime;
@@ -259,18 +261,33 @@ class AccountDeletionTest extends IntegrationTestSupport {
                 .andExpect(status().isCreated());
     }
 
+    /**
+     * <b>뒤집힌 판단이다.</b> 예전에는 방침 §3-2("인증 이력은 부정 이용 방지를 위해 일정
+     * 기간 보관 후 파기")를 근거로 탈퇴해도 이력을 남겼다. 방침 문장만 보면 그렇게 읽힌다.
+     *
+     * 그런데 §3-2 가 약속한 <b>"일정 기간 후 파기"가 구현된 적이 없었다.</b> 즉 실제 동작은
+     * "일정 기간 보관"이 아니라 <b>영구 보관</b>이었고, 그러면 §3-1("탈퇴 시 지체 없이
+     * 파기")과 정면으로 어긋난다. 탈퇴한 사람의 전화번호가 평문으로 영원히 남는다.
+     *
+     * 그래서 둘 다 맞춘다. 탈퇴 때는 그 번호를 지우고(여기), 남은 이력은 보관 기간이 지나면
+     * 지운다({@code RetentionCleanupJob}). 부정 이용 추적은 <b>탈퇴하지 않은</b> 번호들의
+     * 이력으로 계속 가능하다 — 잃는 것은 "탈퇴한 사람의 과거 발송 이력"뿐이다.
+     */
     @Test
-    @DisplayName("전화 인증 이력은 남는다 — 부정 이용 방지 목적 (방침 §3-2)")
-    void phoneVerificationHistorySurvives() throws Exception {
+    @DisplayName("전화 인증 이력도 지워진다 (방침 §3-1) — 영구 보관이 §3-2 의 '일정 기간'은 아니었다")
+    void phoneVerificationHistoryIsPurged() throws Exception {
         mockMvc.perform(post("/api/auth/phone/verifications")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"phone\":\"010-1111-1111\"}"))
                 .andExpect(status().isNoContent());
-        long before = phoneVerificationRepository.count();
+        assertThat(phoneVerificationRepository.findFirstByPhoneOrderByIdDesc("010-1111-1111"))
+                .as("지우기 전에는 있어야 한다 — 없으면 이 테스트가 아무것도 안 본다")
+                .isPresent();
 
         deleteMe(owner, password()).andExpect(status().isNoContent());
 
-        assertThat(phoneVerificationRepository.count()).isEqualTo(before);
+        assertThat(phoneVerificationRepository.findFirstByPhoneOrderByIdDesc("010-1111-1111"))
+                .isEmpty();
     }
 
     @Test
@@ -291,6 +308,46 @@ class AccountDeletionTest extends IntegrationTestSupport {
     }
 
     // ── 헬퍼
+
+    /**
+     * 방침 §3-1 이 약속한 "탈퇴 시 지체 없이 파기"의 마지막 구멍이었다.
+     *
+     * 이 두 표는 users 를 <b>참조하지 않는다</b> — 가입 전에도 쓰이기 때문이다(전화 인증은
+     * 가입 자격을 만드는 절차, 재설정은 로그인 못 하는 사람이 쓴다). 그래서 users 행을 지워도
+     * 따라 사라지지 않고, 번호와 주소가 평문으로 남아 있었다. 다른 테이블과 달리 외래키가
+     * 청소해 주지 않으므로 이 단언이 없으면 조용히 되돌아간다.
+     */
+    @Test
+    @DisplayName("탈퇴하면 전화 인증·비밀번호 재설정 이력의 번호·주소도 지워진다")
+    void deletesIdentityTraces() throws Exception {
+        phoneVerificationRepository.save(PhoneVerification.issue(
+                owner.getPhone(), "hash", OffsetDateTime.now().plusMinutes(3)));
+        passwordResetCodeRepository.save(PasswordResetCode.issued(
+                owner.getEmail(), "hash", OffsetDateTime.now().plusMinutes(10)));
+
+        deleteMe(owner, password()).andExpect(status().isNoContent());
+
+        assertThat(phoneVerificationRepository.findFirstByPhoneOrderByIdDesc(owner.getPhone()))
+                .as("탈퇴한 사람의 전화번호가 인증 이력에 남으면 안 된다")
+                .isEmpty();
+        assertThat(passwordResetCodeRepository.findFirstByEmailOrderByIdDesc(owner.getEmail()))
+                .as("탈퇴한 사람의 이메일이 재설정 이력에 남으면 안 된다")
+                .isEmpty();
+    }
+
+    /** 소셜 계정은 이메일이 없다. null 로 조회하러 들어가 깨지지 않는지 본다. */
+    @Test
+    @DisplayName("이메일 없는 소셜 계정도 탈퇴가 깨지지 않는다")
+    void deletesIdentityTracesForSocialAccount() throws Exception {
+        User social = createUserWithoutEmail("카카오가입자", "010-9999-9999");
+        phoneVerificationRepository.save(PhoneVerification.issue(
+                social.getPhone(), "hash", OffsetDateTime.now().plusMinutes(3)));
+
+        deleteMe(social, null).andExpect(status().isNoContent());
+
+        assertThat(phoneVerificationRepository.findFirstByPhoneOrderByIdDesc(social.getPhone()))
+                .isEmpty();
+    }
 
     private String password() {
         return "\"password\":\"" + PASSWORD + "\"";
