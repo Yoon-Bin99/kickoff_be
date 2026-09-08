@@ -2,6 +2,7 @@ package com.kickoff.be.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -113,6 +114,32 @@ class RefreshTokenTest extends IntegrationTestSupport {
         refresh(refreshToken)
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    /**
+     * 로그아웃은 <b>이 기기로 알림이 오지 않게</b> 하는 것까지가 사용자 기대다.
+     *
+     * 남겨 두면 빌려준 폰이나 공용 기기에서 나간 뒤에도 다음 사람이 내 매칭 알림을 계속
+     * 받는다 — 알림 본문에 상대 팀명과 경기 정보가 들어가므로 화면을 열지 않아도 보인다.
+     * 로그인 화면에서는 아무 흔적이 없어서, 이 단언이 없으면 되돌아가도 아무도 모른다.
+     */
+    @Test
+    @DisplayName("로그아웃하면 푸시 토큰도 지워진다 — 그 기기로 알림이 더 가지 않게")
+    void logoutClearsPushToken() throws Exception {
+        ResultActions loggedIn = login();
+        String accessToken = accessTokenOf(loggedIn);
+        mockMvc.perform(put("/api/users/me/push-token")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expoPushToken\":\"ExponentPushToken[abc123]\"}"))
+                .andExpect(status().isNoContent());
+        assertThat(userRepository.findByEmail(EMAIL).orElseThrow().hasPushToken())
+                .as("지우기 전에는 있어야 한다 — 없으면 이 테스트가 아무것도 안 본다")
+                .isTrue();
+
+        logout(accessToken).andExpect(status().isNoContent());
+
+        assertThat(userRepository.findByEmail(EMAIL).orElseThrow().hasPushToken()).isFalse();
     }
 
     @Test

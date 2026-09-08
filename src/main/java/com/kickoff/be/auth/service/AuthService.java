@@ -158,7 +158,17 @@ public class AuthService {
     @Transactional
     public void logout(User loginUser) {
         // @LoginUser 인스턴스는 이 트랜잭션에 붙어 있지 않아 변경 감지가 안 걸린다
-        userRepository.findById(loginUser.getId()).ifPresent(User::clearRefreshToken);
+        userRepository.findById(loginUser.getId()).ifPresent(user -> {
+            user.clearRefreshToken();
+            // 푸시 토큰도 함께 지운다. 남겨 두면 <b>로그아웃한 기기가 계속 알림을 받는다</b> —
+            // 알림 본문에 상대 팀명과 경기 정보가 들어가므로, 빌려준 폰이나 공용 기기에서
+            // 나간 뒤에도 다음 사람이 내 매칭을 계속 보게 된다. "로그아웃하면 이 기기로
+            // 알림이 안 온다"가 사용자가 기대하는 동작이기도 하다.
+            //
+            // 사용자당 토큰이 하나(단일 기기)라 지워도 다른 기기가 잃을 게 없다. 여러 기기를
+            // 허용하게 되면 이 줄은 "이 기기의 토큰만" 지우는 형태로 바뀌어야 한다.
+            user.updatePushToken(null);
+        });
     }
 
     private AuthResponse toAuthResponse(User user) {
