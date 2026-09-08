@@ -1,8 +1,18 @@
-# Kickoff API 계약 v1 (현재 v1.24.3)
+# Kickoff API 계약 v1 (현재 v1.25.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.25.0 (2026-09-08): **약관·개인정보 동의를 모든 계정에 요구** (부재 중 감사 — FE 발견:
+> 소셜 가입자는 동의 절차가 없었음). ① `UserResponse.termsAgreedAt` 노출(nullable, ISO-8601)
+> ② `POST /api/users/me/terms-agreement` 신설 — 로그인된 계정의 동의 시각을 지금으로 기록
+> ③ **동의 게이트 규칙**: FE는 `termsAgreedAt`이 null이거나 **현행 약관·방침 시행일보다
+> 이전**이면 앱 진입 전에 동의 화면을 띄우고, 동의 시 ②를 호출한다 — 소셜 최초 로그인,
+> 개정 후 재동의 모두 이 한 규칙으로. 이메일 signup의 `termsAgreed: true`는 그대로.
+> ④ 동의 화면에 **만 14세 이상 확인** 체크(클라이언트 확인, 서버 필드 없음 — 방침 §7).
+> §9에서 "소셜 가입자의 앱 자체 약관 동의 절차" 제거. 스키마 변경 없음(`User.termsAgreedAt`
+> v1.21.0 컬럼 재사용). 약관 v2·개인정보처리방침 v2(시행 2026-09-08)와 동행.
+>
 > v1.24.3 (2026-09-07): §4 `memberCount` 의미 명문화 — **감독이 직접 입력하는 팀 규모(자기 신고)**이며
 > `TeamMember` 명단 수와 **무관**하다(가입 수락·강퇴에도 재계산되지 않음 — 설계). 값·API 무변경, 설명만.
 > 화면은 두 값을 같은 이름("인원")으로 보이지 않게 구분해 표기한다. 시드 6팀 전부 신고값 > 명단 수인 것은
@@ -309,8 +319,11 @@ AuthProvider  KAKAO | NAVER | GOOGLE | APPLE
 ### UserResponse
 ```json
 { "id": 1, "email": "kim@example.com", "nickname": "김주장", "phone": "010-1234-5678",
-  "hasTeam": true, "teamId": 3, "authProviders": [] }
+  "hasTeam": true, "teamId": 3, "authProviders": [],
+  "termsAgreedAt": "2026-09-08T10:00:00+09:00" }
 ```
+- `termsAgreedAt` (v1.25.0): 약관·개인정보처리방침 동의 시각. 소셜 가입자 등 아직 동의하지
+  않은 계정은 `null`. FE 동의 게이트 규칙은 §3-1 참고.
 
 v1.3.0 추가 필드:
 - `email`: v1.3.2부터 nullable — **소셜 가입 계정은 항상 `null`** (v1.3.4).
@@ -369,7 +382,20 @@ v1.3.0 추가 필드:
   `VALIDATION_FAILED` (fieldErrors에 안내). 서버는 동의 시각을 저장한다(응답 비노출).
   약관 문서는 `GET /terms`, 개인정보처리방침은 `GET /privacy` (인증 불필요, HTML —
   share-card와 같은 정적 서빙, API 표면 밖이지만 FE가 링크하므로 여기 적는다).
-  소셜 가입(OAuth 최초 로그인)의 앱 자체 동의는 v1 범위 밖 (§9).
+- **동의 게이트 (v1.25.0 — 모든 계정)**: `UserResponse.termsAgreedAt`(nullable, ISO-8601
+  오프셋 포함)이 **null이거나 현행 약관·방침 시행일보다 이전**이면 FE는 앱 화면 진입 전에
+  동의 화면을 띄운다. 동의 화면은 약관·개인정보처리방침을 **각각** 열 수 있는 링크와
+  **"만 14세 이상입니다"** 확인(클라이언트 확인)을 포함하며, 동의 시
+  `POST /api/users/me/terms-agreement`를 호출한다. 이 한 규칙이 소셜 최초 로그인,
+  개정 후 재동의를 모두 덮는다. 현행 시행일은 FE 상수(`TERMS_EFFECTIVE_AT`, 문서 개정
+  시 supervisor가 계약서와 함께 갱신) — 현재 `2026-09-08T00:00:00+09:00`.
+  게이트 전에 허용되는 호출: `GET /api/auth/me`, refresh, 로그아웃, 탈퇴, 그리고 이
+  동의 엔드포인트. 그 외 화면은 동의 후.
+
+  **`POST /api/users/me/terms-agreement`** — 인증 필요. 본문 없음. 로그인된 계정의
+  `termsAgreedAt`을 서버 시각으로 갱신하고 **204**. 멱등(여러 번 호출해도 최신 시각으로
+  갱신될 뿐). 미배포 응답: 404(라우팅 단계, §0). 이메일 signup의 `termsAgreed: true`는
+  그대로 유지되며 그때 기록된 시각이 `termsAgreedAt`이 된다.
 - **유니크 규칙 (v1.16.0)**: `email`(기존), `nickname`, `phone` 모두 중복 불가 —
   409 `EMAIL_ALREADY_EXISTS` / `NICKNAME_ALREADY_EXISTS` / `PHONE_ALREADY_EXISTS`.
   `PATCH /api/users/me`의 nickname·phone 변경에도 같은 규칙(자기 자신의 기존 값은 허용).
@@ -1597,7 +1623,7 @@ FE는 알림 탭 시 `type`에 따라 이동한다: `REQUEST_RECEIVED` → 매�
 
 실명 본인인증(PASS·본인확인기관 연동 — 사업자 등록 후 v2),
 계정 통합(한 계정에 복수 로그인 수단 연결, 기존 계정 병합·빈 소셜 계정 정리 — v2),
-소셜 가입자의 앱 자체 약관 동의 절차,
+만 14세 미만의 법정대리인 동의 절차·생년월일 수집(v1은 "만 14세 이상" 자기 확인만 — v1.25.0),
 이메일 찾기의 전체 이메일 공개 응답(v1은 마스킹만 — §3-5),
 팀 검색 오타 유사도(편집거리·trigram),
 채팅 실시간 전송(WebSocket — v1은 폴링), 채팅 읽음 표시·안읽음 배지,

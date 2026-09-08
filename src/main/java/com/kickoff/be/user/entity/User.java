@@ -152,6 +152,20 @@ public class User extends BaseTimeEntity {
                 && refreshTokenExpiresAt.isAfter(now);
     }
 
+    /**
+     * 약관·개인정보처리방침에 동의한 시각을 지금으로 기록한다 (계약서 §3-1, v1.25.0).
+     *
+     * <b>덮어쓴다.</b> 방침이 개정되면 같은 계정이 다시 동의하고, 그때는 새 시각이 남아야
+     * 한다 — FE 는 이 값과 현행 시행일을 비교해 재동의 여부를 정하므로, 옛 시각을 지키면
+     * 개정 후에도 영영 동의 화면이 떠 있게 된다.
+     *
+     * 시각을 인자로 받지 않고 여기서 만든다. 호출자가 정할 여지를 두면 "동의한 시각"이
+     * 아닌 값이 들어올 수 있는데, 이건 법적 근거로 남는 기록이라 그러면 안 된다.
+     */
+    public void agreeToTerms() {
+        this.termsAgreedAt = OffsetDateTime.now();
+    }
+
     /** null 을 넣으면 등록 해제다 (계약서 §8). */
     public void updatePushToken(String expoPushToken) {
         this.expoPushToken = expoPushToken;

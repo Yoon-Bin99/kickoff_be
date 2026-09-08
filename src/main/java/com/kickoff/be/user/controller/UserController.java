@@ -100,6 +100,20 @@ public class UserController {
     }
 
     /**
+     * 약관·개인정보처리방침 동의 기록 (계약서 §3-1, v1.25.0).
+     *
+     * <b>본문이 없다.</b> 무엇에 동의했는지는 현행 문서 한 벌뿐이라 서버가 받을 값이 없고,
+     * 동의 시각은 서버가 정해야 한다(클라이언트가 보낸 시각은 법적 근거가 못 된다).
+     *
+     * GET 이 아닌 이유는 상태를 바꾸기 때문이다. 멱등이지만 안전하지는 않다.
+     */
+    @PostMapping("/me/terms-agreement")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void agreeToTerms(@LoginUser User user) {
+        userService.agreeToTerms(user);
+    }
+
+    /**
      * 회원 탈퇴 (계약서 §3-4, v1.23.0). 되돌릴 수 없다.
      *
      * <b>body 가 없어도 된다.</b> 소셜 계정은 비밀번호가 없어 그냥 부른다 —

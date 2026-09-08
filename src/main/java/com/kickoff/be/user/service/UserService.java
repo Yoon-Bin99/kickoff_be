@@ -100,6 +100,28 @@ public class UserService {
     }
 
     /**
+     * 약관·개인정보처리방침 동의 기록 (계약서 §3-1, v1.25.0).
+     *
+     * 소셜 가입에는 동의 절차가 아예 없었다. 이메일 가입만 {@code termsAgreed} 를 받고
+     * 시각을 남겼고, 소셜은 그 자리를 통과하지 않는다 — 그래서 <b>동의 근거가 없는 계정</b>이
+     * 쌓여 있었다. 게이트는 FE 가 걸고, 서버는 그 결과를 기록만 한다.
+     *
+     * <b>서버는 동의 전 호출을 막지 않는다.</b> 막으면 기존 소셜 사용자 전원이 한 번에
+     * 401 로 튕겨 나간다. 이번 범위는 기록까지이고, 서버 강제는 그다음 판단이다.
+     *
+     * 멱등이다. 여러 번 불러도 최신 시각으로 갱신될 뿐이라 실패할 이유가 없다 —
+     * 동의 화면에서 네트워크가 끊겨 재시도하는 경우가 정상 경로에 있다.
+     */
+    @Transactional
+    public void agreeToTerms(User loginUser) {
+        // @LoginUser 인스턴스는 이 트랜잭션에 붙어 있지 않아 변경 감지가 안 걸린다.
+        // 로그아웃(AuthService)과 같은 이유로 다시 읽는다.
+        User user = userRepository.findById(loginUser.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        user.agreeToTerms();
+    }
+
+    /**
      * 로그인 상태의 비밀번호 변경 (계약서 §3-3 아래, v1.24.0). 재설정(§3-3)과 별개 경로다.
      *
      * <b>refresh token 을 폐기하지 않는다.</b> 재설정과 정반대인데 이유가 다르기 때문이다 —

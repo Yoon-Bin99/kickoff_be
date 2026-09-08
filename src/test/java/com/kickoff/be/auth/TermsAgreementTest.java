@@ -35,13 +35,20 @@ class TermsAgreementTest extends IntegrationTestSupport {
                 .isAfterOrEqualTo(before);
     }
 
+    /**
+     * <b>v1.25.0 에서 뒤집힌 규칙이다.</b> v1.21.0 때는 "화면이 쓸 값이 아니라 우리가
+     * 보관하는 기록"이라고 보고 응답에서 뺐다. 그때는 이메일 가입만 동의 절차를 지났으니
+     * 맞는 판단이었다 — 서버가 이미 받아 둔 값을 FE 가 다시 볼 이유가 없었다.
+     *
+     * 그런데 소셜 가입에는 동의 절차가 아예 없었다는 게 드러났다. 그래서 FE 가 "이 계정이
+     * 동의했는가"를 물어야 하는 상황이 생겼고, 그 답이 이 필드다. 값의 성격이 바뀐 게 아니라
+     * <b>쓰는 쪽이 늘었다.</b> 재동의 판정(현행 시행일과 비교)도 같은 값으로 한다.
+     */
     @Test
-    @DisplayName("동의 시각은 응답에 나가지 않는다 — 화면이 쓸 값이 아니라 우리가 보관하는 기록이다")
-    void agreedAtIsNotExposed() throws Exception {
-        String body = signup("\"termsAgreed\": true").andReturn()
-                .getResponse().getContentAsString();
-
-        assertThat(body).doesNotContain("termsAgreedAt", "termsAgreed");
+    @DisplayName("동의 시각이 응답에 실린다 (v1.25.0) — FE 가 동의 게이트를 판정하는 값이다")
+    void agreedAtIsExposed() throws Exception {
+        signup("\"termsAgreed\": true")
+                .andExpect(jsonPath("$.user.termsAgreedAt").isNotEmpty());
     }
 
     @Test
