@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import com.kickoff.be.common.LogMask;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -57,8 +58,13 @@ public class SolapiSmsClient implements SmsClient {
             // 솔라피는 실패 이유를 본문의 errorCode/errorMessage 로 준다 (잔액 부족,
             // 미등록 발신번호, 서명 불일치 등). 상태 코드만 남기면 어느 쪽인지 알 수 없어
             // 실기기 앞에서 원인을 못 찾는다.
+            //
+            // 다만 본문에 수신번호가 실려 올 수 있다(수신 형식 오류 같은 사유). 그러면
+            // 진단하려고 남긴 줄이 남의 전화번호를 로그에 심는 셈이라, 본문에서 번호처럼
+            // 생긴 부분만 가리고 나머지는 그대로 남긴다 — errorCode·errorMessage 는
+            // 온전히 보이므로 진단 가치는 잃지 않는다.
             log.error("솔라피 발송 실패 — status={} body={}",
-                    e.getStatusCode(), e.getResponseBodyAsString());
+                    e.getStatusCode(), LogMask.phonesIn(e.getResponseBodyAsString()));
             throw e;
         }
     }
