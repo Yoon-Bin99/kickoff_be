@@ -32,6 +32,7 @@ public class AuthService {
     private final TeamRepository teamRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LoginAttemptLimiter loginAttemptLimiter;
     private final JwtTokenProvider tokenProvider;
     private final RefreshTokenProvider refreshTokenProvider;
     private final PhoneVerificationService verificationService;
@@ -78,14 +79,26 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        User user = findForLogin(request.email())
-                .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
+        // 한도를 <b>계정 조회보다 먼저</b> 본다. 뒤에 두면 429 가 나오는 조건 자체가
+        // "그 계정이 존재하는가"에 걸려, 응답 코드로 가입 여부를 알아낼 수 있게 된다
+        // (계약서 §3-1 이 계정 존재를 숨기려고 LOGIN_FAILED 하나로 답하는 것과 같은 이유).
+        if (!loginAttemptLimiter.isAllowed(request.email())) {
+            throw new BusinessException(ErrorCode.LOGIN_RATE_LIMITED);
+        }
+
+        User user = findForLogin(request.email()).orElse(null);
         // 소셜로만 가입한 계정은 비밀번호가 없다. 전용 에러 코드를 만들지 않는 이유는
         // 계정이 존재한다는 사실 자체를 알려주지 않기 위해서다 (계약서 §3-1).
-        if (!user.hasPassword()
+        if (user == null || !user.hasPassword()
                 || !passwordEncoder.matches(request.password(), user.getPassword())) {
+            // 없는 계정에 대한 시도도 센다. 안 세면 "한도에 걸리는가"로 계정 존재를
+            // 물어볼 수 있고, 존재하는 계정만 골라 무제한으로 시도할 수 있게 된다.
+            loginAttemptLimiter.recordFailure(request.email());
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
+        // 맞는 비밀번호를 댔으면 즉시 푼다 — 몇 번 틀렸다는 이유로 본인을 15분 막을
+        // 이유가 없다.
+        loginAttemptLimiter.reset(request.email());
         return toAuthResponse(user);
     }
 

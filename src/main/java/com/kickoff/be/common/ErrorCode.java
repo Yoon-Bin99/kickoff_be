@@ -16,6 +16,15 @@ public enum ErrorCode {
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
     /**
+     * 로그인 실패 반복 (계약서 §0, v1.25.1).
+     *
+     * VERIFICATION_RATE_LIMITED 를 재사용하지 않는다. §7-1 이 AI 한도에서 같은 판단을
+     * 했다 — 코드가 상황을 가리키지 못하면 FE 가 안내를 고를 수 없다. 여기서는 "잠시 후
+     * 다시" 와 함께 비밀번호 재설정을 권해야 하는데, 인증번호 문구로는 그게 안 된다.
+     */
+    LOGIN_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS,
+            "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."),
+    /**
      * access 만료(UNAUTHORIZED)와 반드시 구분해야 한다 (계약서 §3, v1.7.0).
      * FE 는 이 코드일 때만 로그인 화면으로 보낸다 — UNAUTHORIZED 는 refresh 를 한 번
      * 시도해 볼 신호이고, 이건 그 시도마저 실패했다는 뜻이다.
