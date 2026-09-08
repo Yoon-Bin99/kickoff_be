@@ -1,5 +1,6 @@
 package com.kickoff.be.email.client;
 
+import com.kickoff.be.common.LogMask;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -35,7 +36,7 @@ public class SmtpEmailClient implements EmailClient {
         if (!properties.enabled()) {
             // 어댑터가 붙어 있어도 스위치가 꺼져 있으면 보내지 않는다. dev 에서 키를
             // 넣어 두고 스위치만 내려 두는 게 정상 상태다 — 문자와 같은 방침.
-            log.info("[메일 발송 꺼짐] to={} subject={}\n{}", to, subject, body);
+            log.info("[메일 발송 꺼짐] to={} subject={}\n{}", LogMask.email(to), subject, body);
             return;
         }
         SimpleMailMessage message = new SimpleMailMessage();
@@ -51,6 +52,10 @@ public class SmtpEmailClient implements EmailClient {
         //
         // 본문은 남기지 않는다 — 인증번호가 들어 있고, 발송이 성공했다면 그 코드는
         // 사용자 메일함에 있다. dev 로그와 달리 운영에서는 남길 이유가 없다.
-        log.info("메일 발송 성공 to={} subject={}", to, subject);
+        //
+        // 주소도 가린다. 이 줄은 운영에서 매 발송마다 찍혀서, 원문을 남기면 로그가
+        // 이메일 주소 목록이 된다. 도메인은 남으므로 "네이버로는 가는데 지메일만 안 온다"
+        // 같은 판정은 그대로 된다.
+        log.info("메일 발송 성공 to={} subject={}", LogMask.email(to), subject);
     }
 }

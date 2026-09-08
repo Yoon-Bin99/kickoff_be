@@ -1,5 +1,6 @@
 package com.kickoff.be.email.client;
 
+import com.kickoff.be.common.LogMask;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -35,11 +36,11 @@ public class LoggingEmailClient implements EmailClient {
     public void send(String to, String subject, String body) {
         if (properties.enabled()) {
             log.warn("메일 발송이 켜져 있는데 SMTP 어댑터가 없습니다 — 설정을 확인하세요. "
-                    + "이번 건은 발송되지 않습니다: to={}, subject={}", to, subject);
+                    + "이번 건은 발송되지 않습니다: to={}, subject={}", LogMask.email(to), subject);
             return;
         }
         // dev 전용. 본문에 코드가 들어 있어서 그대로 남긴다 — 이게 없으면 로컬에서
         // 재설정 흐름을 끝까지 밟을 방법이 없다.
-        log.info("[메일 발송 생략] to={} subject={}\n{}", to, subject, body);
+        log.info("[메일 발송 생략] to={} subject={}\n{}", LogMask.email(to), subject, body);
     }
 }

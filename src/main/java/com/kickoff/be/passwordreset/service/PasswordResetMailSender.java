@@ -1,5 +1,6 @@
 package com.kickoff.be.passwordreset.service;
 
+import com.kickoff.be.common.LogMask;
 import com.kickoff.be.email.client.EmailClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,12 +35,16 @@ public class PasswordResetMailSender {
             // <b>실제로 주입된 어댑터</b>를 남긴다. 기동 로그 두 줄만으로는 어느 쪽이
             // 주입됐는지 확정할 수 없어서(둘 다 빈으로 뜬다) 조사에서 한 번 막혔다.
             // 이 한 줄이면 추론 없이 갈린다.
+            //
+            // 주소는 가린다. 이 경로는 "가입 안 된 주소로도 요청이 들어온다"(§3-3 은 존재를
+            // 숨기려고 항상 204 다) — 원문을 남기면 <b>우리 회원도 아닌 사람의 이메일</b>이
+            // 로그에 쌓인다. 도메인은 남으므로 발송 실패 조사에는 지장이 없다.
             log.info("재설정 메일 발송 시도 — adapter={} to={}",
-                    emailClient.getClass().getSimpleName(), event.email());
+                    emailClient.getClass().getSimpleName(), LogMask.email(event.email()));
             emailClient.send(event.email(), SUBJECT, body(event.code()));
         } catch (RuntimeException e) {
             // 로그가 유일한 흔적이다. 사용자는 204 를 받았고, 코드가 안 오면 재요청한다.
-            log.warn("비밀번호 재설정 메일 발송 실패 — to={}", event.email(), e);
+            log.warn("비밀번호 재설정 메일 발송 실패 — to={}", LogMask.email(event.email()), e);
         }
     }
 

@@ -2,6 +2,7 @@ package com.kickoff.be.verification.service;
 
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
+import com.kickoff.be.common.LogMask;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.sms.client.SmsClient;
 import com.kickoff.be.sms.client.SmsProperties;
@@ -93,7 +94,8 @@ public class PhoneVerificationService {
         // dev 에서도 문자가 나가는 상태가 됐다. 스위치는 어느 어댑터가 붙어 있든 같은
         // 자리에서 걸려야 한다.
         if (!smsProperties.enabled()) {
-            log.info("[SMS 생략 — SMS_ENABLED=false] to={} / {}", phone, text);
+            // 본문은 남긴다 — dev 에서 인증번호를 읽을 유일한 통로다. 받는 번호만 가린다.
+            log.info("[SMS 생략 — SMS_ENABLED=false] to={} / {}", LogMask.phone(phone), text);
             return;
         }
         try {
@@ -101,7 +103,9 @@ public class PhoneVerificationService {
         } catch (BusinessException e) {
             throw e;
         } catch (RuntimeException e) {
-            log.warn("인증번호 발송 실패 — phone={}", phone, e);
+            // 번호는 가린다. 이 줄은 운영에서 찍히고, 발송 대상은 아직 회원도 아닌
+            // 사람일 수 있다(가입 전 인증). 뒤 4자리면 문의가 왔을 때 대조하기에 족하다.
+            log.warn("인증번호 발송 실패 — phone={}", LogMask.phone(phone), e);
             throw new BusinessException(ErrorCode.SMS_SEND_FAILED);
         }
     }
