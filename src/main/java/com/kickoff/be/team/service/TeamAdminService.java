@@ -19,6 +19,8 @@ import com.kickoff.be.user.repository.UserRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Comparator;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -103,7 +105,7 @@ public class TeamAdminService {
     @Transactional
     public TeamAdminResponse grant(Long teamId, User owner, TeamAdminCreateRequest request) {
         Team team = teamAuthz.requireOwner(teamId, owner);
-        User target = userRepository.findByEmail(request.email())
+        User target = findByEmailIgnoringCase(request.email())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         // 소유자 본인을 임명하는 것도 409 다 (계약서 §4-2). 이미 그보다 넓은 권한을 가졌고,
         // 허용하면 "소유자이면서 관리자"라는 애매한 상태가 생긴다.
@@ -126,5 +128,23 @@ public class TeamAdminService {
         TeamAdmin admin = teamAdminRepository.findByTeamIdAndUserId(teamId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ADMIN_NOT_FOUND));
         teamAdminRepository.delete(admin);
+    }
+
+    /**
+     * 관리자로 임명할 사람을 이메일로 찾는다. <b>대소문자를 가리지 않는다.</b>
+     *
+     * 가입은 대소문자를 무시해 중복을 막는데(v1.16.0) 여기만 정확 일치로 찾으면,
+     * 소유자가 상대에게 들은 주소를 그대로 쳤을 때 "그런 사용자 없음"이 나온다.
+     * 주소는 맞는데 못 찾는 것이라 원인을 짐작하기 어렵다.
+     *
+     * 로그인과 같은 순서다 — 정확 일치를 먼저 보고, 없을 때만 무시 검색으로 내려간다.
+     * 대소문자만 다른 계정이 이론상 함께 있을 수 있어서, 정확히 친 주소가 있으면 그쪽이
+     * 이겨야 한다. 무시 검색에서도 여럿이면 가장 오래된 계정을 고른다 — 어느 쪽을 고르든
+     * 한 명이어야 하고 그 선택이 조회마다 달라지면 안 된다.
+     */
+    private Optional<User> findByEmailIgnoringCase(String email) {
+        return userRepository.findByEmail(email)
+                .or(() -> userRepository.findAllByEmailIgnoreCase(email).stream()
+                        .min(Comparator.comparing(User::getId)));
     }
 }
