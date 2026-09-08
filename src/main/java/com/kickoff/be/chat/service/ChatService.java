@@ -71,13 +71,22 @@ public class ChatService {
      * 사실상 수락 순이고, 입금 확인이 있으면 그만큼 위로 온다. updatedAt 은 응답에 없으므로
      * 목록을 만들기 전에 미리 정렬해 두고, 여기서는 앞쪽(메시지 있는 방)만 다시 줄 세운다 —
      * 자바의 정렬은 안정적이라 뒤쪽의 기존 순서가 유지된다.
+     *
+     * <b>동률에는 requestId 를 2차 키로 쓴다</b> (계약서 §6-1, v1.25.1 명문화). 시각만으로
+     * 줄을 세우면 두 방의 마지막 메시지가 같은 시각을 받았을 때 순서가 정해지지 않는다 —
+     * 그러면 <b>같은 목록을 다시 불러도 순서가 바뀐다.</b> 리뷰 목록이 v1.2.2 에서 같은
+     * 이유로 id DESC 를 2차 키로 받았고, 여기만 빠져 있었다.
+     *
+     * 시각이 붙는 일이 드물어 보이지만 실제로 일어난다. 저장 정밀도(마이크로초)와 시계
+     * 해상도가 겹치면 연속된 두 요청이 같은 값을 받는다.
      */
     private static final Comparator<ChatRoomResponse> ROOM_ORDER = Comparator
             .comparing((ChatRoomResponse room) -> room.lastMessage() != null)
             .reversed()
             .thenComparing(room -> room.lastMessage() == null
                             ? OffsetDateTime.MIN : room.lastMessage().createdAt(),
-                    Comparator.reverseOrder());
+                    Comparator.reverseOrder())
+            .thenComparing(ChatRoomResponse::requestId, Comparator.reverseOrder());
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatLeaveRepository chatLeaveRepository;

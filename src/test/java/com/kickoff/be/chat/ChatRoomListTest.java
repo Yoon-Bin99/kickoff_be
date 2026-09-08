@@ -192,6 +192,43 @@ class ChatRoomListTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, bearer(user)));
     }
 
+    /**
+     * 두 방의 마지막 메시지가 <b>같은 시각</b>일 때도 순서가 정해져야 한다 (계약서 §6-1).
+     *
+     * 시각만으로 줄을 세우면 동률에서 순서가 안 정해지고, 같은 목록을 다시 불러도 순서가
+     * 바뀐다. 사용자에게는 방이 이유 없이 위아래로 튀는 것으로 보인다.
+     *
+     * <b>이 테스트는 실제로 겪은 것을 고정한다.</b> 정렬 테스트가 전체 실행에서만 2회 연속
+     * 깨지고 단독 실행에서는 통과했는데, 전체 실행에서는 앞선 수백 개 테스트로 JIT 가
+     * 데워져 두 요청이 훨씬 빨리 끝나 시각이 붙었기 때문이다. 그렇게 타이밍에 기대는
+     * 재현은 언제든 사라지므로, 여기서는 시각을 직접 같게 만들어 조건을 못박는다.
+     */
+    @Test
+    @DisplayName("정렬 — 마지막 메시지 시각이 같으면 requestId 가 큰 방이 먼저")
+    void ordersByRequestIdWhenTimestampsTie() throws Exception {
+        MatchRequest second = anotherMatch("두 번째 경기");
+        MatchRequest third = anotherMatch("세 번째 경기");
+        send(postOwner, second, "같은 시각 A");
+        send(postOwner, third, "같은 시각 B");
+
+        // 두 메시지의 createdAt 을 같은 값으로 맞춘다. @CreatedDate 라 저장 시점에 정해지고
+        // updatable=false 라 JPA 로는 못 바꾼다 — 네이티브 update 가 유일한 방법이다.
+        OffsetDateTime sameMoment = OffsetDateTime.now();
+        transactionTemplate.executeWithoutResult(status ->
+                entityManager.createNativeQuery(
+                                "update chat_messages set created_at = :at where request_id in (:ids)")
+                        .setParameter("at", sameMoment)
+                        .setParameter("ids", java.util.List.of(second.getId(), third.getId()))
+                        .executeUpdate());
+        entityManager.clear();
+
+        myChats(postOwner)
+                .andExpect(jsonPath("$", hasSize(3)))
+                .andExpect(jsonPath("$[*].requestId",
+                        contains(third.getId().intValue(), second.getId().intValue(),
+                                accepted.getId().intValue())));
+    }
+
     private void send(User user, MatchRequest request, String content) throws Exception {
         mockMvc.perform(post("/api/requests/{id}/chat", request.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(user))
