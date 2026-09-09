@@ -32,4 +32,14 @@ ENV SPRING_PROFILES_ACTIVE=prod
 # Railway 는 PORT 를 주입한다. application.yaml 이 ${PORT:8080} 으로 받는다.
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# 인코딩을 명시한다. 지금 실효값과 같아서 <b>동작은 바뀌지 않는다</b> — 베이스 이미지가
+# LANG=en_US.UTF-8 을 주고 있어 결과가 이미 UTF-8 이다. 그 기댈 곳을 없애는 게 목적이다.
+#
+# JDK 17 은 JEP 400(UTF-8 기본화) 이전이라 file.encoding 이 OS·로케일을 따라간다. 베이스
+# 이미지를 바꾸거나 다른 곳으로 옮겼을 때 LANG 이 없으면 <b>UTF-8 이 아니라 US-ASCII 로
+# 떨어진다</b> — 한 단계 아래다. 그때 드러나는 방식이 나쁘다: 기동은 멀쩡하고, charset 을
+# 명시하지 않은 코드 한 줄이 한글을 물음표로 바꾸기 시작한다.
+#
+# 빌드 쪽(gradle.properties·build.gradle)은 이미 UTF-8 로 고정돼 있다. 실행 쪽만 남아
+# 있었다.
+ENTRYPOINT ["java", "-Dfile.encoding=UTF-8", "-jar", "/app/app.jar"]
