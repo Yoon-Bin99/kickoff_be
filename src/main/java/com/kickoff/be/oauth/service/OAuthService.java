@@ -29,6 +29,7 @@ public class OAuthService {
 
     private final OAuthClientRegistry clients;
     private final OAuthStateStore stateStore;
+    private final OAuthExchangeCodeStore exchangeCodeStore;
     private final RedirectAllowList redirectAllowList;
     private final SocialLoginService socialLoginService;
     private final OAuthProperties properties;
@@ -95,7 +96,29 @@ public class OAuthService {
         }
     }
 
+    /**
+     * 복귀 URL 의 <b>스킴으로 분기한다</b> (계약서 §3-1, v1.26.0).
+     *
+     * 앱({@code kickoff://}·{@code exp://})은 지금까지처럼 토큰을 쿼리로 싣는다. 그 URL 은
+     * OS 가 앱에 넘기고 끝나서 남는 곳이 사실상 없다. <b>웹({@code http}/{@code https})은
+     * 다르다</b> — 같은 URL 이 주소창에 뜨고 브라우저 히스토리에 남으며, 그 페이지가 외부
+     * 자원을 하나라도 부르면 {@code Referer} 헤더로 URL 전체가 제3자에게 간다. refresh 는
+     * 30일짜리라 access 와 무게가 다르다.
+     *
+     * 그래서 웹에는 60초·1회용 코드만 주고 FE 가 POST 로 교환한다. 코드가 URL 에 남아도
+     * 교환된 뒤에는 아무 값이 없다.
+     *
+     * <b>기존 앱 빌드는 영향을 받지 않는다.</b> 분기가 스킴 기준이라, 이미 배포된 앱이
+     * 보내는 {@code kickoff://} 복귀 URL 은 예전과 똑같은 응답을 받는다.
+     */
     private URI success(String redirect, SocialLoginResult result) {
+        if (isWebRedirect(redirect)) {
+            return UriComponentsBuilder.fromUriString(redirect)
+                    .queryParam("code", exchangeCodeStore.issue(result))
+                    .queryParam("isNewUser", result.newUser())
+                    .build()
+                    .toUri();
+        }
         return UriComponentsBuilder.fromUriString(redirect)
                 .queryParam("token", result.accessToken())
                 // v1.7.0: 앱이 재시작돼도 로그인이 이어지려면 소셜 경로도 refresh 를 줘야 한다
@@ -103,6 +126,26 @@ public class OAuthService {
                 .queryParam("isNewUser", result.newUser())
                 .build()
                 .toUri();
+    }
+
+    /**
+     * 대소문자를 무시한다. URL 스킴은 규격상 대소문자를 가리지 않아 {@code HTTPS://} 도
+     * 브라우저가 정상으로 받는다 — 여기서 못 알아보면 그 요청만 토큰이 URL 에 실린다.
+     */
+    private boolean isWebRedirect(String redirect) {
+        String lower = redirect.toLowerCase(Locale.ROOT);
+        return lower.startsWith("http://") || lower.startsWith("https://");
+    }
+
+    /**
+     * 웹이 받은 일회용 코드를 토큰으로 바꾼다 (계약서 §3-1, v1.26.0).
+     *
+     * 없거나 만료·재사용이면 401 이다. 셋을 구분해 주지 않는다 — 어느 쪽이든 사용자가
+     * 할 일은 다시 로그인 하나뿐이고, 구분해 주면 코드 추측에 힌트가 된다.
+     */
+    public SocialLoginResult exchange(String code) {
+        return exchangeCodeStore.consume(code)
+                .orElseThrow(() -> new BusinessException(ErrorCode.OAUTH_CODE_INVALID));
     }
 
     private URI failure(String redirect, ErrorCode code) {

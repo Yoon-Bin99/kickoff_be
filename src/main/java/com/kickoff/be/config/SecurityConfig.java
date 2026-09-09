@@ -90,7 +90,11 @@ public class SecurityConfig {
                                 // 사람이 쓰는 API 라 토큰이 있을 수 없다. 여기가 막히면
                                 // 비밀번호를 잊은 사용자가 영영 못 들어온다.
                                 "/api/auth/password-reset",
-                                "/api/auth/password-reset/confirm").permitAll()
+                                "/api/auth/password-reset/confirm",
+                                // 웹 OAuth 일회용 코드 교환 (계약서 §3-1, v1.26.0).
+                                // 토큰을 <b>받으러</b> 오는 호출이라 토큰이 있을 수 없다.
+                                // 코드 자체가 자격 증명이고, 60초·1회용이다.
+                                "/api/auth/oauth/exchange").permitAll()
                         // 소셜 로그인 (계약서 §3-1) — 콜백은 제공자가 부르므로 토큰이 없다
                         .requestMatchers(HttpMethod.GET, "/api/auth/oauth/*/authorize",
                                 "/api/auth/oauth/*/callback").permitAll()

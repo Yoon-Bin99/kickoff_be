@@ -79,6 +79,14 @@ public enum ErrorCode {
             "문의가 너무 빠릅니다. 잠시 후 다시 보내 주세요."),
     UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인입니다."),
     OAUTH_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다."),
+    /**
+     * 웹 OAuth 일회용 코드가 없거나 만료(60초)·재사용됨 (계약서 §3-1, v1.26.0).
+     *
+     * 셋을 구분해 주지 않는다 — 어느 쪽이든 사용자가 할 일은 다시 로그인 하나뿐이고,
+     * 구분해 주면 코드 추측에 힌트가 된다. OAUTH_FAILED 와 나눈 이유는 FE 안내가 달라서다:
+     * 이쪽은 "로그인에 실패했다"가 아니라 "시간이 지나 다시 눌러야 한다"에 가깝다.
+     */
+    OAUTH_CODE_INVALID(HttpStatus.UNAUTHORIZED, "로그인 정보가 만료되었습니다. 다시 시도해 주세요."),
     /** v1.3.4 에서 자동 연동이 폐지돼 지금은 쓰지 않는다. 연동 기능이 생기는 v2 를 위해 남긴다. */
     EMAIL_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "이메일 제공에 동의해야 가입할 수 있습니다."),
     PHONE_REQUIRED(HttpStatus.BAD_REQUEST, "전화번호를 먼저 등록해야 합니다."),

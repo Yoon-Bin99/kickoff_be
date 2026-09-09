@@ -1,7 +1,10 @@
 package com.kickoff.be.oauth.controller;
 
+import com.kickoff.be.oauth.dto.OAuthExchangeRequest;
+import com.kickoff.be.oauth.dto.OAuthExchangeResponse;
 import com.kickoff.be.oauth.service.OAuthService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,11 +12,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 소셜 로그인 리다이렉트 흐름 (계약서 §3-1). 두 엔드포인트 모두 JSON 이 아니라 302 를 낸다.
+ * 소셜 로그인 (계약서 §3-1).
+ *
+ * 리다이렉트 흐름의 두 엔드포인트(authorize·callback)는 브라우저가 여는 자리라 JSON 이
+ * 아니라 302 를 낸다. 세 번째({@code exchange}, v1.26.0)만 FE 코드가 직접 부르는 호출이라
+ * JSON 이다 — 웹에서 토큰을 URL 에 싣지 않으려고 더한 경로다.
  */
 @Slf4j
 @RestController
@@ -21,6 +30,22 @@ import org.springframework.web.bind.annotation.RestController;
 public class OAuthController {
 
     private final OAuthService oauthService;
+
+    /**
+     * 웹이 받은 일회용 코드를 토큰으로 바꾼다 (계약서 §3-1, v1.26.0). 인증 불필요.
+     *
+     * <b>이 흐름에서 유일하게 JSON 을 내는 엔드포인트다.</b> 나머지 둘은 브라우저가 여는
+     * 자리라 302 를 내지만, 이건 FE 코드가 직접 부르는 호출이다.
+     *
+     * POST 인 이유는 두 가지다. 코드를 쓰면 없어지므로 안전하지 않고(GET 은 안전해야 한다),
+     * 무엇보다 <b>본문으로 받아야 코드가 접근 로그에 안 남는다</b> — 토큰을 URL 에서 빼내려고
+     * 만든 절차라 코드를 다시 URL 에 두면 앞뒤가 안 맞는다.
+     */
+    @PostMapping("/api/auth/oauth/exchange")
+    public ResponseEntity<OAuthExchangeResponse> exchange(
+            @Valid @RequestBody OAuthExchangeRequest request) {
+        return ResponseEntity.ok(OAuthExchangeResponse.of(oauthService.exchange(request.code())));
+    }
 
     /** FE 가 브라우저로 여는 진입점. 인증 불필요. */
     @GetMapping("/api/auth/oauth/{provider}/authorize")

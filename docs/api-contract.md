@@ -1,8 +1,16 @@
-# Kickoff API 계약 v1 (현재 v1.25.1)
+# Kickoff API 계약 v1 (현재 v1.26.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
 
+> v1.26.0 (2026-09-09): **웹 클라이언트 OAuth 복귀를 일회용 코드 교환으로** (웹사이트 추가 — 앱은
+> 그대로). BE는 `redirect` 스킴으로 분기: 커스텀 스킴(`kickoff://`·`exp://`)은 현행 토큰 쿼리,
+> `http(s)://`는 `?code=<60초·1회용>`만 싣고 FE(웹)가 `POST /api/auth/oauth/exchange`로 토큰을
+>받는다(§3-1). 이유: https 복귀 URL의 토큰은 브라우저 히스토리·`Referer`로 새어 나간다
+> (refresh 30일). §0 `OAUTH_CODE_INVALID`(401) 신설. 허용 목록은 완전 일치라 웹 복귀 URL은
+> 쿼리 없이 `https://<site>/oauth`로 고정하거나 `https://<site>/*`로 등록한다. 기존 앱 빌드 무영향.
+> 배포 체크리스트 ⑮(일회용 코드 교환)의 웹 부분 완료 — 앱 쪽 전환은 v2.
+>
 > v1.25.1 (2026-09-08): §0 에러 코드 `LOGIN_RATE_LIMITED`(429) 신설 — 로그인 실패 반복
 > 차단(이메일당 15분 내 10회, 성공 시 해제, 인메모리라 서버 재시작 시 초기화). 부재 중
 > 감사 F-8. §7-1 선례(전용 코드 신설)와 같은 이유로 기존 429 코드를 재사용하지 않는다.
@@ -270,6 +278,7 @@
 | `VERIFICATION_RATE_LIMITED` | 429 | 인증번호 발송 한도 초과 (v1.15.0) |
 | `SMS_SEND_FAILED` | 502 | 문자 발송 외부 API 실패 (v1.15.0) |
 | `SUPPORT_RATE_LIMITED` | 429 | 고객센터 AI 호출 한도 초과 (v1.22.0) |
+| `OAUTH_CODE_INVALID` | 401 | 웹 OAuth 일회용 코드가 없거나 만료(60초)·재사용됨 — 다시 로그인 (v1.26.0) |
 | `LOGIN_RATE_LIMITED` | 429 | 로그인 실패가 짧은 시간에 반복되어 잠시 차단 — 이메일당 15분 내 실패 10회 초과, 성공 시 해제 (v1.25.1). FE는 "잠시 후 다시 시도" 안내, 비밀번호 재설정 링크 제시 |
 | `PASSWORD_MISMATCH` | 400 | 회원 탈퇴 시 비밀번호 재확인 불일치 (v1.23.0) |
 | `ACTIVE_MATCH_EXISTS` | 409 | 예정된 매칭이 있는 팀의 소유자가 탈퇴 시도 (v1.23.0) |
@@ -492,9 +501,27 @@ FE ─open→ GET /api/auth/oauth/{provider}/authorize?redirect=<앱 복귀 URL>
 BE ─302→ 제공자 로그인/동의 화면
 제공자 ─302→ GET /api/auth/oauth/{provider}/callback?code=...&state=...
 BE: code 교환 → 프로필 조회 → 계정 결정 → JWT 발급
-BE ─302→ {redirect}?token=<accessToken>&isNewUser=true|false   (실패 시 {redirect}?error=<에러코드>)
-FE: token 저장 → GET /api/auth/me 로 UserResponse 취득
+BE ─302→ {redirect}?token=<accessToken>&refreshToken=<…>&isNewUser=true|false   ← redirect가 커스텀 스킴(kickoff://, exp://)일 때 (앱, 현행)
+BE ─302→ {redirect}?code=<일회용 코드>&isNewUser=true|false                         ← redirect가 http(s)://일 때 (웹, v1.26.0)
+        (실패 시 어느 쪽이든 {redirect}?error=<에러코드>)
+FE(앱): token 저장 → GET /api/auth/me
+FE(웹): POST /api/auth/oauth/exchange {code} → 토큰 수령 → 주소창 쿼리 즉시 제거 → GET /api/auth/me
 ```
+
+**웹 복귀는 토큰을 URL에 싣지 않는다 (v1.26.0)**: `https://` 복귀 URL에 토큰을 쿼리로 실으면
+브라우저 히스토리·`Referer` 헤더·동기화·링크 복사로 refresh 토큰(30일)이 새어 나간다 —
+앱의 딥링크와 달리 실제 경로다. 그래서 BE는 **redirect의 스킴으로 분기**한다: 커스텀
+스킴이면 현행(토큰 쿼리), `http`/`https`면 **일회용 코드**만 싣고 FE가 아래 API로 교환한다.
+기존 앱 빌드는 영향 없다.
+
+### POST /api/auth/oauth/exchange — 인증 불필요 (v1.26.0, 웹 전용)
+
+요청 `{ "code": "<콜백 쿼리의 code>" }` → 200 `{ "accessToken", "refreshToken", "isNewUser" }`
+(login 응답의 토큰 부분과 같은 형태). 코드는 **발급 후 60초·1회용**이며 BE 메모리에만 둔다
+(state와 같은 방식 — 서버 재시작 시 소멸, 그러면 다시 로그인). 없거나 만료·재사용이면
+401 `OAUTH_CODE_INVALID`. FE(웹)는 토큰을 받는 즉시 `history.replaceState`로 주소창의
+`code` 쿼리를 지우고, 복귀 페이지에서는 외부 자원(이미지·폰트·스크립트)을 불러오지 않는다
+(그 사이 `Referer` 누출 최소화).
 
 ### GET /api/auth/oauth/{provider}/authorize — 인증 불필요
 
