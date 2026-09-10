@@ -519,9 +519,11 @@ FE(웹): POST /api/auth/oauth/exchange {code} → 토큰 수령 → 주소창 �
 요청 `{ "code": "<콜백 쿼리의 code>" }` → 200 `{ "accessToken", "refreshToken", "isNewUser" }`
 (login 응답의 토큰 부분과 같은 형태). 코드는 **발급 후 60초·1회용**이며 BE 메모리에만 둔다
 (state와 같은 방식 — 서버 재시작 시 소멸, 그러면 다시 로그인). 없거나 만료·재사용이면
-401 `OAUTH_CODE_INVALID`. FE(웹)는 토큰을 받는 즉시 `history.replaceState`로 주소창의
-`code` 쿼리를 지우고, 복귀 페이지에서는 외부 자원(이미지·폰트·스크립트)을 불러오지 않는다
-(그 사이 `Referer` 누출 최소화).
+401 `OAUTH_CODE_INVALID`. FE(웹)는 교환 성공 즉시 다음 화면으로 `replace` 이동해 주소창의
+`code` 쿼리가 히스토리에 남지 않게 하고, 복귀 페이지에서는 외부 자원(이미지·폰트·스크립트)을
+불러오지 않는다(`Referer` 누출 경로 차단 — FE 실측 확인). 교환 **실패** 시에는 코드가 이미
+만료·소진된 값이라 주소에 남아도 무해하며, 실패 안내를 지우지 않는 쪽을 우선한다
+(expo-router가 라우트 상태로 주소를 되쓰는 특성 때문에 `replaceState`만으로는 지워지지 않음).
 
 ### GET /api/auth/oauth/{provider}/authorize — 인증 불필요
 
