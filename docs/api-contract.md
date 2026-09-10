@@ -1,7 +1,13 @@
-# Kickoff API 계약 v1 (현재 v1.26.0)
+# Kickoff API 계약 v1 (현재 v1.26.1)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.26.1 (2026-09-10): **authorize의 400 응답을 브라우저에는 HTML로** (§3-1). 이 API는 항상
+> 브라우저(앱은 인앱 브라우저, 웹은 페이지 이동)가 열므로 JSON 400이 나가면 사용자는 API
+> 도메인의 날 JSON을 보고 사이트 밖에 갇힌다(웹 실측). 요청 `Accept`에 `text/html`이 있으면
+> 같은 400 상태에 사람이 읽는 HTML 오류 페이지(메시지 + 뒤로가기 버튼)를 준다. `Accept`가
+> JSON이면 현행 JSON 그대로 — 테스트·curl 무영향. FE 변경 없음.
 
 > v1.26.0 (2026-09-09): **웹 클라이언트 OAuth 복귀를 일회용 코드 교환으로** (웹사이트 추가 — 앱은
 > 그대로). BE는 `redirect` 스킴으로 분기: 커스텀 스킴(`kickoff://`·`exp://`)은 현행 토큰 쿼리,
@@ -535,6 +541,12 @@ FE(웹): POST /api/auth/oauth/exchange {code} → 토큰 수령 → 주소창 �
   (open redirect 방지, **프리픽스 매칭**). dev 허용 목록: `exp://*`, `kickoff://*`, `http://localhost:*`
 - 허용 목록 밖 redirect는 **302 하지 않고** 400 `VALIDATION_FAILED`
   (`fieldErrors[0].field = "redirect"`) — 신뢰하지 않는 주소로 되돌려 보내지 않는다 (v1.3.1)
+- **브라우저 요청의 400은 HTML** (v1.26.1): 요청 `Accept`에 `text/html`이 포함되면 위 400을
+  JSON 대신 HTML 오류 페이지로 준다 — 상태 코드 400 동일, `Content-Type: text/html; charset=UTF-8`,
+  본문은 한국어 안내 한 줄("허용되지 않은 복귀 주소입니다. 앱이나 사이트로 돌아가 다시 시도해
+  주세요.")과 `history.back()` 버튼. 페이지는 외부 자원을 불러오지 않고, `redirect` 값을 링크로
+  쓰지 않는다(허용 목록 밖 주소라 open redirect가 된다). `Accept`가 `application/json`이거나
+  없으면 현행 JSON — 다른 API의 오류 형식은 바뀌지 않는다
 - `state`는 BE가 생성·검증한다 (CSRF 방지, 일회용). FE는 신경 쓰지 않는다
 
 ### GET /api/auth/oauth/{provider}/callback — 제공자 전용
