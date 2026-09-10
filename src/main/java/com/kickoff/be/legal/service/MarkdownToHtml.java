@@ -112,11 +112,52 @@ public final class MarkdownToHtml {
             } else {
                 break;
             }
-            out.add("<li>" + inline(item) + "</li>");
             i++;
+            i = appendContinuations(lines, i, item, out);
         }
         out.add("</" + tag + ">");
         return i;
+    }
+
+    /**
+     * 항목의 <b>이어지는 줄</b>을 그 항목에 붙인다.
+     *
+     * 마크다운에서 목록 항목 다음의 들여쓴 줄은 그 항목의 계속이다. 이걸 안 붙이면 두
+     * 가지가 한꺼번에 어긋난다 — 이어지는 줄이 <b>목록 밖 문단</b>으로 떨어져 들여쓰기가
+     * 사라지고, 목록이 거기서 닫히는 바람에 <b>다음 항목이 새 목록으로 시작해 번호가 1 로
+     * 되돌아간다.</b>
+     *
+     * 약관에서 번호는 조항 번호다. "제2조 1., 2." 가 "1., 1." 로 보이면 조문을 가리켜
+     * 이야기할 수 없게 된다 — 서버는 200 이고 로그도 조용해서, 실제로 폰 화면을 들여다볼
+     * 때까지 아무도 몰랐다.
+     *
+     * <b>들여쓰기가 있는 줄만 이어 붙인다.</b> 들여쓰지 않은 줄은 목록이 끝나고 새 문단이
+     * 시작된 것으로 본다 — 원문이 그렇게 쓰여 있고, 넓게 잡으면 목록 뒤 문단이 항목 안으로
+     * 빨려 들어간다.
+     *
+     * 들여쓴 줄이 그 자체로 목록 표시(`-` 나 `1.`)면 중첩 목록인데 이 변환기는 중첩을
+     * 다루지 않는다. 그때는 붙이지 않고 끊는다 — 문서에 그런 구문이 들어오면
+     * {@code LegalDocumentTest} 가 먼저 잡는다.
+     */
+    private static int appendContinuations(String[] lines, int start, String item,
+                                           List<String> out) {
+        StringBuilder text = new StringBuilder(item);
+        int i = start;
+        while (i < lines.length && isContinuation(lines[i])) {
+            text.append(' ').append(lines[i].strip());
+            i++;
+        }
+        out.add("<li>" + inline(text.toString()) + "</li>");
+        return i;
+    }
+
+    private static boolean isContinuation(String line) {
+        String trimmed = line.strip();
+        if (trimmed.isEmpty() || line.equals(trimmed)) {
+            return false;
+        }
+        return !trimmed.startsWith("- ") && !trimmed.startsWith("* ")
+                && !ORDERED.matcher(trimmed).matches();
     }
 
     /**

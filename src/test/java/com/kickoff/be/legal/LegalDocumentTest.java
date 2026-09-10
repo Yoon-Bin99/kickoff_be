@@ -167,6 +167,66 @@ class LegalDocumentTest extends IntegrationTestSupport {
         assertThat(html).contains("<strong>굵게</strong>");
     }
 
+    /**
+     * <b>실제 약관에서 잘못 렌더되던 모양이다.</b> 폰 폭(375)에서 화면을 들여다보다 찾았다 —
+     * 서버는 200 이고 로그도 조용해서 그 전까지 아무도 몰랐다.
+     *
+     * 항목의 이어지는 줄을 목록 밖으로 흘리면 두 가지가 한꺼번에 어긋난다. 그 줄이
+     * 들여쓰기를 잃고 문단으로 떨어지고, 목록이 거기서 닫히는 바람에 <b>다음 항목이 새
+     * 목록으로 시작해 번호가 1 로 되돌아간다.</b>
+     *
+     * 약관에서 번호는 조항 번호다. "제2조 1., 2." 가 "1., 1." 로 보이면 조문을 가리켜
+     * 이야기할 수 없게 된다 — 법적 문서에서는 서식이 아니라 내용이 틀리는 것에 가깝다.
+     */
+    @Test
+    @DisplayName("들여쓴 이어쓰기 줄은 그 항목에 붙는다 — 번호가 1 로 되돌아가면 안 된다")
+    void continuationLinesStayInTheItem() {
+        String html = MarkdownToHtml.render("""
+                1. 첫 항목이고
+                   이어지는 줄이 있다
+                2. 둘째 항목
+                """);
+
+        assertThat(html).contains("<li>첫 항목이고 이어지는 줄이 있다</li>");
+        assertThat(html).contains("<li>둘째 항목</li>");
+        assertThat(html)
+                .as("목록이 중간에 닫히면 <ol> 이 두 번 열리고 번호가 1 로 되돌아간다")
+                .containsOnlyOnce("<ol>");
+        assertThat(html)
+                .as("이어지는 줄이 목록 밖 문단으로 떨어지면 안 된다")
+                .doesNotContain("<p>이어지는 줄이 있다</p>");
+    }
+
+    /** 불릿도 같은 규칙이다 — 한 문서 안에서 목록 종류에 따라 달라지면 안 된다. */
+    @Test
+    @DisplayName("불릿 목록의 이어쓰기 줄도 항목에 붙는다")
+    void continuationLinesWorkForBullets() {
+        String html = MarkdownToHtml.render("""
+                - 첫 불릿이고
+                  이어지는 줄
+                - 둘째 불릿
+                """);
+
+        assertThat(html).contains("<li>첫 불릿이고 이어지는 줄</li>", "<li>둘째 불릿</li>");
+        assertThat(html).containsOnlyOnce("<ul>");
+    }
+
+    /**
+     * 들여쓰지 않은 줄은 목록의 끝이다. 넓게 잡으면 목록 뒤 문단이 마지막 항목 안으로
+     * 빨려 들어가는데, 그건 원문과 다른 문서를 보여주는 것이다.
+     */
+    @Test
+    @DisplayName("들여쓰지 않은 줄에서는 목록이 끝난다")
+    void unindentedLineEndsTheList() {
+        String html = MarkdownToHtml.render("""
+                1. 항목
+                목록 뒤 문단
+                """);
+
+        assertThat(html).contains("<li>항목</li>");
+        assertThat(html).contains("<p>목록 뒤 문단</p>");
+    }
+
     @Test
     @DisplayName("HTML 특수문자를 이스케이프한다")
     void escapesHtml() {
