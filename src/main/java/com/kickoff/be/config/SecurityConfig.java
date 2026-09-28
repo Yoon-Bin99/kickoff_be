@@ -126,6 +126,11 @@ public class SecurityConfig {
                                 "/api/teams/*/records").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*").permitAll()
 
+                        // 구장 디렉터리 (계약서 §8-1, v1.27.0). 가입 전에도 어디서 찰 수
+                        // 있는지 볼 수 있어야 한다 — 공개 데이터를 외부 예약 페이지로
+                        // 연결하는 것뿐이라 개인정보가 실리지 않는다.
+                        .requestMatchers(HttpMethod.GET, "/api/stadiums").permitAll()
+
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
                         UsernamePasswordAuthenticationFilter.class);

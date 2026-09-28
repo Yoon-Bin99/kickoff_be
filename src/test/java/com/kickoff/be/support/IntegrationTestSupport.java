@@ -157,6 +157,8 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected PhoneVerificationRepository phoneVerificationRepository;
     @Autowired
+    protected com.kickoff.be.stadium.repository.StadiumRepository stadiumRepository;
+    @Autowired
     protected com.kickoff.be.verification.service.SmsDispatchQuota smsDispatchQuota;
     @Autowired
     protected com.kickoff.be.auth.service.LoginAttemptLimiter loginAttemptLimiter;
@@ -193,6 +195,9 @@ public abstract class IntegrationTestSupport {
         // 전화번호 인증은 아무것도 참조하지 않지만, 레이트리밋이 남으면 다음 테스트의
         // 발송이 429 로 막힌다 (v1.15.0)
         phoneVerificationRepository.deleteAll();
+        // 구장은 아무것도 참조하지 않지만, 마이그레이션 시드(V20)가 들어 있어 비워야 한다 —
+        // 안 비우면 목록 테스트가 자기가 넣지 않은 5건을 같이 세게 된다 (v1.27.0).
+        stadiumRepository.deleteAll();
         // 소셜 연동은 사용자를 참조하므로 사용자보다 먼저 지운다
         socialAccountRepository.deleteAll();
         userRepository.deleteAll();
