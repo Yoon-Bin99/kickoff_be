@@ -87,6 +87,35 @@ class StadiumDirectoryTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.content[2].name").value("월곡 인조잔디구장"));
     }
 
+    /**
+     * 서버 콜레이션과 무관하게 같은 순서여야 한다 (계약서 §8-1).
+     *
+     * <b>v1.27.0 배포에서 실제로 깨졌던 자리다.</b> 운영(glibc en_US.utf8)이 이 다섯 행을
+     * 4,2,1,3,5 로 돌려줬다 — 인천 서구가 맨 앞, 인천 연수구가 맨 뒤라 경기 구장 셋을
+     * 사이에 두고 갈라졌다. 그럴 수 없어 보이지만, glibc 다단계 가중치 비교는 한글을
+     * 상위 레벨에서 무시할 수 있어 첫 글자가 순서를 결정하지 않는다.
+     *
+     * 실제 운영 시드(V20) 그대로 쓴다 — 이 값들이어야 문제가 드러난다.
+     * 임의의 한글로 바꾸면 우연히 통과해 테스트가 조용히 쓸모없어진다.
+     */
+    @Test
+    @DisplayName("서버 콜레이션과 무관하게 정렬된다 — v1.27.0 회귀")
+    void sortsIndependentlyOfServerCollation() throws Exception {
+        manual("인조잔디구장(성남종합운동장)", "경기 성남시");
+        manual("황송공원인조잔디구장", "경기 성남시");
+        manual("탄천변축구장A", "경기 성남시");
+        manual("공촌유수지 체육시설 축구장", "인천 서구");
+        manual("연수체육공원 풋살장A", "인천 연수구");
+
+        mockMvc.perform(get("/api/stadiums").param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("인조잔디구장(성남종합운동장)"))
+                .andExpect(jsonPath("$.content[1].name").value("탄천변축구장A"))
+                .andExpect(jsonPath("$.content[2].name").value("황송공원인조잔디구장"))
+                .andExpect(jsonPath("$.content[3].name").value("공촌유수지 체육시설 축구장"))
+                .andExpect(jsonPath("$.content[4].name").value("연수체육공원 풋살장A"));
+    }
+
     @Test
     @DisplayName("이름 부분 일치로 찾는다")
     void keywordMatchesName() throws Exception {

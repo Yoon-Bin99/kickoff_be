@@ -31,6 +31,12 @@ public interface StadiumRepository extends JpaRepository<Stadium, Long> {
      *
      * 정렬은 region → name 이다(계약서 §8-1). 동명이 있을 수 있어 id 를 마지막 키로 넣는다 —
      * 없으면 같은 이름 둘의 상대 순서가 조회마다 달라져 페이징에서 하나가 두 번 나오거나 빠진다.
+     *
+     * <b>{@code sortkey()} 로 감싼 것은 장식이 아니다.</b> 서버 libc 에 따라 한글 정렬이
+     * 달라져서, v1.27.0 배포 때 H2 와 alpine PostgreSQL 은 통과하는데 운영(glibc)만 순서가
+     * 엉켰다. 이 함수가 PostgreSQL 에서 {@code collate "C"} 를 붙여 환경과 무관하게 같은
+     * 순서를 만든다 ({@link com.kickoff.be.config.SortKeyFunctionContributor} 에 전말을 적었다).
+     * <b>벗기지 말 것</b> — 벗겨도 로컬 테스트는 통과하고 운영에서만 틀린다.
      */
     @Query("""
             select s from Stadium s
@@ -38,7 +44,7 @@ public interface StadiumRepository extends JpaRepository<Stadium, Long> {
                    or s.region like concat(cast(:region as string), '%') escape '!')
               and (:keyword is null
                    or lower(s.name) like lower(concat('%', cast(:keyword as string), '%')) escape '!')
-            order by s.region asc, s.name asc, s.id asc
+            order by sortkey(s.region) asc, sortkey(s.name) asc, s.id asc
             """)
     Page<Stadium> search(@Param("region") String region, @Param("keyword") String keyword,
                          Pageable pageable);

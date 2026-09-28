@@ -72,8 +72,21 @@ public abstract class IntegrationTestSupport {
     protected static final String ACCOUNT_HOLDER = "김주장";
     protected static final int DEPOSIT_AMOUNT = 50000;
 
-    /** 운영과 같은 메이저 버전. Railway 의 PostgreSQL 16 에 맞춘다. */
-    private static final String POSTGRES_IMAGE = "postgres:16-alpine";
+    /**
+     * 운영과 같은 메이저 버전 <b>그리고 같은 libc</b>. Railway 의 PostgreSQL 16 에 맞춘다.
+     *
+     * <b>alpine 이 아니라 debian 이어야 한다.</b> 예전에는 {@code postgres:16-alpine} 을 썼는데,
+     * alpine 은 musl libc 라 로케일 콜레이션이 사실상 코드포인트 순서다. 운영(glibc)은
+     * 같은 이름의 {@code en_US.utf8} 로도 <b>한글을 다르게 정렬한다</b> — glibc 의 다단계
+     * 가중치 비교에서 한글은 en_US 규칙에 없어 상위 레벨이 무시되고, 첫 글자가 순서를
+     * 결정하지 않는다.
+     *
+     * 이걸로 v1.27.0 배포에서 실제로 당했다. 구장 목록 정렬 테스트가 H2 와 alpine
+     * PostgreSQL 양쪽에서 통과했는데 운영에서만 순서가 엉켰고, 두 인천 구장이 경기 구장들을
+     * 사이에 두고 갈라져 나왔다. <b>테스트가 잡을 수 없는 차이였다</b> — 하니스가 운영과
+     * 다른 libc 를 쓰고 있었기 때문이다. 이미지를 되돌리지 말 것.
+     */
+    private static final String POSTGRES_IMAGE = "postgres:16";
 
     private static PostgreSQLContainer postgres;
 
