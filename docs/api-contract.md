@@ -1,7 +1,14 @@
-# Kickoff API 계약 v1 (현재 v1.27.0)
+# Kickoff API 계약 v1 (현재 v1.27.1)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.27.1 (2026-09-28): §8-1을 실제 서울 API 응답에 맞춰 확정(BE 실측 반영). ① `address`는
+> nullable — 서울 공공 API는 주소를 주지 않아 SEOUL_PUBLIC은 항상 null(지어내지 않는다).
+> ② `region`은 BE가 자치구 앞에 "서울 "을 붙여 §5 형식으로 맞춘다(AREANM은 "성동구"만 옴).
+> ③ 행 단위는 구장이 아니라 **예약 서비스**(같은 구장이 "평일"·"토/일/공휴일"로 복수 행,
+> SVCID 기준 갱신, name=SVCNM 원문). FE 목록 상단 안내에 이 사실을 한 줄 포함.
+> ④ `usePeriod`는 날짜만 남긴 "YYYY-MM-DD ~ YYYY-MM-DD", 형식이 예상과 다르면 원문 유지.
 
 > v1.27.0 (2026-09-28): **구장 디렉터리** 신설 (§8-1). 지역(시·자치구)으로 구장을 찾아 외부
 > 예약 페이지로 보내는 조회 전용 기능. GET /api/stadiums (인증 불필요) — region 필터,
@@ -1706,7 +1713,7 @@ LIKE 이스케이프 규칙), `page`/`size`(기본 0/20, 최대 50).
   "stadiumId": 1,
   "name": "월곡 인조잔디구장",
   "region": "서울 성북구",
-  "address": "서울 성북구 …",
+  "address": null,
   "reservationUrl": "https://yeyak.seoul.go.kr/…",
   "source": "SEOUL_PUBLIC",
   "acceptStatus": "접수중",
@@ -1715,6 +1722,12 @@ LIKE 이스케이프 규칙), `page`/`size`(기본 0/20, 최대 50).
 ```
 
 - `source`: `SEOUL_PUBLIC`(서울 공공서비스예약 API 동기화) | `MANUAL`(운영자 시드).
+- `address` nullable — 서울 공공 API는 주소 미제공이라 SEOUL_PUBLIC은 항상 null, MANUAL도
+  모르면 null(지어내지 않는다). `region`은 SEOUL_PUBLIC의 경우 BE가 "서울 "+자치구로 조립.
+- **행 = 예약 서비스 단위**(v1.27.1): 같은 구장이 평일/주말 등으로 여러 줄일 수 있다.
+  name은 서비스명 원문(예: "월곡 인조잔디구장(평일)-2026년"). FE는 목록 상단 안내 문구에
+  "같은 구장이 요일별로 나뉘어 보일 수 있어요"를 포함한다.
+- `usePeriod`: "YYYY-MM-DD ~ YYYY-MM-DD"로 날짜만, 원문 형식이 다르면 자르지 않고 원문.
 - `acceptStatus`/`usePeriod`: **SEOUL_PUBLIC만**, 원문 그대로(예: 접수중·예약마감). MANUAL은 null.
 - `reservationUrl`은 응답에 항상 있고 **FE가 새 창/브라우저로 연다**(웹 `target=_blank
   rel=noopener`, 앱 `Linking.openURL`). 외부 사이트라는 안내 문구를 목록 상단에 1회 표시.
