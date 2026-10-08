@@ -92,6 +92,24 @@ public interface AccountDeletionRepository extends JpaRepository<User, Long> {
     @Query("delete from MatchPost p where p.team.id = :teamId")
     int deletePostsOfTeam(@Param("teamId") Long teamId);
 
+    /**
+     * 스쿼드 자리 (계약서 §4-4, v1.28.0). <b>스쿼드보다 먼저</b> — squads 를 참조한다.
+     *
+     * 팀원(team_members)도 참조하지만 그쪽은 {@code on delete set null} 이라 순서가
+     * 상관없다. 그래도 자리를 먼저 지우는 건 팀 전체를 지우는 길에서는 남길 이유가
+     * 없어서다 — set null 은 "팀원 한 명만 명단에서 빠질 때" 스쿼드를 살리기 위한 장치다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            delete from SquadSlot s
+            where s.squad.id in (select q.id from Squad q where q.team.id = :teamId)
+            """)
+    int deleteSquadSlotsOfTeam(@Param("teamId") Long teamId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Squad q where q.team.id = :teamId")
+    int deleteSquadsOfTeam(@Param("teamId") Long teamId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from TeamMember tm where tm.team.id = :teamId")
     int deleteMembersOfTeam(@Param("teamId") Long teamId);

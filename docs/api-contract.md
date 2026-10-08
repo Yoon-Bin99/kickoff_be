@@ -1,7 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.27.1)
+# Kickoff API 계약 v1 (현재 v1.28.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.28.0 (2026-10-08): **스쿼드 메이커** 신설 (§4-4). 팀 안에서 포메이션을 고르고 팀원 명단(§4-1)을
+> 자리에 배치해 저장·열람한다. 공유는 **FE가 경기장 그림을 이미지로 만들어 OS 공유창(카톡 등)으로**
+> 보내는 방식 — 서버는 이미지를 만들거나 저장하지 않는다. §1 `Formation` 열거형 추가. §9의
+> "스쿼드/포메이션 보드"를 범위 안으로 옮기고, 서버 이미지 렌더링·링크 공유는 v2로 남긴다.
 
 > v1.27.1 (2026-09-28): §8-1을 실제 서울 API 응답에 맞춰 확정(BE 실측 반영). ① `address`는
 > nullable — 서울 공공 API는 주소를 주지 않아 SEOUL_PUBLIC은 항상 null(지어내지 않는다).
@@ -350,6 +355,7 @@ RequestStatus PENDING | ACCEPTED | REJECTED | CANCELED | MATCH_CANCELED (v1.20.0
               대기중    수락됨     거절됨     취소됨
 
 Position      GK | DF | MF | FW
+Formation     F11_4_4_2 | F11_4_3_3 | F11_4_2_3_1 | F11_3_5_2 | F11_3_4_3 | F11_5_3_2 | F7_2_3_1 | F7_3_2_1 | F6_2_2_1 | F6_1_3_1   (v1.28.0, §4-4 — 앞 숫자가 총원, GK 포함)
               골키퍼  수비   미드필더  공격
 
 AuthProvider  KAKAO | NAVER | GOOGLE | APPLE
@@ -1097,6 +1103,57 @@ PENDING 목록. 200 → `[{ "id": 5, "applicant": { "userId": 9, "nickname": "�
 data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해당 팀 페이지,
 나머지 → 팀 페이지. best-effort 규칙 동일.
 
+## 4-4. 스쿼드 메이커 (v1.28.0)
+
+팀이 경기 전에 선발·교체를 짜 두는 보드. 한 팀에 여러 스쿼드를 저장한다("10/12 vs 마포" 식).
+**공유는 FE 몫**: 경기장 그림을 이미지(PNG)로 캡처해 OS 공유창으로 보낸다(앱 `expo-sharing`
+→ 카톡·문자·갤러리, 웹은 Web Share API(files) 지원 시 공유창, 아니면 다운로드). 서버는 이미지를
+만들지도 저장하지도 않는다(링크 공유·서버 렌더링은 §9 v2).
+
+### 자리 배치 규칙
+
+- `formation`(§1 Formation)이 총원 N을 정한다. `slots`는 **정확히 N개**, `slot` 0은 GK,
+  1..N-1은 포메이션 줄 순서(수비→미드→공격, 각 줄 왼쪽→오른쪽). 자리 좌표는 FE가 포메이션별로
+  고정 테이블을 가진다(서버는 좌표를 모른다).
+- 각 자리/교체 항목은 `memberId`(§4-1 TeamMember, 이 팀 소속) **또는** `name`(1~20자, 게스트
+  등 명단 밖 사람) 중 하나. 둘 다 null이면 **빈 자리**(허용 — 짜다 만 스쿼드도 저장된다).
+  둘 다 있으면 `memberId`가 이긴다. 같은 `memberId`가 선발+교체 통틀어 두 번 나오면 400
+  `VALIDATION_FAILED`(`fieldErrors[].field` = `slots[i].memberId` / `bench[i].memberId`).
+- `bench`(교체) 0~10명, 같은 항목 구조, `slot` 없음.
+- 응답의 `name`은 memberId가 있으면 **현재 명단 이름**, 그 팀원이 명단에서 지워졌으면 저장 시점
+  이름(스냅샷)을 돌려주고 `memberId`는 null로 내려간다(스쿼드는 과거 기록으로 남는다).
+- 한 팀 최대 **30개**. 초과 시 400 `VALIDATION_FAILED`(field `squads`, "오래된 스쿼드를 지워 주세요").
+
+### 권한
+
+읽기 = 그 팀 소속 전원(OWNER·ADMIN·MEMBER, §4-3) — 비소속·비로그인은 403 `FORBIDDEN`.
+쓰기(생성·수정·삭제) = OWNER·ADMIN(§4-2 권한표의 "팀원 명단·경기 기록 쓰기"와 같은 줄).
+
+### 오브젝트
+
+```json
+{ "squadId": 3, "teamId": 7, "title": "10/12 vs 마포 유나이티드", "formation": "F11_4_3_3",
+  "slots": [ { "slot": 0, "memberId": 5, "name": "김철수" }, { "slot": 1, "memberId": null, "name": "게스트 민수" },
+             { "slot": 2, "memberId": null, "name": null } ],
+  "bench": [ { "memberId": 9, "name": "박영수" } ],
+  "createdAt": "…", "updatedAt": "…" }
+```
+- `title` 1~30자 필수.
+
+### API
+
+- `GET /api/teams/{teamId}/squads` — 인증 필요(소속). 200 → `SquadSummary[]`(squadId·title·formation·
+  updatedAt), `updatedAt` 내림차순, 페이지 없음(최대 30).
+- `POST /api/teams/{teamId}/squads` — OWNER·ADMIN. 본문 `{ title, formation, slots[], bench[] }`
+  (slots/bench 항목은 `{ slot?, memberId?, name? }`). 201 → 오브젝트.
+- `GET /api/teams/{teamId}/squads/{squadId}` — 소속. 200 → 오브젝트.
+- `PUT /api/teams/{teamId}/squads/{squadId}` — OWNER·ADMIN. 본문 POST와 동일, **전체 교체**
+  (부분 수정 없음 — 보드 하나를 통째로 저장하는 UI라 PATCH 의미가 없다). 200 → 오브젝트.
+- `DELETE /api/teams/{teamId}/squads/{squadId}` — OWNER·ADMIN. 204.
+- 다른 팀의 memberId를 넣으면 400 `VALIDATION_FAILED`(field `slots[i].memberId`, "이 팀의 팀원이 아닙니다").
+- 팀 삭제·소유자 탈퇴 시 스쿼드도 함께 지운다(cascade).
+
+
 ## 5. 모집글
 
 ### GET /api/posts — 인증 불필요
@@ -1755,7 +1812,7 @@ LIKE 이스케이프 규칙), `page`/`size`(기본 0/20, 최대 50).
 구장 관리자용 등록 API(v1은 수동 시드만 — §8-1),
 채팅 실시간 전송(WebSocket — v1은 폴링), 채팅 읽음 표시·안읽음 배지,
 채팅 메시지 수정·삭제·신고, 채팅 이미지 첨부, 채팅 푸시 묶음·스로틀,
-이미지 업로드(팀 로고 포함), 스쿼드/포메이션 보드,
+이미지 업로드(팀 로고 포함), 스쿼드의 서버 이미지 렌더링·링크 공유·경기(매칭) 연결(v1은 제목만 — §4-4),
 기록 수정, 소유권 이전·소유자 탈퇴, 가입 초대(팀→사용자 방향),
 경기 종료 리마인드 푸시(기록·리뷰 유도 알림),
 리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),

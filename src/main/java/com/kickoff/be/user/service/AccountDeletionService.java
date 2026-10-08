@@ -117,6 +117,10 @@ public class AccountDeletionService {
         deletionRepository.deleteMatchRequestsOfTeam(teamId);
         deletionRepository.deletePostsOfTeam(teamId);
 
+        // 스쿼드는 팀원을 참조한다 (계약서 §4-4, v1.28.0). 자리 → 스쿼드 → 팀원 순이다.
+        deletionRepository.deleteSquadSlotsOfTeam(teamId);
+        deletionRepository.deleteSquadsOfTeam(teamId);
+
         deletionRepository.deleteMembersOfTeam(teamId);
         deletionRepository.deleteAdminsOfTeam(teamId);
         deletionRepository.deleteJoinRequestsOfTeam(teamId);

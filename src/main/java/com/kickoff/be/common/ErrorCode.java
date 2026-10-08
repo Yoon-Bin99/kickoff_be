@@ -36,6 +36,15 @@ public enum ErrorCode {
     TEAM_MEMBER_LIMIT(HttpStatus.BAD_REQUEST, "팀원은 30명을 넘을 수 없습니다."),
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팀원입니다."),
     RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 경기 기록입니다."),
+    /**
+     * 스쿼드 메이커 (계약서 §4-4, v1.28.0).
+     *
+     * <b>계약서 §0 에 아직 없는 코드다 — supervisor 에게 추가를 보고했다.</b> 기존 코드를
+     * 재사용하지 않은 것은 §4-1 의 선례를 따른 것이다(팀원·경기 기록이 각자 코드를 갖는다).
+     * 없는 스쿼드와 남의 팀 스쿼드가 같은 404 로 나가는 것도 같은 이유다 — 구분해서
+     * 알려 주면 남의 팀에 어떤 스쿼드 id 가 있는지 떠볼 수 있다.
+     */
+    SQUAD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 스쿼드입니다."),
     /** 매칭에서 기록 만들기 (계약서 §4-1, v1.10.0). */
     RECORD_NOT_AVAILABLE(HttpStatus.CONFLICT, "아직 전적을 기록할 수 없는 경기입니다."),
     RECORD_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 이 경기의 전적을 기록했습니다."),

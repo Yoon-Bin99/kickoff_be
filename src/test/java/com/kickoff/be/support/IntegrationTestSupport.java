@@ -125,6 +125,8 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected TeamMemberRepository teamMemberRepository;
     @Autowired
+    protected com.kickoff.be.team.repository.SquadRepository squadRepository;
+    @Autowired
     protected TeamRecordRepository teamRecordRepository;
     @Autowired
     protected MatchPostRepository postRepository;
@@ -198,6 +200,9 @@ public abstract class IntegrationTestSupport {
         chatMessageRepository.deleteAll();
         requestRepository.deleteAll();
         postRepository.deleteAll();
+        // 스쿼드는 팀과 팀원을 참조한다 (v1.28.0). 자리는 Squad 의 cascade·orphanRemoval 이
+        // 함께 지우므로 스쿼드만 지우면 된다 — 벌크 쿼리가 아니라 엔티티 삭제라서 동작한다.
+        squadRepository.deleteAll();
         // 팀 페이지 자식들 (v1.8.0·v1.9.0). 팀보다 먼저 지워야 한다 — 특히 team_admins 는
         // 사용자도 참조해서, 빠뜨리면 팀·사용자 삭제가 참조 무결성 위반으로 터진다.
         teamMemberRepository.deleteAll();
