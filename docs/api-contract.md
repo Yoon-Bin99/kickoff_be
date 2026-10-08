@@ -1,7 +1,14 @@
-# Kickoff API 계약 v1 (현재 v1.28.0)
+# Kickoff API 계약 v1 (현재 v1.28.1)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.28.1 (2026-10-08): §4-4 확정(BE 구현 반영). ① §0 `SQUAD_NOT_FOUND`(404) 신설 — 없는 스쿼드와
+> **남의 팀 스쿼드 id를 내 팀 주소에 끼운 경우** 둘 다 이 코드(구분하면 타 팀 id 탐색이 됨).
+> ② 읽기 API의 비로그인은 다른 인증 필요 API와 같이 **401 `UNAUTHORIZED`**(시큐리티 필터), 로그인했지만
+> 비소속이면 403 `FORBIDDEN` — v1.28.0의 "비로그인 403"은 permitAll+서비스 검사 한 줄에 기대야 해서 철회.
+> ③ 30개 상한은 **생성에만** 적용(수정은 상한에서도 가능 — 막다른 길 방지). ④ 중복 memberId의
+> fieldErrors는 **두 번째** 등장 자리를 가리킨다.
 
 > v1.28.0 (2026-10-08): **스쿼드 메이커** 신설 (§4-4). 팀 안에서 포메이션을 고르고 팀원 명단(§4-1)을
 > 자리에 배치해 저장·열람한다. 공유는 **FE가 경기장 그림을 이미지로 만들어 OS 공유창(카톡 등)으로**
@@ -291,6 +298,7 @@
 | `TEAM_MEMBER_LIMIT` | 400 | 팀원 30명 초과 |
 | `MEMBER_NOT_FOUND` | 404 | |
 | `RECORD_NOT_FOUND` | 404 | |
+| `SQUAD_NOT_FOUND` | 404 | 없는 스쿼드 또는 다른 팀의 스쿼드 id (v1.28.1) |
 | `ALREADY_TEAM_ADMIN` | 409 | 이미 관리자거나 소유자 본인을 임명 시도 |
 | `JOIN_ALREADY_REQUESTED` | 409 | 이미 대기 중인 가입 신청 있음 |
 | `ALREADY_TEAM_MEMBER` | 409 | 이미 팀 소속 (OWNER·ADMIN·MEMBER) |
@@ -1118,15 +1126,15 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 - 각 자리/교체 항목은 `memberId`(§4-1 TeamMember, 이 팀 소속) **또는** `name`(1~20자, 게스트
   등 명단 밖 사람) 중 하나. 둘 다 null이면 **빈 자리**(허용 — 짜다 만 스쿼드도 저장된다).
   둘 다 있으면 `memberId`가 이긴다. 같은 `memberId`가 선발+교체 통틀어 두 번 나오면 400
-  `VALIDATION_FAILED`(`fieldErrors[].field` = `slots[i].memberId` / `bench[i].memberId`).
+  `VALIDATION_FAILED`(`fieldErrors[].field` = `slots[i].memberId` / `bench[i].memberId`, 두 번째 등장 자리).
 - `bench`(교체) 0~10명, 같은 항목 구조, `slot` 없음.
 - 응답의 `name`은 memberId가 있으면 **현재 명단 이름**, 그 팀원이 명단에서 지워졌으면 저장 시점
   이름(스냅샷)을 돌려주고 `memberId`는 null로 내려간다(스쿼드는 과거 기록으로 남는다).
-- 한 팀 최대 **30개**. 초과 시 400 `VALIDATION_FAILED`(field `squads`, "오래된 스쿼드를 지워 주세요").
+- 한 팀 최대 **30개**. 초과 시 400 `VALIDATION_FAILED`(field `squads`, "오래된 스쿼드를 지워 주세요") — **생성(POST)에만** 적용, 수정(PUT)은 상한에서도 된다(v1.28.1).
 
 ### 권한
 
-읽기 = 그 팀 소속 전원(OWNER·ADMIN·MEMBER, §4-3) — 비소속·비로그인은 403 `FORBIDDEN`.
+읽기 = 그 팀 소속 전원(OWNER·ADMIN·MEMBER, §4-3) — 비로그인 401 `UNAUTHORIZED`, 로그인했지만 비소속 403 `FORBIDDEN` (v1.28.1).
 쓰기(생성·수정·삭제) = OWNER·ADMIN(§4-2 권한표의 "팀원 명단·경기 기록 쓰기"와 같은 줄).
 
 ### 오브젝트
@@ -1146,7 +1154,7 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
   updatedAt), `updatedAt` 내림차순, 페이지 없음(최대 30).
 - `POST /api/teams/{teamId}/squads` — OWNER·ADMIN. 본문 `{ title, formation, slots[], bench[] }`
   (slots/bench 항목은 `{ slot?, memberId?, name? }`). 201 → 오브젝트.
-- `GET /api/teams/{teamId}/squads/{squadId}` — 소속. 200 → 오브젝트.
+- `GET /api/teams/{teamId}/squads/{squadId}` — 소속. 200 → 오브젝트. 없거나 다른 팀 것이면 404 `SQUAD_NOT_FOUND`.
 - `PUT /api/teams/{teamId}/squads/{squadId}` — OWNER·ADMIN. 본문 POST와 동일, **전체 교체**
   (부분 수정 없음 — 보드 하나를 통째로 저장하는 UI라 PATCH 의미가 없다). 200 → 오브젝트.
 - `DELETE /api/teams/{teamId}/squads/{squadId}` — OWNER·ADMIN. 204.

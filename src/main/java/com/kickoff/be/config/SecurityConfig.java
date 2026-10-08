@@ -126,19 +126,15 @@ public class SecurityConfig {
                                 "/api/teams/*/records").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*").permitAll()
 
-                        // 스쿼드 조회 (계약서 §4-4, v1.28.0). <b>공개가 아니다.</b>
-                        // 계약서가 "비소속·비로그인은 403 FORBIDDEN"으로 정했는데, 여기에
-                        // authenticated() 를 걸면 토큰 없는 요청이 필터에서 401 로 끊겨
-                        // 403 이 될 수 없다. 그래서 통과시키고 SquadService 가 첫 줄에서
-                        // 소속을 본다 (TeamAuthz.requireMember — user 가 null 이면 403).
+                        // 스쿼드(§4-4, v1.28.0)는 여기에 아무 줄도 없다. 읽기도 쓰기도
+                        // 아래 anyRequest().authenticated() 로 떨어진다 — 팀 명단·전적
+                        // (§4-1)과 달리 <b>조회도 비공개</b>라서다.
                         //
-                        // 그 검사가 빠지면 스쿼드가 통째로 공개된다. 명단(§4-1)과 달리
-                        // 스쿼드는 비공개라는 점을 TeamAuthz·SquadController 에도 적어 뒀다.
-                        //
-                        // <b>쓰기는 여기 넣지 않는다</b> — POST·PUT·DELETE 는 아래
-                        // anyRequest().authenticated() 로 떨어져 토큰 없으면 401 이다.
-                        .requestMatchers(HttpMethod.GET, "/api/teams/*/squads",
-                                "/api/teams/*/squads/*").permitAll()
+                        // v1.28.0 은 "비로그인도 403"이라는 계약 문면을 맞추려고 GET 을
+                        // permitAll 로 열고 서비스가 소속을 보게 했다. 그러면 그 검사 한 줄이
+                        // 유일한 방어선이 되는데, v1.28.1 이 비로그인을 <b>401 로 통일</b>해
+                        // 그 구조를 걷어냈다 — 토큰이 없으면 여기서 끊기고, 로그인했지만
+                        // 비소속이면 서비스가 403 을 낸다.
 
                         // 구장 디렉터리 (계약서 §8-1, v1.27.0). 가입 전에도 어디서 찰 수
                         // 있는지 볼 수 있어야 한다 — 공개 데이터를 외부 예약 페이지로

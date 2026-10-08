@@ -177,21 +177,25 @@ class SquadTest extends IntegrationTestSupport {
     }
 
     /**
-     * 비로그인도 403 이다 (계약서 §4-4) — 401 이 아니다.
+     * 비로그인은 401 이고 비소속은 403 이다 (계약서 §4-4, v1.28.1).
      *
-     * 그래서 이 경로는 시큐리티에서 인증을 걸지 않는다. 그 대가로 서비스의 소속 검사가
-     * 유일한 방어선이 되므로, 이 테스트가 그 방어선을 지킨다.
+     * 둘을 한 테스트에 묶어 둔 이유는 <b>갈라지는 지점이라서</b>다. v1.28.0 은 둘 다
+     * 403 이었는데, 그러려면 경로를 permitAll 로 열고 서비스 검사 한 줄에 기대야 했다.
+     * v1.28.1 이 비로그인을 401 로 통일해 시큐리티가 끊게 했다 — 이 테스트가 그 경계를
+     * 고정한다. 401 이 403 으로 돌아가면 경로가 다시 열렸다는 뜻이다.
      */
     @Test
-    @DisplayName("비로그인은 403 — 401 이 아니다")
-    void anonymousIsForbidden() throws Exception {
+    @DisplayName("비로그인은 401, 로그인한 비소속은 403")
+    void anonymousIs401AndStrangerIs403() throws Exception {
         long squadId = squadId(save(owner, body("초안", "F6_2_2_1", emptySlots(6), "[]")));
 
         mockMvc.perform(get("/api/teams/{t}/squads", team.getId()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/teams/{t}/squads/{s}", team.getId(), squadId))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
+
+        list(stranger).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test

@@ -56,9 +56,9 @@ public class TeamAuthz {
     @Transactional(readOnly = true)
     public Team requireWriter(Long teamId, User user) {
         Team team = requireTeam(teamId);
-        // 쓰기 경로는 전부 시큐리티에서 인증을 걸어 user 가 null 일 수 없다. 그래도
-        // 보는 이유는 v1.28.0 에서 스쿼드 조회를 permitAll 로 열었기 때문이다 — 나중에
-        // 누가 같은 경로의 쓰기까지 열면, 이 줄이 없으면 500(NPE)이 난다.
+        // 모든 쓰기 경로는 시큐리티에서 인증을 걸어 user 가 null 일 수 없다. 그래도 보는
+        // 이유는 누가 어떤 경로를 permitAll 로 여는 날 500(NPE)이 아니라 403 이 나가게
+        // 하기 위해서다 — v1.28.0 에서 실제로 그런 경로가 잠깐 있었다(스쿼드 조회).
         TeamRole role = user == null ? null : roleOf(team, user.getId());
         if (role != TeamRole.OWNER && role != TeamRole.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
@@ -69,12 +69,15 @@ public class TeamAuthz {
     /**
      * 그 팀 소속이면 누구나 — OWNER·ADMIN·MEMBER (계약서 §4-3). 스쿼드 읽기가 이 경계다.
      *
-     * <b>비로그인도 403 이다</b>(401 이 아니다). 계약서 §4-4 가 "비소속·비로그인은 403
-     * FORBIDDEN"으로 못박았다. 그래서 이 경로는 시큐리티에서 인증을 걸지 않고 — 걸면
-     * 토큰 없는 요청이 필터에서 401 로 끊겨 여기까지 오지 않는다 — 여기서 user 가 null 인
-     * 것을 권한 없음으로 처리한다.
+     * <b>이 검사를 빠뜨리면 스쿼드가 같은 팀 아닌 사람에게 보인다.</b> 팀 명단·전적(§4-1)은
+     * 공개인데 스쿼드는 아니다 — 선발 명단은 상대에게 보여 줄 정보가 아니라 팀 안에서
+     * 짜는 것이다. 읽기 경로의 첫 줄이어야 한다.
      *
-     * <b>그래서 이 검사를 빠뜨리면 스쿼드가 공개된다.</b> 읽기 경로의 첫 줄이어야 한다.
+     * <b>비로그인은 여기까지 오지 않는다</b> — 시큐리티가 401 로 끊는다(계약서 §4-4,
+     * v1.28.1). 그래도 user null 을 보는 것은 방어다. v1.28.0 은 "비로그인도 403"이라는
+     * 문면을 맞추려고 이 경로를 permitAll 로 열었는데, 그러면 이 한 줄이 유일한 방어선이
+     * 된다. v1.28.1 이 401 로 통일해 그 구조를 걷어냈고, 다시 열리는 날에도 500(NPE)이
+     * 아니라 403 이 나가게 남겨 둔다.
      */
     @Transactional(readOnly = true)
     public Team requireMember(Long teamId, User user) {
