@@ -466,6 +466,7 @@ AWS 서울(`ap-northeast-2`) 이전**이다. 어디로 어떻게 갈지는
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | | 네이버 로그인만 비활성 |
 | `KAKAO_MAP_REST_KEY` | △ | `/api/places/search`만 502. 나머지는 멀쩡해서 **로그를 안 보면 모른다** |
 | `SEOUL_OPENDATA_KEY` | | 서울 공공 구장 동기화를 건너뛴다. V20 수동 시드 5건만 노출 — 의도된 기본 상태다 |
+| `KAKAO_ADMIN_KEY` | △ | `/api/holidays`가 모든 해에 `source: NONE`을 내린다 — FE가 자체 계산값으로 폴백하니 달력은 뜨지만 **임시공휴일이 안 칠해진다**. 나머지 API·기동은 정상. 카카오 콘솔 › 앱 키 › **Admin 키**이고 로그인용 `KAKAO_CLIENT_ID`와 **다른 값, 비밀값**이다 |
 | `SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SMS_SENDER` | | 셋 중 하나라도 비면 실제 발송 어댑터가 등록되지 않고 인증번호가 **서버 로그로만** 나간다 |
 | `SMS_ENABLED` | | `false`. 켜도 위 세 개가 없으면 502 |
 | `PHONE_VERIFICATION_REQUIRED` | | `false`. 가입에 전화 인증 토큰을 강제하지 않는다 (롤아웃 순서는 `application.yaml` 주석 참고) |
@@ -553,6 +554,11 @@ AWS 서울(`ap-northeast-2`) 이전**이다. 어디로 어떻게 갈지는
   > 아니고, 검색 호출량이 늘면 그때 처리할 것.
 - `DB_PASSWORD` — 새 DB 를 만들면 자동으로 갈린다. 옛 DB 를 그대로 쓸 때만 직접 갈 것
 - `SEOUL_OPENDATA_KEY` — 아직 발급받지 않았다
+- `KAKAO_ADMIN_KEY` — 아직 발급받지 않았다(§8-2 공휴일 조회용). 노출된 적이 없으니 재발급할
+  것이 없다는 뜻일 뿐, **성질은 위 두 ID 와 정반대다** — 카카오 Admin 키는 비밀값이고
+  `KAKAO_CLIENT_ID`/`KAKAO_MAP_REST_KEY` 와 달리 어디에도 드러나지 않는다. 그래서
+  **FE·로그·저장소에 넣지 말 것**이고, 한 번이라도 대화창·로그로 새면 그때는 즉시
+  재발급 대상이 된다(콘솔에서 재발급 가능)
 
 갈기 전에 `local.yaml`과 대조해 **무엇이 지금 쓰이는 값인지** 확인할 것. 다만 그 파일의
 값을 어디에도 출력하지 말 것 — gitignore 돼 있어 커밋되지는 않지만, 로그·메시지로 새면
@@ -575,6 +581,9 @@ curl -s -o /dev/null -w '%{http_code}\n' -X OPTIONS "$B/api/posts"    # 200
 # 3. 인증 없이 되는 조회 — 스키마·시드·목록 쿼리를 한 번에 본다
 curl -s "$B/api/posts?size=1"       | head -c 200                     # 200, content 배열
 curl -s "$B/api/stadiums?size=50"   | head -c 200                     # 200, 수동 시드 5건
+curl -s "$B/api/holidays?year=2026" | head -c 200                     # 200. source 는 KAKAO_ADMIN_KEY 가
+                                                                      # 있으면 KAKAO, 없으면 NONE — 어느
+                                                                      # 쪽이든 200 이어야 한다(500 금지)
 
 # 4. 정적 문서. 앱 심사에서 요구하는 주소다
 curl -s -o /dev/null -w '%{http_code}\n' "$B/terms"                   # 200

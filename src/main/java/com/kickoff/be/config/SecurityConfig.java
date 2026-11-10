@@ -170,6 +170,10 @@ public class SecurityConfig {
                         // 연결하는 것뿐이라 개인정보가 실리지 않는다.
                         .requestMatchers(HttpMethod.GET, "/api/stadiums").permitAll()
 
+                        // 공휴일 (계약서 §8-2). 달력은 로그인 전에도 보이고, 공개된
+                        // 공공 데이터라 개인정보가 실리지 않는다.
+                        .requestMatchers(HttpMethod.GET, "/api/holidays").permitAll()
+
                         .anyRequest().authenticated();
                 })
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),

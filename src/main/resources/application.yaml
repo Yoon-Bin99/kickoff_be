@@ -70,6 +70,16 @@ place:
     # 값을 여기 적지 말 것 — 저장소에 커밋된다.
     rest-key: ${KAKAO_MAP_REST_KEY:}
 
+holiday:
+  kakao:
+    # 카카오 톡캘린더 어드민 키 — 공휴일 조회 (계약서 §8-2).
+    # 카카오 개발자 콘솔 › 앱 키 › Admin 키. 헤더 Authorization: KakaoAK {키} 로 보낸다.
+    # 로그인에 쓰는 REST API 키(KAKAO_CLIENT_ID)와 다른 값이고, 이쪽은 서버 전용 비밀값이다.
+    # 톡캘린더 활성화나 추가 콘솔 설정은 필요 없다(문서상 요구 사항 없음).
+    # 없으면 공휴일 조회가 source NONE 으로 나간다(FE 가 계산값으로 폴백). 기동은 정상이다.
+    # 값을 여기 적지 말 것 — 저장소에 커밋된다.
+    admin-key: ${KAKAO_ADMIN_KEY:}
+
 stadium:
   seoul:
     # 서울 열린데이터광장 인증키 (계약서 §8-1, v1.27.0).
