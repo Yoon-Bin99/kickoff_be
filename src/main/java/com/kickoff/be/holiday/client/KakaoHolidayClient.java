@@ -31,7 +31,9 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <h2>한 해를 한 번에 받을 수 없다</h2>
  * {@code from}/{@code to} 는 UTC RFC3339 이고 <b>{@code to} 가 {@code from}+31일 이내</b>로
- * 제한된다. 그래서 31일 이하 창으로 쪼개 여러 번 부르고 합친다({@link #windows}).
+ * 제한된다(32일로 부르면 400 {@code code:-2} — 2026-11-10 에 실제로 확인했고 그 응답을
+ * {@code kakao-error-period.json} 픽스처로 남겼다). 그래서 31일 이하 창으로 쪼개 여러 번
+ * 부르고 합친다({@link #windows}). <b>31일은 받아 준다</b> — 우리 창은 상한에 붙어 있다.
  * 이웃 창을 <b>하루 이상 겹치게</b> 잡는 이유는 경계 누락이다 — 창을 딱 맞게 이어 붙이면
  * 경계에 걸친 연휴가 어느 창에도 안 들어오는 일이 생긴다. 겹친 만큼 같은 날이 두 번 오므로
  * {@code (date, name)} 으로 중복을 지운다({@link #dedupeAndSort}).
@@ -249,15 +251,17 @@ public class KakaoHolidayClient {
     /**
      * 한 건이 덮는 한국 날짜들.
      *
-     * 연휴는 <b>한 건으로</b> 온다({@code end_at} 이 사흘 뒤). 그대로 두면 달력에 첫날만
-     * 빨갛다. 그래서 {@code end_at - start_at} 이 하루를 넘으면 그 범위의 매일을 한 건씩
-     * 펼친다 (계약서 §8-2).
+     * <b>실응답은 연휴도 하루씩 끊어서 준다</b>(2026-11-10 캡처: 설날연휴 2/16, 설날 2/17,
+     * 설날연휴 2/18 — 세 건). 그래서 펼칠 일이 실제로는 없다. 그래도 계약서 §8-2 가
+     * "{@code end_at - start_at} 이 하루를 넘으면 그 범위 매일로 펼침"을 요구하므로 방어
+     * 코드로 남긴다 — 한 건으로 묶여 오기 시작하면 그대로 두면 달력에 첫날만 빨갛다.
      *
      * <b>날짜를 길이로 센다.</b> 첫날은 {@code start_at} 을 KST 로 바꾼 날이고, 그 뒤로
      * {@code (end_at - start_at)} 일수만큼 이어 붙인다. {@code end_at} 을 KST 날짜로 바꿔
-     * 끝을 잡지 않는 이유는 자정 기준이 두 가지이기 때문이다 — 카카오가 KST 자정(UTC 로는
-     * 전날 15:00)으로 주면 그 방식이 맞지만 UTC 자정으로 주면 하루가 더 붙는다. 길이로
-     * 세면 둘 다 같은 답이 나온다.
+     * 끝을 잡지 않는 이유는 자정 기준이 두 가지이기 때문이다 — <b>실응답은 UTC
+     * 자정</b>({@code 2026-02-16T00:00:00Z})이고 <b>카카오 문서 예시는 KST
+     * 자정</b>({@code 2022-10-02T15:00:00Z})이다. 날짜로 끝을 잡으면 UTC 자정 쪽 하루가
+     * 이틀이 된다. 길이로 세면 둘 다 같은 답이 나온다.
      */
     private static List<LocalDate> days(Instant start, Instant end) {
         LocalDate first = LocalDate.ofInstant(start, KST);

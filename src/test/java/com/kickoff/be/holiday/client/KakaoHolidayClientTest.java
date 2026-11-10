@@ -19,13 +19,27 @@ import org.junit.jupiter.api.Test;
 /**
  * 카카오 톡캘린더 응답 파싱·창 분할·합치기 (계약서 §8-2).
  *
- * <b>이 테스트가 증명하는 것과 증명하지 못하는 것.</b> 필드 이름과 값의 생김새
- * ({@code events[].time.start_at} 이 UTC RFC3339, {@code holiday} 가 boolean, 종일 일정의
- * {@code start_at} 이 KST 자정 = UTC 전날 15:00)는 카카오 톡캘린더 문서의 예시 그대로다.
- * 다만 <b>픽스처는 그 형식에 맞춰 쓴 것이고 실제 응답을 캡처한 것이 아니다</b> — 어드민
- * 키가 없어 호출할 수 없다. 그래서 "우리 파서가 이 형식을 제대로 읽는다"는 증명하지만
- * "카카오가 정말 이 값을 준다"는 증명하지 않는다. 키가 생기면 실응답 한 장으로 픽스처를
- * 갈아 끼울 것.
+ * <h2>픽스처는 실응답 캡처다 (2026-11-10)</h2>
+ * {@code kakao-holidays-2026-*.json}, {@code kakao-holidays-empty.json},
+ * {@code kakao-error-period.json} 은 <b>실제 호출 응답을 그대로 넣은 것</b>이다(공백만
+ * 정리했고 필드·값·순서는 원문 그대로). 그래서 "우리 파서가 이 형식을 읽는다"뿐 아니라
+ * "카카오가 정말 이 값을 준다"까지 고정한다. 캡처한 창은 파일마다 아래 테스트 주석에
+ * 적었다.
+ *
+ * 예외가 둘 있다.
+ * <ul>
+ *   <li>{@code kakao-holidays-2022-10.json} — 카카오 <b>문서의 예시</b>다. 실응답과 자정
+ *       기준이 달라서(아래) 일부러 남겨 뒀다</li>
+ *   <li>연휴를 한 건으로 주는 경우 — <b>실응답에는 없다</b>. 계약서가 대비하라고 한
+ *       경우라 방어 코드만 유지하고, 그 테스트만 인라인 JSON 으로 둔다</li>
+ * </ul>
+ *
+ * <h2>실응답에서 알게 된 두 가지</h2>
+ * ① <b>카카오는 UTC 자정으로 준다</b>({@code start_at: "2026-02-16T00:00:00Z"}). 문서 예시는
+ * KST 자정(UTC 전날 15:00)이라 둘이 다르다 — 그래서 끝을 날짜가 아니라 길이로 세는 쪽이
+ * 맞았다. 두 모양을 각각 테스트로 고정한다.
+ * ② <b>연휴가 한 건이 아니라 날짜별 개별 건으로 온다</b>(설날연휴 2/16, 설날 2/17,
+ * 설날연휴 2/18 — 세 건). 펼칠 일이 실제로는 없다.
  *
  * 네트워크는 타지 않는다. {@link KakaoHolidayClient#call} 만 갈아 끼워 창 분할·중복 제거·
  * 부분 실패 처리를 본다 — 같은 패키지라 package-private 가 그대로 보인다(운영 코드의
@@ -33,74 +47,139 @@ import org.junit.jupiter.api.Test;
  */
 class KakaoHolidayClientTest {
 
-    // ───────────────────────── 파싱 ─────────────────────────
+    // ───────────────────────── 파싱 (실응답) ─────────────────────────
 
     /**
-     * 이 API 는 기념일도 같이 준다. 국군의날(10-01)은 {@code holiday: false} 라 쉬는 날이
-     * 아니고, 개천절·한글날만 빨간날이다.
+     * 캡처 창: 2026-02-10 ~ 2026-03-05. 이 창에 <b>정월대보름(3/3)</b>이 {@code holiday:false}
+     * 로 함께 왔다 — 쉬는 날이 아니라서 빼야 한다. 기념일이 섞여 온다는 것을 실응답으로
+     * 증명하는 자리다.
      */
     @Test
-    @DisplayName("holiday:true 만 공휴일로 본다 — 기념일은 버린다")
+    @DisplayName("holiday:true 만 공휴일로 본다 — 기념일(정월대보름)은 버린다")
     void onlyRealHolidays() throws IOException {
         List<Holiday> holidays =
-                KakaoHolidayClient.parse(fixture("kakao-holidays-2022-10.json"), 2022);
+                KakaoHolidayClient.parse(fixture("kakao-holidays-2026-02.json"), 2026);
 
-        assertThat(holidays).extracting(Holiday::name)
-                .containsExactly("개천절", "한글날")
-                .doesNotContain("국군의 날");
-        assertThat(holidays).extracting(Holiday::date)
-                .containsExactly(LocalDate.of(2022, 10, 3), LocalDate.of(2022, 10, 9));
+        assertThat(holidays).extracting(Holiday::name).doesNotContain("정월대보름");
+        assertThat(holidays).containsExactly(
+                new Holiday(LocalDate.of(2026, 2, 16), "설날연휴"),
+                new Holiday(LocalDate.of(2026, 2, 17), "설날"),
+                new Holiday(LocalDate.of(2026, 2, 18), "설날연휴"),
+                new Holiday(LocalDate.of(2026, 3, 1), "삼일절"),
+                new Holiday(LocalDate.of(2026, 3, 2), "대체휴일"));
     }
 
     /**
-     * 연휴는 <b>한 건으로</b> 온다. 펼치지 않으면 달력에 설날 첫날만 빨갛다.
-     * 2026-02-15T15:00Z ~ 02-18T15:00Z = KST 02-16 00:00 ~ 02-19 00:00, 사흘이다.
+     * <b>연휴는 한 건이 아니라 하루씩 세 건으로 온다.</b> 그래서 펼치지 않아도 2/16·17·18 이
+     * 다 나온다. 같은 이름("설날연휴")이 다른 날에 두 번 오는데, 중복 제거 키가
+     * {@code (date, name)} 이라 날짜가 다르면 둘 다 남는다 — 이름만으로 지우면 2/18 이
+     * 사라진다.
      */
     @Test
-    @DisplayName("연휴 한 건을 매일로 펼친다")
-    void expandsMultiDayHoliday() throws IOException {
+    @DisplayName("연휴가 날짜별 개별 건으로 와도 사흘이 다 남는다")
+    void consecutiveHolidaysArriveAsSeparateEvents() throws IOException {
         List<Holiday> holidays =
-                KakaoHolidayClient.parse(fixture("kakao-holidays-lunar-new-year.json"), 2026);
+                KakaoHolidayClient.parse(fixture("kakao-holidays-2026-02.json"), 2026);
 
-        assertThat(holidays).extracting(Holiday::date).containsExactly(
-                LocalDate.of(2026, 2, 16), LocalDate.of(2026, 2, 17), LocalDate.of(2026, 2, 18));
-        assertThat(holidays).extracting(Holiday::name).containsOnly("설날");
+        assertThat(holidays).filteredOn(holiday -> holiday.name().equals("설날연휴"))
+                .extracting(Holiday::date)
+                .containsExactly(LocalDate.of(2026, 2, 16), LocalDate.of(2026, 2, 18));
     }
 
     /**
-     * 요청 범위를 전년도 12/31 ~ 다음 해 1/2 로 넓게 잡기 때문에 다른 해가 섞여 온다.
-     * 그대로 담으면 2026년 달력에 2025-12-25 가 찍힌다.
+     * 캡처 창: 2026-05-20 ~ 2026-06-10. <b>지방선거(6/3)</b>가 임시공휴일이다 — 이 기능이
+     * 존재하는 이유 그 자체다. FE 의 계산값(법정 규칙)으로는 알 수 없는 날이라, 서버가
+     * 받아 오지 않으면 그날 달력이 틀린다 (계약서 §8-2).
+     *
+     * 대체휴일(5/25)도 같은 창에 있다 — 이름이 "부처님오신날 대체휴일"이 아니라 그냥
+     * "대체휴일"로 온다. 원문을 고치지 않는 것이 약속이라 그대로 내린다.
      */
     @Test
-    @DisplayName("요청한 해가 아닌 날짜는 버린다")
-    void dropsOtherYears() throws IOException {
+    @DisplayName("임시공휴일(지방선거)·대체휴일도 그대로 받는다")
+    void temporaryAndSubstituteHolidays() throws IOException {
         List<Holiday> holidays =
-                KakaoHolidayClient.parse(fixture("kakao-holidays-boundary.json"), 2026);
-
-        assertThat(holidays).extracting(Holiday::date).allMatch(date -> date.getYear() == 2026);
-        assertThat(holidays).extracting(Holiday::name).doesNotContain("기독탄신일");
-    }
-
-    /**
-     * 자정 기준이 두 가지다. KST 자정(신정: UTC 전날 15:00)과 UTC 자정(임시공휴일) 둘 다
-     * 하루로 읽혀야 한다 — {@code end_at} 을 KST 날짜로 바꿔 끝을 잡으면 UTC 자정 쪽이
-     * 이틀이 된다. 그래서 길이(end-start)로 센다.
-     */
-    @Test
-    @DisplayName("KST 자정·UTC 자정 어느 쪽으로 와도 하루는 하루다")
-    void handlesBothMidnightConventions() throws IOException {
-        List<Holiday> holidays =
-                KakaoHolidayClient.parse(fixture("kakao-holidays-boundary.json"), 2026);
+                KakaoHolidayClient.parse(fixture("kakao-holidays-2026-06.json"), 2026);
 
         assertThat(holidays).containsExactly(
-                new Holiday(LocalDate.of(2026, 1, 1), "신정"),
-                new Holiday(LocalDate.of(2026, 1, 2), "임시공휴일"));
+                new Holiday(LocalDate.of(2026, 5, 24), "부처님오신날"),
+                new Holiday(LocalDate.of(2026, 5, 25), "대체휴일"),
+                new Holiday(LocalDate.of(2026, 6, 3), "지방선거"),
+                new Holiday(LocalDate.of(2026, 6, 6), "현충일"));
     }
 
     /**
-     * 0건이면 {@code events} 가 빈 배열이다. <b>예외가 아니라 빈 목록이다</b> — 호출자가
-     * 그걸 보고 {@code source: NONE} 으로 내린다. 여기서 예외를 던지면 "호출 실패"와
-     * "카카오에 데이터 없음"이 구별되지 않는다(응답은 어차피 같지만 로그가 달라진다).
+     * 캡처 창: 2026-12-20 ~ 2027-01-02. <b>마지막 창이 실제로 다음 해를 물고 온다</b> —
+     * 우리가 전체 범위를 다음 해 1/2 까지 넓게 잡기 때문이다(계약서 §8-2). 버리지 않으면
+     * 2026년 달력에 2027-01-01 이 찍힌다.
+     */
+    @Test
+    @DisplayName("요청한 해가 아닌 날짜는 버린다 — 마지막 창의 다음 해 새해")
+    void dropsOtherYears() throws IOException {
+        String body = fixture("kakao-holidays-2026-12.json");
+
+        assertThat(KakaoHolidayClient.parse(body, 2026))
+                .containsExactly(new Holiday(LocalDate.of(2026, 12, 25), "크리스마스"));
+        assertThat(KakaoHolidayClient.parse(body, 2027))
+                .containsExactly(new Holiday(LocalDate.of(2027, 1, 1), "새해"));
+    }
+
+    /**
+     * 자정 기준이 두 가지다. <b>실응답은 UTC 자정</b>(2026-02-16T00:00:00Z)이고
+     * <b>카카오 문서 예시는 KST 자정</b>(2022-10-02T15:00:00Z = 10-03 00:00+09)이다.
+     * 어느 쪽이든 하루는 하루로 읽혀야 한다 — {@code end_at} 을 KST 날짜로 바꿔 끝을
+     * 잡으면 UTC 자정 쪽이 이틀이 된다. 그래서 길이(end-start)로 센다.
+     */
+    @Test
+    @DisplayName("UTC 자정(실응답)·KST 자정(문서 예시) 어느 쪽이든 하루는 하루다")
+    void handlesBothMidnightConventions() throws IOException {
+        // 실응답: start_at 이 2026-02-17T00:00:00Z → KST 2026-02-17 09:00 → 2026-02-17
+        assertThat(KakaoHolidayClient.parse(fixture("kakao-holidays-2026-02.json"), 2026))
+                .contains(new Holiday(LocalDate.of(2026, 2, 17), "설날"));
+
+        // 문서 예시: start_at 이 2022-10-02T15:00:00Z → KST 2022-10-03 00:00 → 2022-10-03
+        assertThat(KakaoHolidayClient.parse(fixture("kakao-holidays-2022-10.json"), 2022))
+                .containsExactly(
+                        new Holiday(LocalDate.of(2022, 10, 3), "개천절"),
+                        new Holiday(LocalDate.of(2022, 10, 9), "한글날"));
+    }
+
+    /**
+     * 문서 예시에서도 기념일이 걸러져야 한다 — 국군의 날(10-01)이 {@code holiday:false} 다.
+     * 실응답(정월대보름)과 같은 규칙이고, 자정 기준만 다르다.
+     */
+    @Test
+    @DisplayName("문서 예시 모양에서도 holiday:false 는 버린다")
+    void documentedShapeFiltersAnniversaries() throws IOException {
+        assertThat(KakaoHolidayClient.parse(fixture("kakao-holidays-2022-10.json"), 2022))
+                .extracting(Holiday::name).doesNotContain("국군의 날");
+    }
+
+    /**
+     * <b>실응답에는 이 모양이 오지 않는다.</b> 캡처해 보니 연휴가 날짜별 개별 건으로 왔다
+     * (위 {@code consecutiveHolidaysArriveAsSeparateEvents}). 그래도 계약서 §8-2 가
+     * "{@code end_at - start_at} 이 하루를 넘으면 그 범위 매일로 펼침"을 요구하므로 방어
+     * 코드를 유지하고, 그 코드가 동작한다는 것만 인라인 JSON 으로 고정한다 — 실캡처가
+     * 아니라서 픽스처 파일로 두지 않았다.
+     */
+    @Test
+    @DisplayName("연휴를 한 건으로 주는 경우도 펼친다 — 실응답에는 없는 방어 코드")
+    void expandsMultiDayEventIfItEverArrives() {
+        String body = """
+                {"events":[{"id":"x","title":"설날연휴",
+                "time":{"start_at":"2026-02-16T00:00:00Z","end_at":"2026-02-19T00:00:00Z",
+                "all_day":true},"holiday":true}]}
+                """;
+
+        assertThat(KakaoHolidayClient.parse(body, 2026)).extracting(Holiday::date)
+                .containsExactly(LocalDate.of(2026, 2, 16), LocalDate.of(2026, 2, 17),
+                        LocalDate.of(2026, 2, 18));
+    }
+
+    /**
+     * 캡처 창: 2026-07-20 ~ 2026-08-10 (공휴일도 기념일도 없는 구간). {@code events} 가 빈
+     * 배열로 온다. <b>예외가 아니라 빈 목록이다</b> — 호출자가 그걸 보고
+     * {@code source: NONE} 으로 내린다. 2060년처럼 API 상한을 넘은 해도 같은 모양이다
+     * (2050은 데이터가 있고 2060은 비어 있는 것을 캡처 때 확인했다).
      */
     @Test
     @DisplayName("events 가 빈 배열이면 빈 목록이다 — 예외가 아니다")
@@ -109,13 +188,15 @@ class KakaoHolidayClientTest {
     }
 
     /**
-     * 어드민 키 오류는 {@code {"msg":...,"code":-401}} 로 온다. 조용히 0건으로 넘기면
-     * "성공한 0건"으로 보여서 달력에 공휴일이 사라진 채 아무도 모른다.
+     * 실제 오류 응답이다. 창을 32일로 넓혀 부르면 400 과 함께
+     * {@code {"msg":"The period 'from' to 'to' must be within 31 days...","code":-2}} 가 온다
+     * (2026-11-10 캡처). {@code events} 가 없으므로 <b>예외</b>여야 한다 — 조용히 0건으로
+     * 넘기면 "성공한 0건"으로 보여서 달력에 공휴일이 사라진 채 아무도 모른다.
      */
     @Test
     @DisplayName("오류 응답은 예외다 — 빈 목록이 아니다")
     void errorBodyThrows() throws IOException {
-        assertThatThrownBy(() -> KakaoHolidayClient.parse(fixture("kakao-error.json"), 2026))
+        assertThatThrownBy(() -> KakaoHolidayClient.parse(fixture("kakao-error-period.json"), 2026))
                 .isInstanceOf(HolidayLookupException.class);
     }
 
@@ -133,11 +214,13 @@ class KakaoHolidayClientTest {
     // ───────────────────────── 창 분할 ─────────────────────────
 
     /**
-     * 카카오가 {@code to <= from + 31일} 로 제한한다. 넘기면 그 창이 오류가 되고, 창 하나가
-     * 실패하면 그 해 전체가 NONE 이다.
+     * 카카오가 {@code to <= from + 31일} 로 제한한다. <b>31일은 받아 주고 32일은 400
+     * {@code code:-2} 로 거부한다</b> — 2026-11-10 에 실제로 양쪽을 불러 확인했고, 거부
+     * 응답은 {@code kakao-error-period.json} 으로 남겼다. 우리 창은 정확히 상한에 붙어
+     * 있으므로, 이 테스트가 깨지면 그 해 전체가 NONE 이 된다.
      */
     @Test
-    @DisplayName("모든 창이 31일 이내다 — 카카오 제한")
+    @DisplayName("모든 창이 31일 이내다 — 32일이면 카카오가 400 을 준다")
     void everyWindowIsWithin31Days() {
         for (Window window : KakaoHolidayClient.windows(2026)) {
             assertThat(Duration.between(window.from(), window.to()))
@@ -167,8 +250,8 @@ class KakaoHolidayClientTest {
 
     /**
      * 전체 범위는 전년도 12/31 00:00Z ~ 다음 해 1/2 00:00Z 여야 한다. 자정 기준이 어느
-     * 쪽이든(KST 자정은 UTC 로는 전날 15:00) 요청한 해의 1/1 과 12/31 이 들어오게 하는
-     * 여유다.
+     * 쪽이든 요청한 해의 1/1 과 12/31 이 들어오게 하는 여유다 — 실응답이 UTC 자정이라
+     * 지금은 여유가 남지만, KST 자정으로 바뀌어도 안 깨지게 두는 쪽이다.
      */
     @Test
     @DisplayName("전체 범위가 전년도 12/31 ~ 다음 해 1/2 를 덮는다")
@@ -200,15 +283,16 @@ class KakaoHolidayClientTest {
         assertThat(KakaoHolidayClient.windows(2200)).isNotEmpty();
     }
 
+    /** 실제로 불러서 200 을 받은 창 하나와 같은 모양이어야 한다(2026-11-10 확인). */
     @Test
     @DisplayName("창 URI 에 from·to 가 UTC RFC3339 로 들어간다")
     void windowUriIsRfc3339() {
         Window window = new Window(
-                Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-02-01T00:00:00Z"));
+                Instant.parse("2025-12-31T00:00:00Z"), Instant.parse("2026-01-31T00:00:00Z"));
 
         assertThat(window.toUri().toString())
                 .isEqualTo("https://kapi.kakao.com/v2/api/calendar/holidays"
-                        + "?from=2026-01-01T00:00:00Z&to=2026-02-01T00:00:00Z");
+                        + "?from=2025-12-31T00:00:00Z&to=2026-01-31T00:00:00Z");
     }
 
     // ───────────────────────── 합치기 ─────────────────────────
@@ -217,7 +301,7 @@ class KakaoHolidayClientTest {
     @Test
     @DisplayName("같은 (날짜, 이름)은 한 번만 남는다")
     void dedupesByDateAndName() {
-        Holiday newYear = new Holiday(LocalDate.of(2026, 1, 1), "신정");
+        Holiday newYear = new Holiday(LocalDate.of(2026, 1, 1), "새해");
 
         List<Holiday> merged = KakaoHolidayClient.dedupeAndSort(List.of(newYear, newYear, newYear));
 
@@ -229,7 +313,7 @@ class KakaoHolidayClientTest {
     @DisplayName("날짜 오름차순으로 정렬하고, 같은 날의 순서는 유지한다")
     void sortsByDateKeepingSameDayOrder() {
         Holiday later = new Holiday(LocalDate.of(2026, 3, 1), "삼일절");
-        Holiday firstOfTwo = new Holiday(LocalDate.of(2026, 1, 1), "신정");
+        Holiday firstOfTwo = new Holiday(LocalDate.of(2026, 1, 1), "새해");
         Holiday secondOfTwo = new Holiday(LocalDate.of(2026, 1, 1), "임시공휴일");
 
         List<Holiday> merged =
@@ -247,14 +331,18 @@ class KakaoHolidayClientTest {
     @Test
     @DisplayName("창을 전부 불러 합치고 중복을 지운다")
     void fetchMergesEveryWindow() throws IOException {
-        String body = fixture("kakao-holidays-lunar-new-year.json");
+        String body = fixture("kakao-holidays-2026-02.json");
         StubClient client = StubClient.returning(window -> body);
 
         List<Holiday> holidays = client.fetch(2026);
 
         assertThat(client.calls).hasValueGreaterThan(1);
-        assertThat(holidays).extracting(Holiday::date).containsExactly(
-                LocalDate.of(2026, 2, 16), LocalDate.of(2026, 2, 17), LocalDate.of(2026, 2, 18));
+        assertThat(holidays).containsExactly(
+                new Holiday(LocalDate.of(2026, 2, 16), "설날연휴"),
+                new Holiday(LocalDate.of(2026, 2, 17), "설날"),
+                new Holiday(LocalDate.of(2026, 2, 18), "설날연휴"),
+                new Holiday(LocalDate.of(2026, 3, 1), "삼일절"),
+                new Holiday(LocalDate.of(2026, 3, 2), "대체휴일"));
     }
 
     /**
@@ -265,7 +353,7 @@ class KakaoHolidayClientTest {
     @Test
     @DisplayName("창 하나가 실패하면 전체가 실패다 — 부분 성공을 내리지 않는다")
     void oneFailedWindowFailsTheYear() throws IOException {
-        String body = fixture("kakao-holidays-lunar-new-year.json");
+        String body = fixture("kakao-holidays-2026-02.json");
         AtomicInteger seen = new AtomicInteger();
         StubClient partial = StubClient.returning(window -> {
             if (seen.incrementAndGet() == 1) {
@@ -286,7 +374,7 @@ class KakaoHolidayClientTest {
     @Test
     @DisplayName("한 해 전체 10초를 넘기면 실패다")
     void totalBudgetIsEnforced() throws IOException {
-        String body = fixture("kakao-holidays-lunar-new-year.json");
+        String body = fixture("kakao-holidays-2026-02.json");
         StubClient client = StubClient.returning(window -> body);
         // 창마다 4초가 흐른 것처럼 꾸민다. 세 창이면 예산을 넘긴다.
         client.nanosPerCall = Duration.ofSeconds(4).toNanos();
@@ -355,7 +443,6 @@ class KakaoHolidayClientTest {
         @Override
         String call(Window window) {
             calls.incrementAndGet();
-
             now += nanosPerCall;
             return responder.respond(window);
         }

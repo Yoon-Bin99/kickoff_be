@@ -1,0 +1,64 @@
+{
+  "events": [
+    {
+      "id": "S5d5a8e5407d535f9b47d47b9",
+      "title": "설날연휴",
+      "time": {
+        "start_at": "2026-02-16T00:00:00Z",
+        "end_at": "2026-02-17T00:00:00Z",
+        "all_day": true
+      },
+      "holiday": true
+    },
+    {
+      "id": "S5d5a8e5407d535f9b47d47ba",
+      "title": "설날",
+      "time": {
+        "start_at": "2026-02-17T00:00:00Z",
+        "end_at": "2026-02-18T00:00:00Z",
+        "all_day": true
+      },
+      "holiday": true
+    },
+    {
+      "id": "S5d5a8e5407d535f9b47d47bb",
+      "title": "설날연휴",
+      "time": {
+        "start_at": "2026-02-18T00:00:00Z",
+        "end_at": "2026-02-19T00:00:00Z",
+        "all_day": true
+      },
+      "holiday": true
+    },
+    {
+      "id": "S5d5a8e5407d535f9b47d47bc",
+      "title": "삼일절",
+      "time": {
+        "start_at": "2026-03-01T00:00:00Z",
+        "end_at": "2026-03-02T00:00:00Z",
+        "all_day": true
+      },
+      "holiday": true
+    },
+    {
+      "id": "S6914518892450e288069a498",
+      "title": "대체휴일",
+      "time": {
+        "start_at": "2026-03-02T00:00:00Z",
+        "end_at": "2026-03-03T00:00:00Z",
+        "all_day": true
+      },
+      "holiday": true
+    },
+    {
+      "id": "S5d5a8e5407d535f9b47d47bd",
+      "title": "정월대보름",
+      "time": {
+        "start_at": "2026-03-03T00:00:00Z",
+        "end_at": "2026-03-04T00:00:00Z",
+        "all_day": true
+      },
+      "holiday": false
+    }
+  ]
+}
