@@ -475,8 +475,15 @@ Railway 배포가 2026-11-10 미결제로 중단됐다. 다시 올릴 때(Railwa
 무엇을 넣을지 추측하지 말고, 서버가 제공자에게 실제로 넘기는 값을 확인할 것 — 위
 "운영 배포 시 콘솔에 등록할 값" 절의 `curl ... %{redirect_url}` 한 줄이 그 용도다.
 
-**FE에 하드코딩된 BE 주소** (FE 저장소가 네 벌로 복제돼 있어 같은 줄이 네 번 나온다 —
-`kickoff_fe`, `kickoff_fe_web`, `kickoff_fe_preview`, `kickoff_fe_design`)
+**FE에 하드코딩된 BE 주소** — 고칠 곳은 아래 **세 자리, 한 번**이다. `kickoff_fe`의
+`main`에서 고치면 된다.
+
+> 작업 디렉터리가 네 개로 보이지만(`kickoff_fe`, `kickoff_fe_web`, `kickoff_fe_preview`,
+> `kickoff_fe_design`) **같은 저장소의 git 워크트리**다 — 각자 다른 브랜치를 체크아웃해
+> 둔 것이고 복제본이 아니다. `main`을 고치면 `web/design`·`design/taste`는 머지할 때
+> 따라온다. **`kickoff_fe_preview`만 예외다** — 폰용 고정 스냅샷이라 detached HEAD로
+> 옛 커밋에 묶여 있어서 머지로 따라오지 않고, FE README의 "스냅샷 갱신" 절차로 다시
+> 묶어야 한다.
 
 | 자리 | 무엇 |
 |---|---|
