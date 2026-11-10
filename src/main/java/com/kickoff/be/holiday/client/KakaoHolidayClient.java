@@ -97,6 +97,12 @@ public class KakaoHolidayClient {
         factory.setReadTimeout(WINDOW_TIMEOUT);
         // 전역 RestClient.Builder 를 쓰지 않는다 — 타임아웃을 이 호출만 3초로 두어야 한다.
         this.restClient = RestClient.builder().requestFactory(factory).build();
+        // 키가 없는 것이 정상 동작의 하나라 기동을 막지 않는다. 그래서 기동 로그 한 줄이
+        // 유일한 단서다 — 없으면 "달력에 임시공휴일이 안 칠해진다"를 눈으로 알 길이 없다.
+        // 장소 검색 키와 같은 방식이다(KakaoPlaceSearchClient). 값 자체는 찍지 않는다.
+        log.info("공휴일 키 {}", properties.isConfigured()
+                ? "설정됨"
+                : "없음 — 공휴일이 source NONE 으로 나간다");
     }
 
     public boolean isConfigured() {
