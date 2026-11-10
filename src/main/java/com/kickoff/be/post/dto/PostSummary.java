@@ -15,6 +15,8 @@ public record PostSummary(
         String title,
         OffsetDateTime matchAt,
         String location,
+        /** 경기장 주소 (계약서 §5, v1.29.0). 직접 입력한 글·옛 글은 null. */
+        String locationAddress,
         String region,
         SkillLevel preferredSkillLevel,
         Integer rentalFee,
@@ -34,6 +36,7 @@ public record PostSummary(
                 post.getTitle(),
                 post.getMatchAt(),
                 post.getLocation(),
+                post.getLocationAddress(),
                 post.getRegion(),
                 post.getPreferredSkillLevel(),
                 post.getRentalFee(),

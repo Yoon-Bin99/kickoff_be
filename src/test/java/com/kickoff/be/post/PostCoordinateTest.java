@@ -28,7 +28,18 @@ import org.springframework.test.web.servlet.ResultActions;
  */
 class PostCoordinateTest extends IntegrationTestSupport {
 
-    /** 계약서 §5-1 예시의 강서구민운동장 좌표. */
+    /**
+     * 계약서 §5-1 예시에 적힌 좌표.
+     *
+     * <b>실제 구장 좌표가 아니다.</b> 예시가 "강서구민운동장"이라고 적어 두었는데, 그
+     * 이름은 카카오 지도에 없고(검색하면 부산 화명동이 유사 매칭으로 나온다) 이 지점에도
+     * 구장이 없다. v1.29.0 작업 중 사용자가 "지도 위치가 다르게 나온다"고 해서 확인된
+     * 사실이고, 시드는 실제로 검색되는 구장(우장산축구장)으로 바꿨다.
+     *
+     * 여기서는 그대로 쓴다 — 이 테스트가 보는 것은 "좌표가 쌍으로 다뤄지는가"이고 값이
+     * 실제 장소인지는 상관이 없다. 다만 <b>이 값을 실제 좌표로 알고 다른 데 베껴 쓰면
+     * 안 된다</b>.
+     */
     private static final double LAT = 37.5586;
     private static final double LNG = 126.8351;
 

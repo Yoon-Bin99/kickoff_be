@@ -1,7 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.28.1)
+# Kickoff API 계약 v1 (현재 v1.29.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.29.0 (2026-11-10): **모집글에 경기장 주소** `locationAddress`(§5). 장소 검색(§5-1)에서 고르면 FE가
+> `roadAddress ?? address`를 자동으로 채워 보내고, 상세·목록 카드에 전체 주소를 표시한다. nullable(직접
+> 입력 글·기존 글은 null), 최대 100자, 사용자가 고친 값 그대로 저장(검증은 길이만). 목록 `dates` 다중
+> 필터(v1.18.0)는 그대로 — 홈 날짜 선택 UI만 복수 선택 드롭다운으로 바뀐다(계약 변경 없음).
 
 > v1.28.1 (2026-10-08): §4-4 확정(BE 구현 반영). ① §0 `SQUAD_NOT_FOUND`(404) 신설 — 없는 스쿼드와
 > **남의 팀 스쿼드 id를 내 팀 주소에 끼운 경우** 둘 다 이 코드(구분하면 타 팀 id 탐색이 됨).
@@ -1211,7 +1216,7 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 
 ```json
 { "id": 12, "title": "토요일 아침 풋살 상대 구합니다", "matchAt": "2026-08-30T07:00:00+09:00",
-  "location": "강서구민운동장 A구장", "region": "서울 강서구",
+  "location": "강서구민운동장 A구장", "locationAddress": "서울 강서구 남부순환로 172", "region": "서울 강서구",
   "preferredSkillLevel": "INTERMEDIATE", "rentalFee": 100000, "depositAmount": 50000,
   "status": "OPEN", "requestCount": 3, "team": "<TeamSummary>",
   "createdAt": "2026-08-23T09:00:00+09:00" }
@@ -1226,12 +1231,13 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 ```json
 { "title": "토요일 아침 풋살 상대 구합니다", "content": "6인제로 2시간 뛸 팀 찾습니다. 매너 중요.",
   "matchAt": "2026-08-30T07:00:00+09:00", "location": "강서구민운동장 A구장",
+  "locationAddress": "서울 강서구 남부순환로 172",
   "region": "서울 강서구", "preferredSkillLevel": "INTERMEDIATE",
   "rentalFee": 100000, "depositAmount": 50000,
   "bankName": "카카오뱅크", "accountNumber": "3333-01-1234567", "accountHolder": "김주장" }
 ```
 
-- `title` 2~60자 필수 / `content` 최대 2000자 필수 / `matchAt` 미래 시각 필수 / `location`, `region` 필수 / `preferredSkillLevel` optional(null이면 무관) / `rentalFee`, `depositAmount` 0 이상 optional / `fieldType`은 v1.19.0 폐지 — 와도 무시
+- `title` 2~60자 필수 / `content` 최대 2000자 필수 / `matchAt` 미래 시각 필수 / `location`, `region` 필수 / `locationAddress` optional 최대 100자(v1.29.0 — 장소 검색 선택 시 FE가 `roadAddress ?? address`로 자동 채움, 사용자가 고쳐도 그대로 저장) / `preferredSkillLevel` optional(null이면 무관) / `rentalFee`, `depositAmount` 0 이상 optional / `fieldType`은 v1.19.0 폐지 — 와도 무시
 - `bankName`(최대 20자), `accountNumber`(최대 30자), `accountHolder`(최대 20자): **입금받을 계좌** — 전부 optional이지만 `depositAmount`를 넣으면 세 필드 모두 필수 (400 `VALIDATION_FAILED`)
 - 계좌 3필드는 **절대 목록/상세에 공개되지 않는다.** 오직 수락된 신청 팀에게만 `payment` 오브젝트로 내려간다 (아래 참고)
 - 팀 없으면 400 `TEAM_REQUIRED`
@@ -1241,7 +1247,7 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 
 ```json
 { "id": 12, "title": "...", "content": "...", "matchAt": "2026-08-30T07:00:00+09:00",
-  "location": "강서구민운동장 A구장", "region": "서울 강서구",
+  "location": "강서구민운동장 A구장", "locationAddress": "서울 강서구 남부순환로 172", "region": "서울 강서구",
   "preferredSkillLevel": "INTERMEDIATE", "rentalFee": 100000, "depositAmount": 50000,
   "status": "OPEN", "viewCount": 42, "requestCount": 3, "team": "<TeamResponse>",
   "isAuthor": false, "myRequestStatus": null, "contact": null, "payment": null,

@@ -51,6 +51,20 @@ public class MatchPost extends BaseTimeEntity {
     @Column(nullable = false, length = 100)
     private String location;
 
+    /**
+     * 경기장 주소 (계약서 §5, v1.29.0). <b>nullable</b> — 장소명을 직접 입력한 글과 이 필드가
+     * 생기기 전의 글에는 없다.
+     *
+     * 장소 검색(§5-1)에서 고르면 FE 가 {@code roadAddress ?? address} 로 채워 보낸다. 서버는
+     * <b>길이만 본다</b> — 사용자가 고친 값을 그대로 저장한다. 실제 주소와 맞는지 검증하지
+     * 않는 이유는 그럴 방법이 없어서다(같은 장소가 지도마다 다른 이름·주소로 나온다).
+     *
+     * 좌표(latitude·longitude)와 따로 둔다. 장소 검색에서 고르면 셋이 함께 오지만, 직접
+     * 입력한 글은 장소명만 있고 나머지가 없다 — 묶으면 그 상태를 표현할 수 없다.
+     */
+    @Column(name = "location_address", length = 100)
+    private String locationAddress;
+
     @Column(nullable = false, length = 50)
     private String region;
 
@@ -96,7 +110,7 @@ public class MatchPost extends BaseTimeEntity {
 
     @Builder
     private MatchPost(Team team, String title, String content, OffsetDateTime matchAt, String location,
-                      String region, SkillLevel preferredSkillLevel,
+                      String locationAddress, String region, SkillLevel preferredSkillLevel,
                       Integer rentalFee, Integer depositAmount, String bankName,
                       String accountNumber, String accountHolder,
                       Double latitude, Double longitude) {
@@ -105,6 +119,7 @@ public class MatchPost extends BaseTimeEntity {
         this.content = content;
         this.matchAt = matchAt;
         this.location = location;
+        this.locationAddress = locationAddress;
         this.region = region;
         this.preferredSkillLevel = preferredSkillLevel;
         this.rentalFee = rentalFee;
@@ -159,6 +174,18 @@ public class MatchPost extends BaseTimeEntity {
     /** null 이면 "대여료 미정"으로 되돌린다 (계약서 §5, v1.5.1). */
     public void updateRentalFee(Integer rentalFee) {
         this.rentalFee = rentalFee;
+    }
+
+    /**
+     * null 이면 주소를 지운다 (계약서 §5, v1.29.0).
+     *
+     * <b>{@code location} 과 규칙이 반대다.</b> 장소명은 필수라 null 이 "안 건드림"이지만,
+     * 주소는 nullable 이라 null 이 "지우기"다 — 장소 검색으로 고른 글을 직접 입력으로
+     * 되돌릴 길이 있어야 한다. 계약서 §5 의 PATCH 지우기 규칙("필드 없음 = 기존 유지,
+     * 명시적 null = 지움")에서 주소는 지울 수 없는 목록에 없다.
+     */
+    public void updateLocationAddress(String locationAddress) {
+        this.locationAddress = locationAddress;
     }
 
     /**

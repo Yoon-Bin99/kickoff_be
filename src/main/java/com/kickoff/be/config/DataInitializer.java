@@ -54,20 +54,41 @@ public class DataInitializer implements ApplicationRunner {
 
     private static final String RAW_PASSWORD = "pass1234";
 
-    /*
-     * 지도용 좌표 (계약서 §5-1). 카카오 로컬 키워드 검색으로 실제 조회한 값이라 지도에
-     * 찍으면 진짜 그 구장에 마커가 선다 — FE 가 눈으로 검증할 수 있어야 의미가 있다.
+    /**
+     * 지도에 찍히는 구장 (계약서 §5·§5-1).
      *
-     * 강서구민운동장만 예외다. 카카오 검색이 부산 화명동을 유사 매칭으로 돌려줘서
-     * 계약서 §5-1 예시에 적힌 값을 그대로 썼다.
+     * <b>주소와 좌표를 한 상수에 묶는다.</b> 전에는 좌표만 배열로 들고 있었는데,
+     * v1.29.0 에서 주소까지 생기면서 둘을 따로 두면 갈라진다 — 그리고 <b>갈라진 적이
+     * 있다</b>. "강서구민운동장"은 카카오에 없는 이름이라(검색하면 부산 화명동이 유사
+     * 매칭으로 나온다) 계약서 §5-1 예시 좌표를 그대로 썼는데, 그 값이 가리키는 지점에는
+     * 아무 구장도 없었다. 사용자가 "카카오맵 위치가 다르게 나온다"고 한 것이 이것이다.
+     * 묶어 두면 "주소는 여기, 마커는 저기"가 될 수 없다.
+     *
+     * 값은 전부 <b>우리 장소 검색 API(§5-1, 카카오 로컬)로 직접 조회한 첫 결과</b>다.
+     * FE 가 쓰는 것과 같은 경로라, 화면에서 그 구장을 검색하면 같은 값이 나온다.
+     * <b>지어내지 않는다</b> — 검색에 안 나오는 구장은 주소·좌표 없이 둔다.
      *
      * 좌표를 주지 않은 글이 훨씬 많다. 좌표 있는 글과 없는 글 양쪽을 FE 가 다 봐야 한다.
+     *
+     * @param address  도로명 주소 (카카오 roadAddress)
      */
-    private static final double[] GANGSEO = {37.5586, 126.8351};
-    private static final double[] OLYMPIC_PARK = {37.5169382511733, 127.123340764599};
-    private static final double[] GOYANG_STADIUM = {37.67640372499092, 126.74308829942302};
-    private static final double[] TANCHEON = {37.4101849257468, 127.121331148072};
-    private static final double[] NAMDONG = {37.4346425602455, 126.733811034142};
+    private record SeedVenue(String address, double latitude, double longitude) {
+    }
+
+    /**
+     * 서울 강서구. <b>"강서구민운동장"을 쓰지 않는다</b> — 카카오에 없는 이름이라 마커를
+     * 찍을 수 없다. 실제로 검색되는 강서구 축구장으로 바꿨다.
+     */
+    private static final SeedVenue UJANGSAN =
+            new SeedVenue("서울 강서구 우장산로 72", 37.5504723833644, 126.845130338752);
+    private static final SeedVenue OLYMPIC_PARK =
+            new SeedVenue("서울 송파구 올림픽로 424", 37.5169382511733, 127.123340764599);
+    private static final SeedVenue GOYANG_STADIUM =
+            new SeedVenue("경기 고양시 일산서구 중앙로 1601", 37.67640372499092, 126.74308829942302);
+    private static final SeedVenue TANCHEON =
+            new SeedVenue("경기 성남시 분당구 탄천로 215", 37.4101849257468, 127.121331148072);
+    private static final SeedVenue NAMDONG =
+            new SeedVenue("인천 남동구 소래로 500", 37.4346425602455, 126.733811034142);
 
     private final UserRepository userRepository;
     private final TeamRepository teamRepository;
@@ -141,9 +162,9 @@ public class DataInitializer implements ApplicationRunner {
         List<MatchPost> posts = List.of(
                 post(saebyeok, kimAcc, "토요일 아침 11인제 상대 구합니다",
                         "11인제로 2시간 뛸 팀 찾습니다. 매너 중요합니다.",
-                        2, LocalTime.of(7, 0), "강서구민운동장 A구장", "서울 강서구",
+                        2, LocalTime.of(7, 0), "우장산축구장", "서울 강서구",
                         SkillLevel.INTERMEDIATE, 100000, 50000,
-                        GANGSEO[0], GANGSEO[1]),
+                        UJANGSAN),
                 post(saebyeok, kimAcc, "평일 저녁 11인제 한 판",
                         "수요일 저녁에 풀피치로 뛸 팀 구합니다. 조명 있습니다.",
                         5, LocalTime.of(20, 0), "강서구민운동장 주경기장", "서울 강서구",
@@ -158,8 +179,9 @@ public class DataInitializer implements ApplicationRunner {
                         SkillLevel.BEGINNER, 60000, 30000),
                 post(saebyeok, kimAcc, "지난 주 강서 11인제 (상대 못 구한 글)",
                         "날짜가 지났는데 아직 모집중인 글입니다. 목록 정렬 확인용.",
-                        -4, LocalTime.of(7, 0), "강서구민운동장 A구장", "서울 강서구",
-                        SkillLevel.INTERMEDIATE, 90000, 45000),
+                        -4, LocalTime.of(7, 0), "우장산축구장", "서울 강서구",
+                        SkillLevel.INTERMEDIATE, 90000, 45000,
+                        UJANGSAN),
 
                 post(mapo, leeAcc, "일요일 오전 11인제 매칭",
                         "실력 있는 팀 환영합니다. 심판비 포함 금액입니다.",
@@ -186,7 +208,7 @@ public class DataInitializer implements ApplicationRunner {
                         "입문 수준입니다. 살살 해주실 팀 찾아요. 커피 쏘겠습니다.",
                         4, LocalTime.of(8, 0), "올림픽공원 축구장 2번", "서울 송파구",
                         SkillLevel.BEGINNER, 60000, 30000,
-                        OLYMPIC_PARK[0], OLYMPIC_PARK[1]),
+                        OLYMPIC_PARK),
                 post(songpa, parkAcc, "송파 일요일 오후 11인제",
                         "오후 시간대 선호하는 팀 있으면 연락 주세요.",
                         10, LocalTime.of(15, 0), "송파구민체육관 축구장", "서울 송파구",
@@ -208,7 +230,7 @@ public class DataInitializer implements ApplicationRunner {
                         "40대 위주 팀입니다. 비슷한 연령대면 더 좋습니다.",
                         2, LocalTime.of(10, 0), "고양종합운동장 보조구장", "경기 고양시",
                         SkillLevel.AMATEUR, 220000, 110000,
-                        GOYANG_STADIUM[0], GOYANG_STADIUM[1]),
+                        GOYANG_STADIUM),
                 post(goyang, choiAcc, "평일 낮 11인제 하실 팀",
                         "자영업자 팀이라 평일 낮이 편합니다. 같은 사정인 팀 환영.",
                         7, LocalTime.of(14, 0), "일산 축구장 1구장", "경기 고양시",
@@ -230,7 +252,7 @@ public class DataInitializer implements ApplicationRunner {
                         "탄천에서 뜁니다. 주차 편합니다.",
                         3, LocalTime.of(7, 30), "탄천종합운동장 축구장", "경기 성남시",
                         SkillLevel.INTERMEDIATE, 160000, 80000,
-                        TANCHEON[0], TANCHEON[1]),
+                        TANCHEON),
                 post(seongnam, null, "다음 주 토요일 11인제 상대 구합니다",
                         "정기전 상대가 펑크나서 급하게 구합니다. 비용은 반반 협의.",
                         9, LocalTime.of(6, 30), "탄천종합운동장 주경기장", "경기 성남시",
@@ -252,7 +274,7 @@ public class DataInitializer implements ApplicationRunner {
                         "제대로 붙어볼 팀 찾습니다. 실력 자신 있는 팀만.",
                         6, LocalTime.of(19, 0), "남동체육관 축구장", "인천 남동구",
                         SkillLevel.ADVANCED, 120000, 60000,
-                        NAMDONG[0], NAMDONG[1]),
+                        NAMDONG),
                 post(incheon, yoonAcc, "인천 주말 11인제 친선경기",
                         "가볍게 몸 풀 겸 한 경기 하실 팀 구해요.",
                         13, LocalTime.of(11, 0), "송도 축구장 3번", "인천 남동구",
@@ -275,8 +297,9 @@ public class DataInitializer implements ApplicationRunner {
                 // 매칭관리/팀 상세에서만 보인다.
                 post(saebyeok, kimAcc, "지난 달 강서 정기전 (리뷰 완료)",
                         "끝난 경기입니다. 양 팀이 서로 리뷰를 남겼습니다.",
-                        -12, LocalTime.of(7, 0), "강서구민운동장 A구장", "서울 강서구",
-                        SkillLevel.BEGINNER, 100000, 50000),
+                        -12, LocalTime.of(7, 0), "우장산축구장", "서울 강서구",
+                        SkillLevel.BEGINNER, 100000, 50000,
+                        UJANGSAN),
                 post(mapo, leeAcc, "지난 주 마포 11인제 (리뷰 대기)",
                         "끝난 경기입니다. 상대 팀이 아직 리뷰를 안 썼습니다.",
                         -6, LocalTime.of(9, 0), "마포구립축구장", "서울 마포구",
@@ -603,14 +626,18 @@ public class DataInitializer implements ApplicationRunner {
                            SkillLevel preferredSkillLevel,
                            Integer rentalFee, Integer depositAmount) {
         return post(team, account, title, content, dayOffset, time, location, region,
-                preferredSkillLevel, rentalFee, depositAmount, null, null);
+                preferredSkillLevel, rentalFee, depositAmount, null);
     }
 
+    /**
+     * 지도에 찍히는 글. {@code venue} 가 주소와 좌표를 함께 들고 온다 — 셋이 어긋날 수
+     * 없게 하는 것이 {@link SeedVenue} 를 만든 이유다 (그 주석에 전말을 적었다).
+     */
     private MatchPost post(Team team, SeedAccount account, String title, String content,
                            int dayOffset, LocalTime time, String location, String region,
                            SkillLevel preferredSkillLevel,
                            Integer rentalFee, Integer depositAmount,
-                           Double latitude, Double longitude) {
+                           SeedVenue venue) {
         OffsetDateTime matchAt = OffsetDateTime.now()
                 .truncatedTo(ChronoUnit.DAYS)
                 .plusDays(dayOffset)
@@ -621,6 +648,7 @@ public class DataInitializer implements ApplicationRunner {
                 .content(content)
                 .matchAt(matchAt)
                 .location(location)
+                .locationAddress(venue == null ? null : venue.address())
                 .region(region)
                 .preferredSkillLevel(preferredSkillLevel)
                 .rentalFee(rentalFee)
@@ -628,8 +656,8 @@ public class DataInitializer implements ApplicationRunner {
                 .bankName(account == null ? null : account.bankName())
                 .accountNumber(account == null ? null : account.accountNumber())
                 .accountHolder(account == null ? null : account.accountHolder())
-                .latitude(latitude)
-                .longitude(longitude)
+                .latitude(venue == null ? null : venue.latitude())
+                .longitude(venue == null ? null : venue.longitude())
                 .build();
     }
 

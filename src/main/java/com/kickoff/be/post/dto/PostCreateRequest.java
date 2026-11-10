@@ -28,6 +28,16 @@ public record PostCreateRequest(
         @Size(max = 100, message = "장소는 100자를 넘을 수 없습니다.")
         String location,
 
+        /**
+         * 경기장 주소 (계약서 §5, v1.29.0). optional — 장소 검색(§5-1)에서 고르면 FE 가
+         * 채워 보내고, 장소명을 직접 입력하면 비어 온다.
+         *
+         * <b>검증은 길이만 한다.</b> 사용자가 고친 값을 그대로 저장하라는 것이 계약서
+         * 문면이고, 실제 주소와 맞는지 확인할 방법도 없다.
+         */
+        @Size(max = 100, message = "주소는 100자를 넘을 수 없습니다.")
+        String locationAddress,
+
         @NotBlank(message = "지역은 필수입니다.")
         @Size(max = 50, message = "지역은 50자를 넘을 수 없습니다.")
         String region,

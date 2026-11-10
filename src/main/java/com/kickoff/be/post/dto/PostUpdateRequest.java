@@ -34,6 +34,17 @@ public record PostUpdateRequest(
         @Size(min = 1, max = 100, message = "장소는 1~100자여야 합니다.")
         Patchable<String> location,
 
+        /**
+         * 경기장 주소 (계약서 §5, v1.29.0). <b>지울 수 있다</b> — 명시적 null 이면 주소가
+         * 사라진다. 장소 검색으로 고른 글을 직접 입력으로 되돌릴 길이 있어야 한다.
+         *
+         * {@code location} 과 달리 {@code min} 을 두지 않는다. 장소명은 빈 문자열이 올 수
+         * 없지만 주소는 지우기가 허용되는 필드라, 길이 하한을 걸면 "지우기"와 "빈 문자열"의
+         * 경계가 흐려진다 — 지우기는 오직 null 이다.
+         */
+        @Size(max = 100, message = "주소는 100자를 넘을 수 없습니다.")
+        Patchable<String> locationAddress,
+
         @Size(min = 1, max = 50, message = "지역은 1~50자여야 합니다.")
         Patchable<String> region,
 

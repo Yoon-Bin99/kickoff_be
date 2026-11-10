@@ -106,6 +106,7 @@ public class PostService {
                 .content(request.content())
                 .matchAt(request.matchAt())
                 .location(request.location())
+                .locationAddress(request.locationAddress())
                 .region(request.region())
                 .preferredSkillLevel(request.preferredSkillLevel())
                 .rentalFee(request.rentalFee())
@@ -175,6 +176,11 @@ public class PostService {
         }
         if (Patchable.isPresent(request.rentalFee())) {
             post.updateRentalFee(Patchable.valueOf(request.rentalFee()));
+        }
+        // 주소는 지울 수 있다 (계약서 §5, v1.29.0) — 장소 검색으로 고른 글을 직접 입력으로
+        // 되돌릴 길이 있어야 한다. 그래서 location 과 달리 여기(지우기 가능 쪽)에 있다.
+        if (Patchable.isPresent(request.locationAddress())) {
+            post.updateLocationAddress(Patchable.valueOf(request.locationAddress()));
         }
         applyDepositPatch(post, request);
     }
