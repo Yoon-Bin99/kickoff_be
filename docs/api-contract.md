@@ -1,7 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.29.0)
+# Kickoff API 계약 v1 (현재 v1.29.1)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.29.1 (2026-11-10): `locationAddress`는 PATCH에서 **명시적 null로 지울 수 있는 필드**(장소 검색으로 잘못
+> 고른 글을 직접 입력으로 되돌리는 길). 예시의 "강서구민운동장"은 카카오 지도에 없는 이름(검색하면 부산이
+> 유사 매칭)이라 §5·§5-1 예시를 실제로 검색되는 **우장산축구장**(서울 강서구 우장산로 72)으로 교체 — 시드도
+> 같은 값으로 수정됨(BE 4126d59). 규칙 변경은 PATCH 한 줄뿐.
 
 > v1.29.0 (2026-11-10): **모집글에 경기장 주소** `locationAddress`(§5). 장소 검색(§5-1)에서 고르면 FE가
 > `roadAddress ?? address`를 자동으로 채워 보내고, 상세·목록 카드에 전체 주소를 표시한다. nullable(직접
@@ -1216,7 +1221,7 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 
 ```json
 { "id": 12, "title": "토요일 아침 풋살 상대 구합니다", "matchAt": "2026-08-30T07:00:00+09:00",
-  "location": "강서구민운동장 A구장", "locationAddress": "서울 강서구 남부순환로 172", "region": "서울 강서구",
+  "location": "우장산축구장", "locationAddress": "서울 강서구 우장산로 72", "region": "서울 강서구",
   "preferredSkillLevel": "INTERMEDIATE", "rentalFee": 100000, "depositAmount": 50000,
   "status": "OPEN", "requestCount": 3, "team": "<TeamSummary>",
   "createdAt": "2026-08-23T09:00:00+09:00" }
@@ -1230,8 +1235,8 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 
 ```json
 { "title": "토요일 아침 풋살 상대 구합니다", "content": "6인제로 2시간 뛸 팀 찾습니다. 매너 중요.",
-  "matchAt": "2026-08-30T07:00:00+09:00", "location": "강서구민운동장 A구장",
-  "locationAddress": "서울 강서구 남부순환로 172",
+  "matchAt": "2026-08-30T07:00:00+09:00", "location": "우장산축구장",
+  "locationAddress": "서울 강서구 우장산로 72",
   "region": "서울 강서구", "preferredSkillLevel": "INTERMEDIATE",
   "rentalFee": 100000, "depositAmount": 50000,
   "bankName": "카카오뱅크", "accountNumber": "3333-01-1234567", "accountHolder": "김주장" }
@@ -1247,7 +1252,7 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 
 ```json
 { "id": 12, "title": "...", "content": "...", "matchAt": "2026-08-30T07:00:00+09:00",
-  "location": "강서구민운동장 A구장", "locationAddress": "서울 강서구 남부순환로 172", "region": "서울 강서구",
+  "location": "우장산축구장", "locationAddress": "서울 강서구 우장산로 72", "region": "서울 강서구",
   "preferredSkillLevel": "INTERMEDIATE", "rentalFee": 100000, "depositAmount": 50000,
   "status": "OPEN", "viewCount": 42, "requestCount": 3, "team": "<TeamResponse>",
   "isAuthor": false, "myRequestStatus": null, "contact": null, "payment": null,
@@ -1281,6 +1286,7 @@ PATCH의 `depositAmount` 검증("있으면 계좌 3필드 필수")은 요청 본
 ### PATCH /api/posts/{postId} — 인증 필요, 작성자만
 
 POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
+- `locationAddress`는 명시적 null로 지울 수 있다(v1.29.1) — 생략하면 유지
 
 **PATCH 지우기 규칙 (v1.5.1)**: 모든 PATCH에서 **필드 없음 = 기존 유지, 명시적
 `null` = 지움**이다 (좌표의 §5-1 규칙을 일반화). 지울 수 있는 필드:
@@ -1316,7 +1322,7 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
 `PostSummary`·`PostDetail` 응답과 `POST/PATCH /api/posts` 요청에 추가:
 
 ```json
-{ "latitude": 37.5586, "longitude": 126.8351 }
+{ "latitude": 37.5505, "longitude": 126.8451 }
 ```
 
 - 둘 다 **nullable** — 좌표 없이도 글 등록 가능 (직접 입력 장소). 기존 글은 전부 `null`
@@ -1338,8 +1344,8 @@ BE가 대행한다. FE는 글 작성/수정의 장소 입력에서 이걸 호출
 
 ```json
 { "places": [
-  { "name": "강서구민운동장", "address": "서울 강서구 화곡동 980-16",
-    "roadAddress": "서울 강서구 남부순환로 172", "latitude": 37.5586, "longitude": 126.8351 }
+  { "name": "우장산축구장", "address": "서울 강서구 우장산로 72",
+    "roadAddress": "서울 강서구 우장산로 72", "latitude": 37.5505, "longitude": 126.8451 }
 ] }
 ```
 
