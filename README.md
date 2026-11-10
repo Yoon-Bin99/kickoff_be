@@ -258,6 +258,12 @@ curl -s -o /dev/null -w '%{redirect_url}' 'https://<운영도메인>/api/auth/oa
 
 JDBC URL은 기본값이 아니라 위 값으로 바꿔 넣어야 붙는다.
 
+**dev 프로파일에서만 열린다.** `spring.h2.console.enabled`가 dev 블록에만 `true`이고,
+거기에 더해 시큐리티가 `/h2-console/**`를 dev에서만 `permitAll`로 두고 그 밖에서는
+`denyAll`로 막는다([SecurityConfig](src/main/java/com/kickoff/be/config/SecurityConfig.java)).
+두 겹인 이유는 **H2와 h2console 모듈이 운영 이미지에도 그대로 들어가기** 때문이다 —
+막고 있는 것이 프로퍼티 한 줄뿐이면, 그 줄이 실수로 켜지는 날 DB 콘솔이 공개된다.
+
 ## 테스트
 
 ```bash
@@ -583,7 +589,13 @@ curl -s -o /dev/null -w '%{http_code}\n' "$B/api/users/me"            # 401
 # "앱이 안 떴다"로 잘못 읽는다.
 curl -s -o /dev/null -w '%{http_code}\n' "$B/api/does-not-exist"      # 401 (404 아님)
 
-# 6. 소셜 로그인이 제공자에게 넘기는 콜백 — 콘솔에 등록한 값과 같아야 한다
+# 6. H2 콘솔이 막혀 있는가. **토큰을 주고** 불러야 판정이 된다 —
+#    403이면 denyAll이 걸려 있고, 404면 규칙이 빠져 "토큰만 있으면 닿는" 상태다.
+#    토큰 없이 부르면 둘 다 401이라 구별되지 않는다.
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer <아무 유효 토큰>" "$B/h2-console/login.do"  # 403
+
+# 7. 소셜 로그인이 제공자에게 넘기는 콜백 — 콘솔에 등록한 값과 같아야 한다
 curl -s -o /dev/null -w '%{redirect_url}\n' \
   "$B/api/auth/oauth/kakao/authorize?redirect=kickoff%3A%2F%2Fauth"
 ```

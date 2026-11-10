@@ -288,13 +288,15 @@ prod 프로파일에 `server.forward-headers-strategy: framework` 가 있어, �
 
 - **`local.yaml` 을 이미지·서버에 올리지 말 것.** 환경변수를 이긴다. `.dockerignore`
   첫 줄에서 빼고 있다
-- **`/h2-console` 경로가 시큐리티에서 열려 있다**(`permitAll`). prod 는 PostgreSQL 이라
-  콘솔이 등록되지 않을 것으로 보이지만 **확인하지 않았다.** 이전 후 `GET /h2-console` 이
-  404 인지 프로브에 넣을 것. 열려 있으면 그 자체가 사고다
-- **`server.shutdown` 이 yaml 에 명시돼 있지 않다.** 기동 로그에서 graceful shutdown 이
-  도는 것은 확인했지만 버전 기본값에 기대고 있는 상태다. 배포 중 요청이 끊기는 것을
-  막으려면 `server.shutdown: graceful` 을 명시하는 편이 안전하다 (이 문서 범위 밖 —
-  고치려면 별 커밋)
+- **`/h2-console` 은 조치 완료다.** 확인해 보니 운영에서 콘솔이 떠 있던 것은 아니었다 —
+  `spring.h2.console.enabled` 가 dev 블록에만 `true` 라 서블릿이 등록되지 않는다. 다만
+  막고 있는 것이 프로퍼티 한 줄뿐이고 **H2·h2console 모듈은 운영 이미지에 그대로
+  들어간다**(`BOOT-INF/lib` 에서 확인). 그래서 시큐리티 규칙을 dev 에서만 `permitAll`,
+  그 밖에서는 `denyAll` 로 갈랐고 `H2ConsoleAccessTest` 가 그 경계를 지킨다.
+  이전 후 프로브에서도 한 번 볼 것 — 토큰을 주고 불러 **403** 이면 맞고, 404 면 규칙이
+  빠진 것이다(= 토큰만 있으면 닿는 상태)
+- **`server.shutdown: graceful` 을 명시했다.** 전에는 버전 기본값에 기대고 있었다. 롤링
+  배포에서 즉시 종료면 그 순간 처리 중이던 요청이 그냥 끊긴다
 - `docs/terms-of-service.md`·`docs/privacy-policy.md` 는 **이미지 빌드에 들어간다**
   (`Dockerfile` 이 `COPY docs docs`). `.dockerignore` 가 `docs` 를 빼면서 이 두 장만
   예외로 들여보내는 구조라, 둘 중 하나가 어긋나면 빌드는 성공하고 운영에서만
@@ -323,7 +325,7 @@ prod 프로파일에 `server.forward-headers-strategy: framework` 가 있어, �
 3. BE: Lightsail 컨테이너 + DB 생성, 환경변수 투입(README 체크리스트 ①)
 4. **키 재발급 8개** — 이전과 함께 처리(체크리스트 ③)
 5. 카카오·네이버 콘솔 + FE 소스 3자리 새 도메인으로(체크리스트 ②)
-6. 프로브(체크리스트 ④) + `/h2-console` 404 확인 추가
+6. 프로브(체크리스트 ④) + `/h2-console` 을 토큰과 함께 불러 403 확인
 7. GitHub Actions 최소안 (테스트 → 이미지 → 배포)
 
 이 중 **1·2·4 는 BE 가 할 수 없는 일**이다(법률 문안, 계정·결제, 외부 콘솔). 나머지는

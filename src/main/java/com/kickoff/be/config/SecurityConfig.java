@@ -3,13 +3,14 @@ package com.kickoff.be.config;
 import com.kickoff.be.auth.jwt.JwtAuthenticationFilter;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
 import com.kickoff.be.auth.jwt.SecurityErrorResponder;
-import lombok.RequiredArgsConstructor;
+import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,12 +19,38 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final SecurityErrorResponder securityErrorResponder;
     private final CorsConfigurationSource corsConfigurationSource;
+
+    /**
+     * H2 콘솔 경로를 열어 줄지 (개발 전용).
+     *
+     * <b>프로파일로 가른다.</b> {@code spring.h2.console.enabled} 를 보는 쪽이 더 정확해
+     * 보이지만, 그러면 운영에서 그 값을 실수로 켜는 순간 보안 규칙이 따라 열린다 —
+     * 스위치 하나가 두 가지를 동시에 푸는 구조가 된다. 프로파일을 기준으로 두면 운영에서는
+     * 무엇을 켜도 이 경로가 열리지 않는다.
+     *
+     * <b>{@code @Value("${spring.profiles.active}")} 로 읽으면 안 된다.</b> 그 프로퍼티는
+     * yaml·환경변수로 프로파일을 줄 때만 채워진다. 테스트는 {@code @ActiveProfiles} 로
+     * 띄우는데 그 경로는 프로퍼티를 채우지 않아서, 기본값 {@code dev} 로 떨어져
+     * <b>테스트가 운영이 아니라 개발 가지를 타게 된다.</b> 실제로 그렇게 짰다가 이 규칙의
+     * 테스트가 403 대신 404(= 콘솔 서블릿이 없을 뿐, 보안은 통과)를 받았다.
+     * {@link Environment#matchesProfiles} 는 실제 활성 프로파일을 보므로 양쪽에서 맞다.
+     */
+    private final boolean devProfile;
+
+    public SecurityConfig(JwtTokenProvider jwtTokenProvider,
+                          SecurityErrorResponder securityErrorResponder,
+                          CorsConfigurationSource corsConfigurationSource,
+                          Environment environment) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.securityErrorResponder = securityErrorResponder;
+        this.corsConfigurationSource = corsConfigurationSource;
+        this.devProfile = environment.matchesProfiles("dev");
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -44,12 +71,14 @@ public class SecurityConfig {
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(securityErrorResponder)
                         .accessDeniedHandler(securityErrorResponder))
-                .authorizeHttpRequests(auth -> auth
+                .authorizeHttpRequests(auth -> {
+                        // H2 콘솔 규칙을 <b>맨 앞에</b> 둔다. 아래 OPTIONS /** permitAll 보다
+                        // 뒤에 두면 콘솔 경로의 프리플라이트가 먼저 통과해 버린다.
+                        h2Console(auth);
+
+                        auth
                         // CORS 프리플라이트
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // 개발용 H2 콘솔
-                        .requestMatchers("/h2-console/**").permitAll()
 
                         // 카카오톡 카드형 공유용 브랜딩 이미지. 계약서의 API 표면이 아니라
                         // 정적 자원이다 — 카카오 서버가 미리보기를 만들려고 토큰 없이
@@ -141,10 +170,38 @@ public class SecurityConfig {
                         // 연결하는 것뿐이라 개인정보가 실리지 않는다.
                         .requestMatchers(HttpMethod.GET, "/api/stadiums").permitAll()
 
-                        .anyRequest().authenticated())
+                        .anyRequest().authenticated();
+                })
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * H2 콘솔 — <b>개발 전용</b>. 운영에서는 명시적으로 막는다.
+     *
+     * 운영에서 콘솔이 떠 있던 것은 아니다. {@code spring.h2.console.enabled} 가 dev 블록에만
+     * {@code true} 라 운영에서는 서블릿이 등록되지 않는다. 그런데 <b>H2 와 h2console 모듈은
+     * 운영 이미지에 그대로 들어간다</b> — 의존성이 {@code implementation}·{@code runtimeOnly}
+     * 라 {@code bootJar} 의 {@code BOOT-INF/lib} 에 포함된다(직접 확인했다). 즉 막고 있는
+     * 것은 프로퍼티 한 줄뿐이고 클래스는 거기 있다.
+     *
+     * 그 상태에서 {@code permitAll} 을 조건 없이 두면 두 가지가 나쁘다. 프로퍼티가 실수로
+     * 켜지는 날 경로가 <b>이미 열려 있다</b>는 것, 그리고 운영 설정을 읽는 사람이 "콘솔이
+     * 공개돼 있다"고 읽는다는 것이다. 뒤쪽이 더 자주 비용을 만든다.
+     *
+     * <b>{@code denyAll} 로 명시하는 이유</b>: 규칙을 아예 빼면 {@code anyRequest()
+     * .authenticated()} 로 떨어져 "토큰만 있으면 통과"가 된다. 콘솔은 로그인한 사용자에게도
+     * 열려서는 안 되는 경로다.
+     */
+    private void h2Console(
+            AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry
+                    auth) {
+        if (devProfile) {
+            auth.requestMatchers("/h2-console/**").permitAll();
+        } else {
+            auth.requestMatchers("/h2-console/**").denyAll();
+        }
     }
 }
