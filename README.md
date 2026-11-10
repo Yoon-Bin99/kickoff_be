@@ -320,18 +320,22 @@ Hibernate는 `ddl-auto: validate`로 대조만 한다 — 개발·테스트·운
 
 ## 운영 배포
 
-### 현재 배포
+### 현재 배포 — 2026-11-10 중단됨
+
+> **Railway 배포가 미결제로 중단됐다.** 아래 주소는 응답하지 않는다. 당분간 전부 로컬에서
+> 돌린다(`./gradlew bootRun`, dev 프로파일 + H2). 다시 올릴 때는 **[재배포 체크리스트](#재배포-체크리스트)**
+> 를 따를 것 — 환경변수·외부 콘솔·키 재발급·프로브 순서가 거기 모여 있다.
 
 | | |
 |---|---|
-| 주소 | https://kickoffbe-production-7275.up.railway.app |
+| 주소 | https://kickoffbe-production-7275.up.railway.app (중단) |
 | 플랫폼 | Railway (origin `main` 푸시 시 자동 재배포) |
 | DB | Railway PostgreSQL |
 
 `main`에 푸시하면 재배포가 돈다. 그래서 푸시 전에 `./gradlew test`를 통과시킬 것.
 
-FE가 붙는 주소이기도 하므로 여기에 적어 둔다 — 세션이 바뀌면 이 주소를 아는 사람이
-아무도 없어지고, 저장소 어디에도 하드코딩돼 있지 않아 되찾을 방법이 없다.
+주소를 지우지 않고 남겨 둔다. **카카오·네이버 콘솔과 FE 소스에 이 주소가 등록·하드코딩돼
+있어서**, 무엇을 바꿔야 하는지 추적하려면 옛 주소를 알아야 한다(체크리스트 ② 참고).
 
 `Dockerfile`이 있다. 멀티스테이지로 `bootJar`까지 만들고 JRE 이미지에 얹는다.
 `SPRING_PROFILES_ACTIVE=prod`가 이미지에 박혀 있다 — 프로파일을 안 줘서 dev(H2)로 뜨는
@@ -379,9 +383,10 @@ Successfully applied N migration(s)      ← Flyway 적용
 
 - **`local.yaml`을 배포 환경에 올리지 말 것.** 환경변수를 이긴다(위 소셜 로그인 절 참고).
   `.dockerignore` 첫 줄에서 빼고 있다
-- CORS는 **운영에서도 모든 오리진을 허용한다**([CorsConfig](src/main/java/com/kickoff/be/config/CorsConfig.java)).
+- CORS는 **기본값이 모든 오리진 허용이다**([CorsConfig](src/main/java/com/kickoff/be/config/CorsConfig.java)).
   좁히지 못한 이유는 웹 미리보기를 운영 서버에 붙여 확인하는 개발 관례 때문이다 —
-  지금 좁히면 그 작업이 끊긴다. **웹을 정식 배포하는 시점에 도메인으로 좁힐 것.**
+  지금 좁히면 그 작업이 끊긴다. **웹을 정식 배포하는 시점에 `CORS_ALLOWED_ORIGINS`로
+  도메인을 좁힐 것** (콤마 구분, `*` 와일드카드 가능. 빈 값이면 전부 허용이라 현행 유지).
   자격증명 허용(`allowCredentials`)은 운영에서 이미 꺼 두었다. 인증이 `Authorization`
   헤더라 켤 이유가 없고, `*` 오리진과 함께 두면 나중에 세션 쿠키를 하나라도 도입할 때
   아무 사이트나 그 쿠키를 태워 부를 수 있는 상태가 된다
@@ -405,3 +410,148 @@ JWT_SECRET=check-only-secret-0123456789-0123456789 ./gradlew bootRun
 
 docker rm -f pg-check   # 확인 끝나면 정리
 ```
+
+## 재배포 체크리스트
+
+Railway 배포가 2026-11-10 미결제로 중단됐다. 다시 올릴 때(Railway 재생성이든 AWS 서울이든)
+빠뜨리기 쉬운 것을 모아 둔다. **코드를 읽어 만든 목록이다** — 값은 하나도 적지 않았고,
+적으면 안 된다.
+
+순서가 있다. ①로 서버를 띄우고 → ②로 외부 콘솔·FE를 새 주소에 맞추고 → ③으로 노출된 키를
+갈고 → ④로 확인한다. ②를 건너뛰면 **서버는 200인데 로그인만 안 되는** 상태가 되고, 그게
+가장 찾기 어려운 실패다.
+
+### ① 환경변수 전수
+
+코드가 읽는 것 전부다(`application.yaml`의 `${...}`와 `@Value` 전수 조사). 없을 때의 동작을
+같이 적었다 — **기동이 막히는 것은 세 개뿐이고, 나머지는 조용히 기능만 죽는다.** 그래서 "뜨면
+성공"이 아니다.
+
+| 변수 | 필수 | 없으면 |
+|---|---|---|
+| `DB_URL` | **O** | 기동 실패 (prod 프로파일에 기본값 없음) |
+| `DB_USERNAME` | **O** | 기동 실패 |
+| `DB_PASSWORD` | **O** | 기동 실패 |
+| `JWT_SECRET` | **O** | 기동은 되지만 **개발용 기본값이 그대로 쓰인다** — 저장소에 적혀 있는 값이라 누구나 토큰을 위조할 수 있다. HS256이라 32바이트 이상 |
+| `PORT` | | 8080. PaaS가 주입한다 |
+| `SPRING_PROFILES_ACTIVE` | | `Dockerfile`에 `prod`가 박혀 있다. **직접 띄울 때는 반드시 줄 것** — 없으면 dev로 떠서 H2 인메모리에 붙고, 재시작마다 데이터가 사라지는데 기동은 정상이다 |
+| `CORS_ALLOWED_ORIGINS` | | 전부 허용(`*`). 웹 정식 배포 시 좁힐 것 |
+| `OAUTH_ALLOWED_REDIRECTS` | △ | `kickoff://*`만. **Expo Go로 붙는 동안 `exp://*`를 빠뜨리면 증상이 안 보인다** (위 소셜 로그인 절의 경고 참고) |
+| `OAUTH_CALLBACK_BASE_URL` | △ | 요청 오리진에서 콜백을 만든다. 프록시 뒤라면 `forward-headers-strategy: framework`가 처리하지만, 도메인을 고정하고 싶으면 `https://<도메인>`으로 줄 것 |
+| `KAKAO_CLIENT_ID` / `KAKAO_CLIENT_SECRET` | | 카카오 로그인만 비활성 (기동 로그 `활성 소셜 제공자`에서 빠진다) |
+| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | | 네이버 로그인만 비활성 |
+| `KAKAO_MAP_REST_KEY` | △ | `/api/places/search`만 502. 나머지는 멀쩡해서 **로그를 안 보면 모른다** |
+| `SEOUL_OPENDATA_KEY` | | 서울 공공 구장 동기화를 건너뛴다. V20 수동 시드 5건만 노출 — 의도된 기본 상태다 |
+| `SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SMS_SENDER` | | 셋 중 하나라도 비면 실제 발송 어댑터가 등록되지 않고 인증번호가 **서버 로그로만** 나간다 |
+| `SMS_ENABLED` | | `false`. 켜도 위 세 개가 없으면 502 |
+| `PHONE_VERIFICATION_REQUIRED` | | `false`. 가입에 전화 인증 토큰을 강제하지 않는다 (롤아웃 순서는 `application.yaml` 주석 참고) |
+| `BREVO_API_KEY` | | 메일 어댑터가 Brevo(HTTP)로 뜬다. **SMTP 설정이 함께 있어도 Brevo가 이긴다** — 기동 로그에 어느 쪽이 골라졌는지 찍힌다 |
+| `SMTP_HOST` / `SMTP_USERNAME` / `SMTP_PASSWORD` | | Brevo 키가 없을 때의 경로. **셋이 다 있어야** SMTP 어댑터가 뜬다. 하나라도 비면(그리고 Brevo도 없으면) 어댑터 자체가 등록되지 않고 메일 내용이 로그로만 나간다 |
+| `SMTP_PORT` | | 587. 어댑터 등록 조건에는 들어가지 않는다 |
+| `EMAIL_ENABLED` | | `false`. 꺼져 있으면 실제로 보내지 않는다 |
+| `EMAIL_FROM` | | 발신 주소. 비우면 SMTP 계정을 쓴다. **Brevo는 콘솔에서 인증한 주소만 발신을 허용**하므로, Brevo로 보낼 때는 이 값이 그 주소여야 한다 |
+| `ANTHROPIC_API_KEY` | | AI 상담 어댑터 미등록 → FAQ·운영자 연결만 동작 |
+| `AI_SUPPORT_ENABLED` | | `false`. **키가 있어도 이 스위치를 켜기 전에는 호출하지 않는다** — 크레딧이 소모되는 자리다 |
+| `AI_SUPPORT_MODEL` | | 기본 모델값이 `application.yaml`에 있다 |
+| `SUPPORT_OPERATOR_EMAIL` | △ | **문의함 API가 전부 403이 된다.** 운영자가 아무도 없는 상태를 기본값으로 둔 것이다 — 설정을 빠뜨린 배포가 남의 문의를 열어 주지 않게 |
+| `SEED_DATA` | | `false`. `true`면 시드 투입. **실사용자가 쓰기 시작하면 절대 켜지 말 것** |
+| `PUSH_ENABLED` | | `false`. 켜야 실제 푸시가 나간다 |
+
+`local.yaml`은 **배포 환경에 올리지 말 것.** 환경변수를 이긴다. `.dockerignore` 첫 줄에서 빼고 있다.
+
+### ② 도메인이 바뀌면 함께 바꿀 곳
+
+주소가 바뀌면 BE만 고쳐서는 끝나지 않는다. 아래가 전부 옛 주소를 들고 있다.
+
+**외부 콘솔** (여기를 빠뜨리면 서버는 200인데 로그인만 안 된다)
+
+| 콘솔 | 바꿀 것 |
+|---|---|
+| 카카오 개발자 | Redirect URI `https://<새 도메인>/api/auth/oauth/kakao/callback` |
+| 카카오 개발자 | 플랫폼 > Web > **사이트 도메인** `https://<새 도메인>` — Redirect URI만으로는 부족하다. 실제로 이것 때문에 한 번 막혔다 |
+| 카카오 개발자 | 카카오맵/JS SDK 허용 도메인 — FE의 `EXPO_PUBLIC_MAP_REFERER`가 가리키는 주소 |
+| 네이버 개발자 | 콜백 URL `https://<새 도메인>/api/auth/oauth/naver/callback` |
+
+무엇을 넣을지 추측하지 말고, 서버가 제공자에게 실제로 넘기는 값을 확인할 것 — 위
+"운영 배포 시 콘솔에 등록할 값" 절의 `curl ... %{redirect_url}` 한 줄이 그 용도다.
+
+**FE에 하드코딩된 BE 주소** (FE 저장소가 네 벌로 복제돼 있어 같은 줄이 네 번 나온다 —
+`kickoff_fe`, `kickoff_fe_web`, `kickoff_fe_preview`, `kickoff_fe_design`)
+
+| 자리 | 무엇 |
+|---|---|
+| `app/+html.tsx` | `CARD_IMAGE_URL` — 웹 OG 카드 이미지 (`/share-card.png`) |
+| `src/lib/kakao.ts` | `CARD_IMAGE_URL` — 카카오톡 공유 카드 이미지 |
+| `src/components/post/PlaceMap.tsx` | `EXPO_PUBLIC_MAP_REFERER` 기본값 — 카카오맵 referer |
+| `README.md` | 웹 빌드 예시의 `EXPO_PUBLIC_API_URL` |
+
+`EXPO_PUBLIC_API_URL`은 **빌드 인자다** — 웹 번들에 박히므로 BE 주소가 바뀌면 FE 웹을
+다시 빌드·배포해야 한다. 앱(Expo Go/실기기)은 런타임에 정해지므로 다시 빌드할 필요가 없다.
+
+약관·방침 주소(`/terms`, `/privacy`)는 하드코딩돼 있지 않다 — FE가 API 베이스에서 만든다
+(`src/lib/legal.ts`). 그래서 이쪽은 손댈 것이 없다.
+
+### ③ 키 재발급
+
+재배포 자체와는 별개로, **이전에 대화창에 값이 오간 키는 갈아야 한다.** 값이 남아 있을 수
+있는 곳은 대화 기록과 `handover/` 스냅샷이다. 아래는 **재발급 대상 후보**(= 비밀값을 담는
+변수) 전수이고, 어느 것이 실제로 노출됐는지는 **supervisor가 확정해야 한다** — 이 저장소의
+코드만으로는 알 수 없다.
+
+- `JWT_SECRET` — 노출 여부와 무관하게 새로 만들 것. 기본값을 쓰고 있었다면 더더욱
+- `KAKAO_CLIENT_SECRET`, `NAVER_CLIENT_SECRET`
+- `KAKAO_MAP_REST_KEY`
+- `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`
+- `BREVO_API_KEY`, `SMTP_PASSWORD`
+- `ANTHROPIC_API_KEY`
+- `SEOUL_OPENDATA_KEY` (아직 발급받지 않았다)
+- `DB_PASSWORD` — 새 DB를 만들면 자동으로 갈린다
+
+클라이언트 **ID**(`KAKAO_CLIENT_ID`·`NAVER_CLIENT_ID`)는 비밀이 아니라 갈 필요가 없다.
+
+갈기 전에 `local.yaml`과 대조해 **무엇이 지금 쓰이는 값인지** 확인할 것. 다만 그 파일의
+값을 어디에도 출력하지 말 것 — gitignore 돼 있어 커밋되지는 않지만, 로그·메시지로 새면
+같은 일이 반복된다.
+
+### ④ 배포 후 프로브
+
+전용 스크립트는 없다(찾아봤지만 저장소에 없다). 아래 순서로 확인한다 — **앞에서 실패하면
+뒤를 볼 필요가 없는 순서**로 놓았다.
+
+```bash
+B=https://<새 도메인>
+
+# 1. 떴는가. 인증 불필요 경로 하나로 앱·컨텍스트가 살아 있는지 본다
+curl -s "$B/api/auth/signup-policy"                                   # 200 JSON
+
+# 2. CORS 프리플라이트. 여기서 404면 배포가 아직 안 바뀐 것이다
+curl -s -o /dev/null -w '%{http_code}\n' -X OPTIONS "$B/api/posts"    # 200
+
+# 3. 인증 없이 되는 조회 — 스키마·시드·목록 쿼리를 한 번에 본다
+curl -s "$B/api/posts?size=1"       | head -c 200                     # 200, content 배열
+curl -s "$B/api/stadiums?size=50"   | head -c 200                     # 200, 수동 시드 5건
+
+# 4. 정적 문서. 앱 심사에서 요구하는 주소다
+curl -s -o /dev/null -w '%{http_code}\n' "$B/terms"                   # 200
+curl -s -o /dev/null -w '%{http_code}\n' "$B/privacy"                 # 200
+curl -s -o /dev/null -w '%{http_code}\n' "$B/share-card.png"          # 200
+
+# 5. 인증이 필요한 경로가 막혀 있는가 (열려 있으면 그게 사고다)
+curl -s -o /dev/null -w '%{http_code}\n' "$B/api/users/me"            # 401
+
+# 없는 경로를 "떴는지" 확인용으로 쓰지 말 것. 토큰 없이 부르면 404가 아니라 401이다 —
+# anyRequest().authenticated() 가 라우팅보다 먼저 걸리기 때문이다. 404로 기대하고 보면
+# "앱이 안 떴다"로 잘못 읽는다.
+curl -s -o /dev/null -w '%{http_code}\n' "$B/api/does-not-exist"      # 401 (404 아님)
+
+# 6. 소셜 로그인이 제공자에게 넘기는 콜백 — 콘솔에 등록한 값과 같아야 한다
+curl -s -o /dev/null -w '%{redirect_url}\n' \
+  "$B/api/auth/oauth/kakao/authorize?redirect=kickoff%3A%2F%2Fauth"
+```
+
+그다음 **기동 로그 네 줄**을 눈으로 볼 것(위 "배포 후 로그에서 확인할 네 줄"). 프로브가
+전부 통과해도 `장소 검색 키 없음`이나 `활성 소셜 제공자: []`가 찍혀 있으면 기능이 죽어 있다.
+
+마지막으로 **12분 규칙**: 배포 직후 404나 502가 나와도 바로 실패로 판정하지 말 것. 빌드가
+아직 돌고 있을 수 있다 — 실제로 09:38에 404를 보고 실패로 의심했는데 09:39에 200이었던
+일이 있다. 최소 12분은 기다린 뒤에 판정한다.
