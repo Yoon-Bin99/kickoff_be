@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -40,13 +41,21 @@ public class CorsConfig {
      *
      * 개발에서는 켜 둔다. 브라우저로 이것저것 붙여 보는 자리라 굳이 막을 이유가 없다.
      *
+     * <b>프로파일을 {@code @Value("${spring.profiles.active}")} 로 읽지 않는다.</b> 그
+     * 프로퍼티는 yaml·환경변수로 프로파일을 줄 때만 채워진다. 테스트는
+     * {@code @ActiveProfiles} 로 띄우는데 그 경로는 프로퍼티를 채우지 않아서, 기본값
+     * {@code dev} 로 떨어져 <b>운영 가지가 테스트에서 한 번도 돌지 않는 상태</b>가 된다.
+     * 운영은 환경변수로 뜨므로 동작 자체는 맞았지만, 검증되지 않는 분기를 남길 이유가 없다.
+     * {@code SecurityConfig} 에서 같은 패턴 때문에 테스트가 엉뚱한 가지를 타는 일이 실제로
+     * 있었다. {@link Environment#matchesProfiles} 는 실제 활성 프로파일을 본다.
+     *
      * @param allowedOrigins 콤마로 구분한 오리진 패턴. 빈 값이면 전부 허용(현행 유지).
      *                       {@code *} 를 와일드카드로 쓸 수 있다 — {@code setAllowedOriginPatterns}
      *                       가 받는 형식 그대로다.
      */
-    public CorsConfig(@Value("${spring.profiles.active:dev}") String activeProfile,
+    public CorsConfig(Environment environment,
                       @Value("${CORS_ALLOWED_ORIGINS:}") String allowedOrigins) {
-        this.allowCredentials = !"prod".equals(activeProfile);
+        this.allowCredentials = !environment.matchesProfiles("prod");
         this.allowedOriginPatterns = parse(allowedOrigins);
     }
 

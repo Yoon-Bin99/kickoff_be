@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
@@ -77,9 +78,26 @@ class CorsAllowedOriginsTest {
         return configOf("prod", raw).getAllowedOriginPatterns();
     }
 
+    /**
+     * 프로파일을 {@code Environment} 로 넘긴다. 전에는 문자열 하나를 넘겼는데,
+     * {@code CorsConfig} 가 프로파일을 {@code @Value("${spring.profiles.active}")} 대신
+     * {@code Environment.matchesProfiles} 로 읽게 바뀌어서다 — 그 프로퍼티는 yaml·환경변수로
+     * 프로파일을 줄 때만 채워지고 {@code @ActiveProfiles} 로 띄우는 통합 테스트에서는 비어
+     * 있어, 스프링이 주입할 때 <b>운영에서도 dev 로 읽힐 여지</b>가 있었다
+     * ({@code SecurityConfig} 에서 실제로 그 일이 났다).
+     *
+     * <b>여기서 검증되는 것과 안 되는 것.</b> 아래 단정들은 "프로파일이 prod 면 어떤 설정이
+     * 나오는가"를 고정한다 — 그건 전에도 이 테스트가 덮고 있었다. 반면 "스프링이 운영에서
+     * 프로파일을 prod 로 제대로 읽어 주는가"는 prod 프로파일로 컨텍스트를 띄워야(= DB 가
+     * 필요하다) 볼 수 있어 여기서 확인되지 않는다. 그 부분은 {@code Environment} 를 쓰는
+     * 것으로 구조적으로 막았다.
+     */
     private CorsConfiguration configOf(String profile, String raw) {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles(profile);
+
         UrlBasedCorsConfigurationSource source =
-                (UrlBasedCorsConfigurationSource) new CorsConfig(profile, raw)
+                (UrlBasedCorsConfigurationSource) new CorsConfig(environment, raw)
                         .corsConfigurationSource();
         return source.getCorsConfigurations().get("/**");
     }
