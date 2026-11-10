@@ -1322,7 +1322,7 @@ POST와 같은 필드 + `status`, 전부 optional. 200 → `PostDetail`
 `PostSummary`·`PostDetail` 응답과 `POST/PATCH /api/posts` 요청에 추가:
 
 ```json
-{ "latitude": 37.5505, "longitude": 126.8451 }
+{ "latitude": 37.5504723833644, "longitude": 126.845130338752 }
 ```
 
 - 둘 다 **nullable** — 좌표 없이도 글 등록 가능 (직접 입력 장소). 기존 글은 전부 `null`
@@ -1345,7 +1345,7 @@ BE가 대행한다. FE는 글 작성/수정의 장소 입력에서 이걸 호출
 ```json
 { "places": [
   { "name": "우장산축구장", "address": "서울 강서구 화곡동 산 60-1",
-    "roadAddress": "서울 강서구 우장산로 72", "latitude": 37.5505, "longitude": 126.8451 }
+    "roadAddress": "서울 강서구 우장산로 72", "latitude": 37.5504723833644, "longitude": 126.845130338752 }
 ] }
 ```
 
