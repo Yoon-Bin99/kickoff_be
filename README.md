@@ -493,25 +493,39 @@ Railway 배포가 2026-11-10 미결제로 중단됐다. 다시 올릴 때(Railwa
 
 ### ③ 키 재발급
 
-재배포 자체와는 별개로, **이전에 대화창에 값이 오간 키는 갈아야 한다.** 값이 남아 있을 수
-있는 곳은 대화 기록과 `handover/` 스냅샷이다. 아래는 **재발급 대상 후보**(= 비밀값을 담는
-변수) 전수이고, 어느 것이 실제로 노출됐는지는 **supervisor가 확정해야 한다** — 이 저장소의
-코드만으로는 알 수 없다.
+재배포 자체와는 별개로 **먼저 해야 하는 일이다.** 2026-09-07 에 Railway 환경변수 전체가
+대화창에 붙여졌다. 그래서 아래 목록은 "노출됐을 수 있는 것"이 아니라 **노출된 것**이다.
+값이 남아 있을 수 있는 곳은 대화 기록과 `handover/` 스냅샷이다.
 
-- `JWT_SECRET` — 노출 여부와 무관하게 새로 만들 것. 기본값을 쓰고 있었다면 더더욱
+**확정 재발급 대상**
+
+- `JWT_SECRET` — 가장 급하다. 이 값을 아는 사람은 **아무 사용자로든 토큰을 위조**할 수 있다.
+  갈면 기존 access·refresh 토큰이 전부 무효가 되어 모든 사용자가 다시 로그인해야 한다
 - `KAKAO_CLIENT_SECRET`, `NAVER_CLIENT_SECRET`
-- `KAKAO_MAP_REST_KEY`
-- `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`
+- `SOLAPI_API_KEY`, `SOLAPI_API_SECRET` — 문자 발송 비용이 실제로 나가는 자리다
 - `BREVO_API_KEY`, `SMTP_PASSWORD`
 - `ANTHROPIC_API_KEY`
-- `SEOUL_OPENDATA_KEY` (아직 발급받지 않았다)
-- `DB_PASSWORD` — 새 DB를 만들면 자동으로 갈린다
 
-클라이언트 **ID**(`KAKAO_CLIENT_ID`·`NAVER_CLIENT_ID`)는 비밀이 아니라 갈 필요가 없다.
+**재발급 대상이 아닌 것**
+
+- `KAKAO_CLIENT_ID`, `NAVER_CLIENT_ID` — 비밀이 아니다. OAuth authorize URL 에 그대로 실린다
+- `KAKAO_MAP_REST_KEY` — **`KAKAO_CLIENT_ID`와 같은 값이다**(카카오의 REST 앱 키 하나가
+  로그인 client_id 와 Local API 키를 겸한다). 그래서 비밀이 아니고, 갈아도 같은 성질이
+  반복된다 — 새 값 역시 로그인 URL 에 드러난다.
+
+  > 다만 이 사실이 [KakaoPlaceSearchClient](src/main/java/com/kickoff/be/place/client/KakaoPlaceSearchClient.java)
+  > 의 전제를 무르게 만든다. BE 가 장소 검색을 대행하는 이유로 "키를 앱 번들에 넣지 않기
+  > 위해서 — 클라이언트에 넣으면 디컴파일로 새고 남이 우리 쿼터를 쓴다"고 적어 두었는데,
+  > 같은 값이 이미 로그인 URL 에 노출되므로 **프록시만으로는 쿼터를 지키지 못한다.**
+  > 쿼터를 실제로 지키려면 재발급이 아니라 **지도용 앱을 로그인 앱과 분리**해야 한다
+  > (`KAKAO_MAP_REST_KEY` 를 변수로 따로 둔 것이 그때를 위한 준비다). 지금 당장 할 일은
+  > 아니고, 검색 호출량이 늘면 그때 처리할 것.
+- `DB_PASSWORD` — 새 DB 를 만들면 자동으로 갈린다. 옛 DB 를 그대로 쓸 때만 직접 갈 것
+- `SEOUL_OPENDATA_KEY` — 아직 발급받지 않았다
 
 갈기 전에 `local.yaml`과 대조해 **무엇이 지금 쓰이는 값인지** 확인할 것. 다만 그 파일의
 값을 어디에도 출력하지 말 것 — gitignore 돼 있어 커밋되지는 않지만, 로그·메시지로 새면
-같은 일이 반복된다.
+같은 일이 반복된다. 2026-09-07 이 그렇게 생긴 일이다.
 
 ### ④ 배포 후 프로브
 
