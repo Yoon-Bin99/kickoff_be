@@ -337,22 +337,16 @@ Hibernate는 `ddl-auto: validate`로 대조만 한다 — 개발·테스트·운
 
 ## 운영 배포
 
-### 현재 배포 — 2026-11-10 중단됨
+### 현재 — 운영 호스팅 이전 준비 중 (AWS 서울 예정)
 
-> **Railway 배포가 미결제로 중단됐다.** 아래 주소는 응답하지 않는다. 당분간 전부 로컬에서
-> 돌린다(`./gradlew bootRun`, dev 프로파일 + H2). 다시 올릴 때는 **[재배포 체크리스트](#재배포-체크리스트)**
-> 를 따를 것 — 환경변수·외부 콘솔·키 재발급·프로브 순서가 거기 모여 있다.
+> **운영 서버가 없다.** 당분간 전부 로컬에서 돌린다(`./gradlew bootRun`, dev 프로파일 + H2).
+> 다시 올릴 때는 **[재배포 체크리스트](#재배포-체크리스트)** 를 따를 것 — 환경변수·외부
+> 콘솔·키 재발급·프로브 순서가 거기 모여 있다. 이전 설계는
+> [`docs/aws-migration-plan.md`](docs/aws-migration-plan.md) 에 있다.
 
-| | |
-|---|---|
-| 주소 | https://kickoffbe-production-7275.up.railway.app (중단) |
-| 플랫폼 | Railway (origin `main` 푸시 시 자동 재배포) |
-| DB | Railway PostgreSQL |
-
-`main`에 푸시하면 재배포가 돈다. 그래서 푸시 전에 `./gradlew test`를 통과시킬 것.
-
-주소를 지우지 않고 남겨 둔다. **카카오·네이버 콘솔과 FE 소스에 이 주소가 등록·하드코딩돼
-있어서**, 무엇을 바꿔야 하는지 추적하려면 옛 주소를 알아야 한다(체크리스트 ② 참고).
+**옛 운영 주소가 카카오·네이버 콘솔과 FE 소스에 등록·하드코딩돼 있다.** 새 도메인이
+정해지면 그 자리들이 전부 작업 대상이 된다(체크리스트 ② 참고) — 주소 자체는 비공개 문서에
+적어 두었다.
 
 `Dockerfile`이 있다. 멀티스테이지로 `bootJar`까지 만들고 JRE 이미지에 얹는다.
 `SPRING_PROFILES_ACTIVE=prod`가 이미지에 박혀 있다 — 프로파일을 안 줘서 dev(H2)로 뜨는
@@ -374,7 +368,7 @@ docker run -p 8080:8080 -e DB_URL=... -e DB_USERNAME=... -e DB_PASSWORD=... -e J
 | `OAUTH_CALLBACK_BASE_URL` | △ | 콜백 오리진 고정 (`https://<도메인>`). 비우면 요청 오리진에서 만든다 |
 | `KAKAO_CLIENT_ID` 등 | | 소셜 로그인 키 4종. 없으면 해당 제공자만 비활성 |
 | `KAKAO_MAP_REST_KEY` | △ | 장소 검색용 카카오 REST 키. **`KAKAO_CLIENT_ID`와 같은 앱의 키여도 된다** — 현재 운영이 그렇다. 변수를 따로 둔 것은 나중에 앱을 분리할 때 이 값만 바꾸면 되게 하려는 것이다. 다만 **로그인 키를 여기 넣을 때는 그 앱에 카카오맵/로컬 API가 켜져 있어야 한다** — 안 켜져 있으면 검색만 502가 되고 나머지는 멀쩡해서 눈치채기 어렵다. 없으면 `/api/places/search`만 502로 나가고 나머지는 정상 |
-| `SEED_DATA` | | `true`면 시드 투입. **기본 off** — 첫 배포 직후 화면 확인용으로만 켠다 |
+| `SEED_DATA` | | `true`면 시드 투입. **기본 off. 운영(prod)에서는 절대 켜지 않는다** — 시드 계정의 이메일·비밀번호가 이 공개 저장소에 적혀 있다. 켠 채로 prod 로 뜨면 기동이 거부된다(`SeedDataGuard`) |
 | `PUSH_ENABLED` | | `true`면 푸시 발송. **기본 off** — 실기기에 실수로 알림이 나가지 않게 |
 
 > **`OAUTH_ALLOWED_REDIRECTS`에 `exp://*`를 빠뜨리면 증상이 보이지 않는다.**
@@ -415,18 +409,25 @@ Successfully applied N migration(s)      ← Flyway 적용
 타입을 `bytea`로 추론해 `function lower(bytea) does not exist`로 죽는데, H2는 그냥 넘어가서
 테스트 91개가 전부 통과했다. 목록 API 전체가 500이 되는 문제였다.
 
-JPQL에 함수를 쓰는 쿼리를 추가했다면 배포 전에 한 번 확인한다.
+**평소에는 위 [`postgresTest`](#실제-postgresql로-한-번-더-postgrestest)로 충분하다** — 같은
+테스트를 실제 PostgreSQL 컨테이너에서 한 번 더 돌리므로 쿼리가 행을 상대로 실제 실행된다.
+아래는 그것으로도 안 잡히는 것(기동 자체·Flyway·`ddl-auto: validate`)을 운영과 같은
+프로파일로 확인하고 싶을 때다.
 
 ```bash
 docker run -d --name pg-check -e POSTGRES_PASSWORD=pw -e POSTGRES_USER=kickoff \
   -e POSTGRES_DB=kickoff -p 55432:5432 postgres:16-alpine
 
-SPRING_PROFILES_ACTIVE=prod PORT=8097 SEED_DATA=true \
+SPRING_PROFILES_ACTIVE=prod PORT=8097 \
 DB_URL=jdbc:postgresql://localhost:55432/kickoff DB_USERNAME=kickoff DB_PASSWORD=pw \
 JWT_SECRET=check-only-secret-0123456789-0123456789 ./gradlew bootRun
 
 docker rm -f pg-check   # 확인 끝나면 정리
 ```
+
+> 여기에 `SEED_DATA=true`를 붙이지 말 것. **`prod` 프로파일에서는 기동이 거부된다**
+> (`SeedDataGuard`) — 이 레시피에 예전에는 그 줄이 있었다. 쿼리를 행에 대고 돌려 보려면
+> `postgresTest`를 쓴다.
 
 ## 재배포 체크리스트
 
@@ -455,6 +456,18 @@ AWS 서울(`ap-northeast-2`) 이전**이다. 어디로 어떻게 갈지는
 판단이므로 변호사 검토 항목에 병기**하고 확정 전에는 7일 고지를 기본으로 잡는다.
 
 리전을 서울이 아닌 곳에 만들면 이 항목이 되살아난다 — **`ap-northeast-2` 고정.**
+
+### ⓞ-2 선행 조건 — `SEED_DATA`를 주지 않는다
+
+**운영에 시드를 넣지 않는다.** 시드 계정의 이메일과 공통 비밀번호가 이 저장소(공개)의
+「시드 계정」 절에 적혀 있다 — 운영에 들어가는 순간 **비밀번호를 누구나 아는 계정이
+운영 DB 에 생긴다.** 환경변수 하나를 잘못 준 것이 곧 계정 탈취가 되는 자리다.
+
+- 배포 환경 변수 목록에 `SEED_DATA`가 **아예 없어야 한다**(기본값이 `false`다)
+- 켠 채로 `prod`로 뜨면 **기동이 거부된다** — `SeedDataGuard`가 막는다. 건너뛰지 않고
+  세우는 이유는, 건너뛰면 ERROR 한 줄만 남고 잘못된 설정이 그대로 굳기 때문이다.
+  롤링 배포라 그동안 옛 인스턴스가 계속 응답하므로 정상 경로에서는 잃는 것이 없다
+- 화면에 보여 줄 데이터가 필요하면 시드가 아니라 **실제 계정으로 만든다**
 
 ### ① 환경변수 전수
 
@@ -492,7 +505,7 @@ AWS 서울(`ap-northeast-2`) 이전**이다. 어디로 어떻게 갈지는
 | `AI_SUPPORT_ENABLED` | | `false`. **키가 있어도 이 스위치를 켜기 전에는 호출하지 않는다** — 크레딧이 소모되는 자리다 |
 | `AI_SUPPORT_MODEL` | | 기본 모델값이 `application.yaml`에 있다 |
 | `SUPPORT_OPERATOR_EMAIL` | △ | **문의함 API가 전부 403이 된다.** 운영자가 아무도 없는 상태를 기본값으로 둔 것이다 — 설정을 빠뜨린 배포가 남의 문의를 열어 주지 않게 |
-| `SEED_DATA` | | `false`. `true`면 시드 투입. **실사용자가 쓰기 시작하면 절대 켜지 말 것** |
+| `SEED_DATA` | | `false`. **운영에서는 켜지 않는다 — 켜면 기동이 거부된다**(`SeedDataGuard`). 시드 계정의 이메일과 공통 비밀번호가 이 공개 저장소에 있어서, 운영에 들어가면 누구나 그 계정으로 로그인할 수 있다 |
 | `PUSH_ENABLED` | | `false`. 켜야 실제 푸시가 나간다 |
 
 `local.yaml`은 **배포 환경에 올리지 말 것.** 환경변수를 이긴다. `.dockerignore` 첫 줄에서 빼고 있다.

@@ -1,7 +1,9 @@
 package com.kickoff.be.post;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,7 +71,8 @@ class PostDeleteTest extends IntegrationTestSupport {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("POST_HAS_REQUESTS"))
                 .andExpect(jsonPath("$.message")
-                        .value("신청이 있는 글은 삭제할 수 없어요. 더 받지 않으려면 마감으로 바꿔 주세요."));
+                        .value("신청 이력이 있는 글은 삭제할 수 없어요(거절·취소된 신청 포함). "
+                                + "더 받지 않으려면 마감으로 바꿔 주세요."));
     }
 
     @Test
@@ -135,6 +138,29 @@ class PostDeleteTest extends IntegrationTestSupport {
         deleteBy(author)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("POST_HAS_REQUESTS"));
+    }
+
+    /**
+     * <b>화면과 규칙이 어긋나 보이는 자리</b>(계약서 §5, v1.31.4). `requestCount` 는 살아
+     * 있는 신청(대기·수락)만 세는데 삭제를 막는 기준은 모든 상태다 — 거절된 신청만 남은
+     * 글은 <b>"신청 0건"으로 보이면서 지워지지 않는다.</b>
+     *
+     * 그래서 안내 문구가 "신청이 있는 글"이 아니라 "신청 <b>이력</b>이 있는 글(거절·취소된
+     * 신청 포함)"이다. 이 테스트가 둘을 한자리에서 묶어 둔다 — 세는 범위를 한쪽만 고치면
+     * 여기가 깨진다.
+     */
+    @Test
+    @DisplayName("신청 0건으로 보이는 글도 거절 이력이 있으면 409 다")
+    void postShowingZeroRequestsCanStillBeBlocked() throws Exception {
+        requestWith(RequestStatus.REJECTED);
+
+        mockMvc.perform(get("/api/posts/{id}", post.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requestCount").value(0));
+
+        deleteBy(author)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(containsString("거절·취소된 신청 포함")));
     }
 
     private MatchRequest requestWith(RequestStatus status) {
