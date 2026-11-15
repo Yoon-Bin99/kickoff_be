@@ -1,5 +1,7 @@
 package com.kickoff.be.chatlink.client;
 
+import com.kickoff.be.chatlink.dto.ChatEventOutcome;
+import com.kickoff.be.chatlink.dto.ChatEventResult;
 import com.kickoff.be.chatlink.dto.ChatOutboxMessage;
 import com.kickoff.be.chatlink.entity.ChatEventType;
 import com.kickoff.be.chatlink.security.InternalSecretFilter;
@@ -7,10 +9,13 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -45,21 +50,52 @@ public class ChatServerClient {
         }
     }
 
-    /** @return 2xx 를 받았으면 true. 그 밖(4xx·5xx·연결 실패·타임아웃)은 전부 false. */
-    public boolean send(ChatOutboxMessage message) {
+    /**
+     * 이벤트 한 건을 보낸다.
+     *
+     * <b>상태를 종류별로 가른다</b>(계약서 §10). "2xx 인가"만 보면 400 을 받은 행이 영원히
+     * 재시도된다 — 채팅 서버는 모르는 type·깨진 본문에 400 을 주는데, 그건 기다린다고
+     * 달라지지 않는다. 어떻게 가르는지는 {@link #outcomeOf} 에 있다.
+     */
+    public ChatEventResult send(ChatOutboxMessage message) {
         try {
-            restClient.post()
+            ResponseEntity<Void> response = restClient.post()
                     .uri(properties.url() + PATH)
                     .header(InternalSecretFilter.HEADER, properties.secret())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body(message))
                     .retrieve()
                     .toBodilessEntity();
-            return true;
+            return ChatEventResult.delivered(response.getStatusCode().value());
+        } catch (HttpStatusCodeException e) {
+            // 응답은 받았다 — 채팅 서버는 살아 있고, 무엇이 문제인지 상태가 말해 준다.
+            int status = e.getStatusCode().value();
+            log.debug("채팅 이벤트 거절 — eventId={}, status={}", message.eventId(), status);
+            return ChatEventResult.of(outcomeOf(status), status);
         } catch (RuntimeException e) {
+            // 연결 실패·타임아웃. 채팅 서버가 꺼져 있거나 네트워크가 끊겼다 — 기다리면 풀린다.
             log.debug("채팅 이벤트 전달 실패 — eventId={}", message.eventId(), e);
-            return false;
+            return ChatEventResult.noResponse();
         }
+    }
+
+    /**
+     * 상태 코드를 "다음에 무엇을 할지"로 옮긴다 (계약서 §10).
+     *
+     * <b>408·429 는 4xx 지만 재시도 쪽이다.</b> 둘 다 "지금은 안 되니 나중에"라는 뜻이라,
+     * 내용이 틀렸다는 400 과 같이 취급하면 멀쩡한 이벤트를 다섯 번 만에 버리게 된다.
+     * 429 는 특히 우리가 50건을 몰아 보낸 직후에 나올 수 있는 답이다.
+     */
+    static ChatEventOutcome outcomeOf(int status) {
+        if (status == HttpStatus.UNAUTHORIZED.value()) {
+            return ChatEventOutcome.UNAUTHORIZED;
+        }
+        if (status == HttpStatus.REQUEST_TIMEOUT.value()
+                || status == HttpStatus.TOO_MANY_REQUESTS.value()
+                || status >= 500) {
+            return ChatEventOutcome.RETRY;
+        }
+        return status >= 400 ? ChatEventOutcome.REJECTED : ChatEventOutcome.RETRY;
     }
 
     /**

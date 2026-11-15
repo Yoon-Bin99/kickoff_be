@@ -52,6 +52,9 @@ public class ChatOutbox extends BaseTimeEntity {
     /** 계약서 §10 이 정한 상한. 채팅 서버가 복구되면 늦어도 5분 안에 다시 두드린다. */
     private static final Duration MAX_BACKOFF = Duration.ofMinutes(5);
 
+    /** 거절(4xx) 이 이만큼 쌓이면 더 보내지 않는다. {@link #markRejected} 참고. */
+    public static final int DEAD_AFTER_ATTEMPTS = 5;
+
     private static final String SEPARATOR = ",";
 
     @Id
@@ -79,6 +82,16 @@ public class ChatOutbox extends BaseTimeEntity {
     /** null 이면 미전송이다. 상태 칸을 따로 두지 않은 이유는 마이그레이션 주석에 적었다. */
     @Column(name = "delivered_at")
     private OffsetDateTime deliveredAt;
+
+    /**
+     * 더 보내지 않기로 한 시각 (V24). 채팅 서버가 "이건 못 받는다"고 답한 경우다.
+     *
+     * <b>지우지 않고 남긴다.</b> 7일 정리는 {@code deliveredAt} 을 보므로 dead 행은 자동으로
+     * 빠진다 — 특히 PURGE 가 dead 면 탈퇴한 사람의 대화가 채팅 서버에 남아 있다는 뜻이라,
+     * 행이 없으면 무엇을 지워야 하는지조차 알 수 없다.
+     */
+    @Column(name = "dead_at")
+    private OffsetDateTime deadAt;
 
     private ChatOutbox(ChatEventType eventType, Collection<Long> requestIds,
                        Collection<Long> teamIds, OffsetDateTime now) {
@@ -120,6 +133,34 @@ public class ChatOutbox extends BaseTimeEntity {
     public void markFailed(OffsetDateTime now) {
         this.attempts++;
         this.nextAttemptAt = now.plus(backoff(this.attempts));
+    }
+
+    /**
+     * 채팅 서버가 "이건 못 받는다"고 답했다 — 모르는 type, 깨진 본문 (계약서 §10).
+     *
+     * 같은 것을 다시 보내면 같은 답이 온다. 그래도 바로 포기하지 않고 {@link #DEAD_AFTER_ATTEMPTS}
+     * 번까지는 가 본다 — 배포가 엇갈려 <b>채팅 서버가 아직 이 type 을 모르는</b> 구간이 실제로
+     * 있고(§10 전환 순서상 BE 가 먼저 올라간다), 그 구간은 몇 분이면 지나간다.
+     *
+     * <b>{@code attempts} 는 실패 종류를 가리지 않고 센다.</b> 5xx 로 세 번 실패한 뒤 400 을
+     * 두 번 받으면 다섯 번째에서 dead 가 된다 — 400 만 다섯 번은 아니다. 그래도 맞다고 보는
+     * 이유: 그 행은 어느 쪽이든 다섯 번 실패했고, 포기를 결정하는 것은 횟수가 아니라
+     * <b>마지막 답이 "앞으로도 안 된다"였다는 사실</b>이다.
+     *
+     * @return 이번에 dead 가 됐으면 true (호출자가 그때만 ERROR 를 남긴다)
+     */
+    public boolean markRejected(OffsetDateTime now) {
+        this.attempts++;
+        if (this.attempts >= DEAD_AFTER_ATTEMPTS) {
+            this.deadAt = now;
+            return true;
+        }
+        this.nextAttemptAt = now.plus(backoff(this.attempts));
+        return false;
+    }
+
+    public boolean isDead() {
+        return this.deadAt != null;
     }
 
     static Duration backoff(int attempts) {

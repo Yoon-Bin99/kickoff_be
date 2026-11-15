@@ -1,6 +1,7 @@
 package com.kickoff.be.chatlink.service;
 
 import com.kickoff.be.chatlink.dto.ChatOutboxMessage;
+import com.kickoff.be.chatlink.dto.OverduePurge;
 import com.kickoff.be.chatlink.repository.ChatOutboxRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -42,6 +43,25 @@ public class ChatOutboxStore {
     @Transactional
     public void markFailed(Long id, OffsetDateTime now) {
         repository.findById(id).ifPresent(outbox -> outbox.markFailed(now));
+    }
+
+    /**
+     * 채팅 서버가 거절했다 (계약서 §10). 몇 번 더 가 보고 그만둔다.
+     *
+     * @return 이번에 dead 가 됐으면 true. 호출자는 그때만 ERROR 를 남긴다 — 매번 남기면
+     *         같은 행이 다섯 줄을 만든다
+     */
+    @Transactional
+    public boolean markRejected(Long id, OffsetDateTime now) {
+        return repository.findById(id)
+                .map(outbox -> outbox.markRejected(now))
+                .orElse(false);
+    }
+
+    /** 너무 오래 못 보낸 PURGE (법률 점검 11절). */
+    @Transactional(readOnly = true)
+    public List<OverduePurge> overduePurges(OffsetDateTime cutoff) {
+        return repository.findOverduePurges(cutoff).stream().map(OverduePurge::of).toList();
     }
 
     @Transactional

@@ -1,6 +1,7 @@
 package com.kickoff.be.chatlink;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.endsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -131,6 +132,28 @@ class InternalChatApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.postTeam.team.averageRating").doesNotExist())
                 .andExpect(jsonPath("$.applicantTeam.ownerUserId").value(applicantOwner.getId()))
                 .andExpect(jsonPath("$.applicantTeam.team.id").value(applicantTeam.getId()));
+    }
+
+    /**
+     * 날짜는 <b>오프셋을 붙여</b> 나간다 (계약서 §0). 기본 설정의 Jackson 이면 UTC 로 바꿔
+     * `…Z` 를 내보내는데, 우리 매퍼는 `adjust-dates-to-context-time-zone: false` 라 객체가
+     * 들고 있는 오프셋을 그대로 쓴다.
+     *
+     * 채팅 서버가 이 값을 역직렬화해 방 화면의 경기 시각으로 쓰고, `matchAt` 이 지났는지로
+     * 입력창을 잠근다. 설정 한 줄이 바뀌어 Z 로 나가도 <b>가리키는 순간은 같아서</b> 테스트가
+     * 없으면 아무도 모르다가, 시각을 그대로 찍는 화면에서 9시간 어긋난 값이 보인다.
+     */
+    @Test
+    @DisplayName("날짜는 +09:00 오프셋을 달고 나간다 — UTC 로 바뀌지 않는다")
+    void datesKeepTheirOffset() throws Exception {
+        MatchRequest accepted = acceptedRequest(post, applicantTeam);
+
+        String body = bodyOf(mockMvc.perform(internalGet("/internal/chat/rooms/" + accepted.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.matchAt").value(endsWith("+09:00")))
+                .andExpect(jsonPath("$.updatedAt").value(endsWith("+09:00"))));
+
+        assertThat(body).as("UTC 로 바뀌면 Z 로 끝난다").doesNotContain("Z\"");
     }
 
     /**
