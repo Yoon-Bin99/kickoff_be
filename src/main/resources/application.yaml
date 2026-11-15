@@ -80,6 +80,20 @@ holiday:
     # 값을 여기 적지 말 것 — 저장소에 커밋된다.
     admin-key: ${KAKAO_ADMIN_KEY:}
 
+chat:
+  internal:
+    # 채팅 서버(kickoff_chat)와의 공유 비밀 (계약서 §10, v1.31.0).
+    # 양 서버가 같은 값을 갖고, 헤더 X-Internal-Secret 로 주고받는다. 비교는 상수 시간이다.
+    # <b>비어 있으면 닫힌 쪽으로 실패한다</b> — /internal/** 전체가 401 이고 이벤트 전달도
+    # 멈춘다(chat_outbox 에 쌓이기만 한다). 기동과 다른 API 는 정상이다.
+    # <b>비밀값이다.</b> 사용자 토큰과 달리 이 값 하나로 내부 API 전체가 열린다 —
+    # FE 번들·로그·저장소 금지. 값을 여기 적지 말 것 — 저장소에 커밋된다.
+    secret: ${CHAT_INTERNAL_SECRET:}
+    # 채팅 서버 주소. 이벤트(POST /internal/events)를 보내는 곳이다.
+    # 비어 있으면 비밀값이 없을 때와 같이 전달을 멈춘다 — 보낼 곳을 모르는 채로 재시도만
+    # 쌓을 이유가 없다. dev 기본값은 아래 dev 블록에 있다.
+    url: ${CHAT_INTERNAL_URL:}
+
 stadium:
   seoul:
     # 서울 열린데이터광장 인증키 (계약서 §8-1, v1.27.0).
@@ -216,6 +230,15 @@ kickoff:
     # <b>운영에는 이 기본값이 없다.</b> 아래 prod 블록에 없고 최상단은 빈 값이라,
     # SUPPORT_OPERATOR_EMAIL 을 주지 않으면 운영자는 아무도 아니다.
     operator-email: ${SUPPORT_OPERATOR_EMAIL:choi@example.com}
+
+# 채팅 서버 연결 (계약서 §10, v1.31.0). 개발 기본값이 있는 유일한 프로파일이다.
+# 비밀값은 <b>채팅 서버의 dev 기본값과 같은 문자열</b>이어야 한다 — 다르면 양쪽이 조용히
+# 401 만 주고받는다. 운영에는 이 블록이 없으므로 CHAT_INTERNAL_SECRET 을 주지 않으면
+# /internal/** 이 전부 막힌다(의도된 기본값).
+chat:
+  internal:
+    secret: ${CHAT_INTERNAL_SECRET:dev-only-chat-internal-secret}
+    url: ${CHAT_INTERNAL_URL:http://localhost:8090}
 
 # 로그인 완료 후 돌아갈 수 있는 주소 (계약서 §3-1).
 # 개발 기본값은 넓다 — Expo Go 가 exp:// 로 돌아오기 때문. 운영은 아래 prod 블록 참고.

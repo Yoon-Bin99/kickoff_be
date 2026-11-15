@@ -1,5 +1,6 @@
 package com.kickoff.be.post.service;
 
+import com.kickoff.be.chatlink.service.ChatOutboxRecorder;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ContactInfo;
 import com.kickoff.be.common.ErrorCode;
@@ -32,6 +33,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -55,6 +57,7 @@ public class PostService {
     private final TeamAuthz teamAuthz;
     private final MatchRequestRepository requestRepository;
     private final ReviewRepository reviewRepository;
+    private final ChatOutboxRecorder chatOutboxRecorder;
 
     /**
      * 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5).
@@ -135,14 +138,39 @@ public class PostService {
         requireNotCleared(request);
         applyCoordinatePatch(post, request.latitude(), request.longitude());
         applyClearableFields(post, request);
+        OffsetDateTime matchAtBefore = post.getMatchAt();
         post.update(Patchable.valueOf(request.title()), Patchable.valueOf(request.content()),
                 Patchable.valueOf(request.matchAt()), Patchable.valueOf(request.location()),
                 Patchable.valueOf(request.region()), Patchable.valueOf(request.status()));
+        notifyChatIfMatchAtChanged(post, matchAtBefore);
         // 병합된 결과를 기준으로 본다. 계좌는 작성자도 다시 읽을 수 없어서,
         // PATCH 본문만 보고 판단하면 금액만 고치는 정상 요청이 막혀버린다.
         requireAccountWhenDepositSet(post.getDepositAmount(), post.getBankName(),
                 post.getAccountNumber(), post.getAccountHolder());
         return toDetail(post, user);
+    }
+
+    /**
+     * 경기 일시가 바뀌었고 그 글에 수락된 신청이 있으면 채팅 서버에 알린다
+     * (계약서 §10 ROOM_INVALIDATED).
+     *
+     * <b>"실제로 바뀐" 경우만이다.</b> matchAt 을 같은 값으로 보내는 PATCH 가 흔한데
+     * (FE 가 폼 전체를 보낸다), 그때마다 이벤트를 쌓으면 바뀐 것 없는 ROOM_STATE 가
+     * 오간다. 반대로 바뀌었는데 안 알리면 채팅방이 옛 경기 시각을 보여 주고, 전송 가능
+     * 여부(matchAt 이 지났는지)까지 어긋난다.
+     *
+     * 비교는 {@code equals} 다 — 순간이 같고 오프셋만 다른 값도 "바뀜"으로 친다. 한 번
+     * 더 보내는 쪽은 멱등이라 손해가 없지만, 안 보내는 쪽은 틀린 화면이 남는다.
+     *
+     * 수락된 신청이 없으면 방이 없으므로 조회도 하지 않는다 — 바뀌지 않은 PATCH 에
+     * 쿼리가 하나 붙지 않게 순서를 이렇게 뒀다. 수락된 신청은 글당 최대 하나다(§6).
+     */
+    private void notifyChatIfMatchAtChanged(MatchPost post, OffsetDateTime before) {
+        if (Objects.equals(before, post.getMatchAt())) {
+            return;
+        }
+        requestRepository.findAcceptedByPostId(post.getId())
+                .ifPresent(accepted -> chatOutboxRecorder.roomInvalidated(List.of(accepted.getId())));
     }
 
     @Transactional

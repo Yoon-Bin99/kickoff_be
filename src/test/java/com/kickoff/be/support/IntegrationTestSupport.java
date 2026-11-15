@@ -138,6 +138,9 @@ public abstract class IntegrationTestSupport {
     protected ChatMessageRepository chatMessageRepository;
     @Autowired
     protected ChatLeaveRepository chatLeaveRepository;
+    /** 채팅 서버로 보낼 이벤트 대기열 (계약서 §10, v1.31.0). */
+    @Autowired
+    protected com.kickoff.be.chatlink.repository.ChatOutboxRepository chatOutboxRepository;
     @Autowired
     protected SocialAccountRepository socialAccountRepository;
     @Autowired
@@ -198,6 +201,10 @@ public abstract class IntegrationTestSupport {
         // 429 로 막힌다.
         passwordResetCodeRepository.deleteAll();
         chatMessageRepository.deleteAll();
+        // 채팅 서버로 보낼 이벤트 (v1.31.0). 아무것도 참조하지 않지만 반드시 비운다 —
+        // 취소·탈퇴를 거치는 테스트가 줄줄이 행을 남겨서, 안 비우면 outbox 를 세는
+        // 테스트가 자기가 만들지 않은 행까지 센다.
+        chatOutboxRepository.deleteAll();
         requestRepository.deleteAll();
         postRepository.deleteAll();
         // 스쿼드는 팀과 팀원을 참조한다 (v1.28.0). 자리는 Squad 의 cascade·orphanRemoval 이

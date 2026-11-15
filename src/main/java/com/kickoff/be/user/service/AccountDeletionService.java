@@ -1,5 +1,6 @@
 package com.kickoff.be.user.service;
 
+import com.kickoff.be.chatlink.service.ChatOutboxRecorder;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.team.entity.Team;
@@ -40,6 +41,7 @@ public class AccountDeletionService {
     private final PhoneVerificationRepository phoneVerificationRepository;
     private final PasswordResetCodeRepository passwordResetCodeRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ChatOutboxRecorder chatOutboxRecorder;
 
     @Transactional
     public void delete(User user, AccountDeleteRequest request) {
@@ -98,6 +100,18 @@ public class AccountDeletionService {
     private void deleteTeam(Team team) {
         Long teamId = team.getId();
         List<Long> requestIds = deletionRepository.findRequestIdsInvolving(teamId);
+
+        // 채팅 서버에도 같은 것을 지우라고 알린다 (계약서 §10 PURGE). 아래 삭제는 <b>BE
+        // 쪽 옛 채팅 표</b>만 비운다 — 전환이 끝나면 대화는 채팅 서버에만 쌓이고, 그쪽
+        // DB 는 우리 표를 참조하지 않으므로(§10) 알려 주지 않으면 탈퇴한 사람의 대화가
+        // 거기 영원히 남는다. 방침 §3 이 약속한 "지체 없이 파기"가 지켜지지 않는 자리다.
+        //
+        // 신청이 없어도 적는다 — 그 팀의 나가기 기록은 신청과 따로 남아 있을 수 있다
+        // (바로 아래 else 가지가 같은 이유로 deleteChatLeaves 를 부른다).
+        //
+        // 같은 트랜잭션이라 탈퇴가 롤백되면 이 기록도 사라진다. 반대로 채팅 서버가 꺼져
+        // 있어도 탈퇴는 성공한다 — 전달은 스케줄러가 나중에, 복구된 뒤에 한다.
+        chatOutboxRecorder.purge(requestIds, List.of(teamId));
 
         if (!requestIds.isEmpty()) {
             // 상대 팀의 수동 전적은 살리고 연결만 끊는다 (계약서 §3-4).

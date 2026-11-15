@@ -3,6 +3,8 @@ package com.kickoff.be.config;
 import com.kickoff.be.auth.jwt.JwtAuthenticationFilter;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
 import com.kickoff.be.auth.jwt.SecurityErrorResponder;
+import com.kickoff.be.chatlink.client.ChatLinkProperties;
+import com.kickoff.be.chatlink.security.InternalSecretFilter;
 import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +26,7 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final SecurityErrorResponder securityErrorResponder;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final ChatLinkProperties chatLinkProperties;
 
     /**
      * H2 콘솔 경로를 열어 줄지 (개발 전용).
@@ -45,10 +48,12 @@ public class SecurityConfig {
     public SecurityConfig(JwtTokenProvider jwtTokenProvider,
                           SecurityErrorResponder securityErrorResponder,
                           CorsConfigurationSource corsConfigurationSource,
+                          ChatLinkProperties chatLinkProperties,
                           Environment environment) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.securityErrorResponder = securityErrorResponder;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.chatLinkProperties = chatLinkProperties;
         this.devProfile = environment.matchesProfiles("dev");
     }
 
@@ -75,6 +80,21 @@ public class SecurityConfig {
                         // H2 콘솔 규칙을 <b>맨 앞에</b> 둔다. 아래 OPTIONS /** permitAll 보다
                         // 뒤에 두면 콘솔 경로의 프리플라이트가 먼저 통과해 버린다.
                         h2Console(auth);
+
+                        // 채팅 서버 전용 내부 API (계약서 §10, v1.31.0). <b>맨 앞쪽에 둔다</b> —
+                        // 아래 OPTIONS /** permitAll 보다 뒤에 두면 프리플라이트가 먼저
+                        // 통과해 버린다(H2 콘솔과 같은 이유).
+                        //
+                        // 사용자 JWT 를 타지 않는다. 자격은 X-Internal-Secret 헤더뿐이고,
+                        // 그 검사는 아래 addFilterBefore 로 넣는 InternalSecretFilter 가
+                        // 한다 — 틀리거나 없으면 거기서 401 로 끊기고 여기까지 오지 않는다.
+                        //
+                        // <b>permitAll 이 아니라 hasRole 인 이유</b>: permitAll 로 두면 필터가
+                        // 어떤 이유로든 빠지는 날 경로가 통째로 열린다. 통과한 요청에만
+                        // 필터가 ROLE_INTERNAL 을 심으므로, 필터가 없으면 여기서 막힌다 —
+                        // 열리는 쪽이 아니라 닫히는 쪽으로 고장 난다.
+                        auth.requestMatchers(InternalSecretFilter.PATH_PREFIX + "**")
+                                .hasRole(InternalSecretFilter.ROLE);
 
                         auth
                         // CORS 프리플라이트
@@ -176,6 +196,15 @@ public class SecurityConfig {
 
                         .anyRequest().authenticated();
                 })
+                // 내부 비밀 헤더 검사를 <b>JWT 필터보다 먼저</b> 넣는다 (계약서 §10).
+                // 두 필터는 같은 자리에 들어가므로 등록 순서가 곧 실행 순서다.
+                //
+                // 순서가 의미를 바꾼다. 먼저 돌면 통과한 /internal 요청에 인증이 이미
+                // 심겨 있어 JWT 필터가 손대지 않고(그쪽은 인증이 비어 있을 때만 심는다),
+                // 실패한 요청은 체인이 더 가지 않는다. 반대로 두면 비밀값과 사용자 토큰을
+                // 함께 보낸 호출에서 JWT 가 이겨 ROLE_INTERNAL 이 덮여 버린다.
+                .addFilterBefore(new InternalSecretFilter(chatLinkProperties, securityErrorResponder),
+                        UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
                         UsernamePasswordAuthenticationFilter.class);
 

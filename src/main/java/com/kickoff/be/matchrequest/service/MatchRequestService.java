@@ -1,5 +1,6 @@
 package com.kickoff.be.matchrequest.service;
 
+import com.kickoff.be.chatlink.service.ChatOutboxRecorder;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.matchrequest.dto.RequestCreateRequest;
@@ -40,6 +41,7 @@ public class MatchRequestService {
     private final ReviewRepository reviewRepository;
     private final TeamRecordRepository teamRecordRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ChatOutboxRecorder chatOutboxRecorder;
 
     @Transactional
     public RequestResponse create(Long postId, User user, RequestCreateRequest request) {
@@ -185,6 +187,14 @@ public class MatchRequestService {
 
         request.cancelMatch();
         request.getPost().reopen();
+
+        // 채팅 서버에 알린다 (계약서 §10 ROOM_INVALIDATED). 그쪽은 캐시를 버리고 구독 중인
+        // 연결에 ROOM_STATE 를 보낸다 — 알리지 않으면 상대 화면의 입력창이 최대 15초 동안
+        // 열려 있다(캐시 수명). 취소된 방에 메시지를 보내는 화면이다.
+        //
+        // 같은 트랜잭션 안의 기록이라, 취소가 롤백되면 이 줄도 사라진다. 반대로 채팅
+        // 서버가 꺼져 있어도 취소는 성공한다 — 보내는 일은 스케줄러가 나중에 한다.
+        chatOutboxRecorder.roomInvalidated(List.of(request.getId()));
 
         publish(PushEventType.MATCH_CANCELED, counterpartOwnerId(request, user), request);
         return toResponse(request, user);
