@@ -84,6 +84,15 @@ public interface MatchRequestRepository extends JpaRepository<MatchRequest, Long
             """)
     List<MatchRequest> findAcceptedRoomsOf(@Param("userId") Long userId);
 
+    /**
+     * 그 글에 신청이 하나라도 있는지 (계약서 §5 DELETE, v1.31.3).
+     *
+     * <b>상태를 가리지 않는다.</b> 거절·철회된 신청도 상대 팀의 이력이고, 리뷰·전적이
+     * 그 행을 참조한다 — 글을 지우면 같이 끊긴다. {@code requestCount}(살아 있는 신청만)와
+     * 세는 범위가 다른 것은 그래서다.
+     */
+    boolean existsByPostId(Long postId);
+
     boolean existsByPostIdAndApplicantTeamIdAndStatusIn(Long postId, Long applicantTeamId,
                                                         Collection<RequestStatus> statuses);
 

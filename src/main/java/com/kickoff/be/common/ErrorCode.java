@@ -61,6 +61,15 @@ public enum ErrorCode {
     TEAM_REQUIRED(HttpStatus.BAD_REQUEST, "팀을 먼저 등록해야 합니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 모집글입니다."),
     POST_NOT_OPEN(HttpStatus.CONFLICT, "모집 중인 글이 아닙니다."),
+    /**
+     * 신청이 달린 글을 지우려 했다 (계약서 §5, v1.31.3).
+     *
+     * 메시지에 <b>대안을 함께 적는다.</b> 작성자가 글을 지우려는 뜻은 보통 "더 받고 싶지
+     * 않다"인데, 그 길이 마감(status=CLOSED)이라는 것을 모르면 안내가 막다른 길이 된다.
+     * 계약서가 FE 문구까지 못박은 것도 같은 이유다.
+     */
+    POST_HAS_REQUESTS(HttpStatus.CONFLICT,
+            "신청이 있는 글은 삭제할 수 없어요. 더 받지 않으려면 마감으로 바꿔 주세요."),
     SELF_REQUEST_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "자기 팀의 글에는 신청할 수 없습니다."),
     DUPLICATE_REQUEST(HttpStatus.CONFLICT, "이미 신청한 글입니다."),
     REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신청입니다."),

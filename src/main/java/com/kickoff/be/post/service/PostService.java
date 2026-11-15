@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -173,11 +174,39 @@ public class PostService {
                 .ifPresent(accepted -> chatOutboxRecorder.roomInvalidated(List.of(accepted.getId())));
     }
 
+    /**
+     * 모집글 삭제 (계약서 §5, v1.31.3).
+     *
+     * <b>신청이 하나라도 있으면 지울 수 없다.</b> 상태를 가리지 않는다 — 거절·철회된
+     * 신청도 상대 팀의 이력이고, 리뷰·전적이 그 신청을 참조한다. 글을 지우면 그 기록들이
+     * 남의 화면에서 함께 사라진다.
+     *
+     * 그 전까지는 <b>막지도 지우지도 않았다.</b> 외래 키에 걸려 500 이 났고, 작성자는
+     * "삭제가 안 된다"만 보고 이유를 알 수 없었으며 신청이 붙은 글은 영영 못 지웠다.
+     * 이제 409 로 뜻을 밝히고 대안(마감)을 안내한다.
+     *
+     * 검사 순서는 계약이 정했다 — 없는 글 404 → 작성자 아님 403 → 신청 있음 409.
+     * 권한을 상태보다 먼저 보는 건 제3자에게 "그 글에 신청이 있는가"를 알려주지 않기
+     * 위해서다(§6-1·§7 과 같은 규칙).
+     */
     @Transactional
     public void delete(Long postId, User user) {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
-        postRepository.delete(post);
+        if (requestRepository.existsByPostId(postId)) {
+            throw new BusinessException(ErrorCode.POST_HAS_REQUESTS);
+        }
+        try {
+            postRepository.delete(post);
+            // 삭제를 여기서 밀어낸다. 트랜잭션 끝에 나가면 외래 키 위반이 이 메서드 밖에서
+            // 터져 500 이 되고, 아래 catch 는 영영 돌지 않는다.
+            postRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            // 위 검사와 삭제 사이에 신청이 들어온 경우다. 좁지만 실재하는 창이고(신청은
+            // 다른 트랜잭션에서 들어온다), 그때도 사용자가 보는 답은 같아야 한다 — 같은
+            // 요청이 어떤 날은 409, 어떤 날은 500 이면 FE 가 안내를 고를 수 없다.
+            throw new BusinessException(ErrorCode.POST_HAS_REQUESTS);
+        }
     }
 
     /**
