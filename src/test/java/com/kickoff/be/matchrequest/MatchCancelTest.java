@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.kickoff.be.chatlink.entity.ChatEventType;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.entity.RequestStatus;
 import com.kickoff.be.post.entity.MatchPost;
@@ -222,23 +223,27 @@ class MatchCancelTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$[0].payment").doesNotExist());
     }
 
+    /**
+     * 채팅이 별도 서버로 간 뒤(v1.31.0)에도 <b>취소가 방을 닫는다</b>는 사실은 그대로다.
+     * 다만 닫는 주체가 바뀌었다 — BE 는 `chat_outbox` 에 ROOM_INVALIDATED 를 적고, 채팅
+     * 서버가 그것을 받아 캐시를 버리고 구독 중인 연결에 알린다 (계약서 §10).
+     *
+     * 그래서 여기서 볼 수 있는 것은 <b>기록이 남는가</b>까지다. 적히지 않으면 채팅 서버는
+     * 최대 15초(캐시 수명) 동안 취소된 방을 열린 것으로 보여 준다 — 상대 화면의 입력창이
+     * 열려 있고, 거기 쓴 말이 어디로도 가지 않는다.
+     *
+     * 내부 API 가 이 신청을 어떤 상태로 내려 주는지는 {@code InternalChatApiTest} 가 본다
+     * (취소돼도 404 가 아니라 200 + MATCH_CANCELED).
+     */
     @Test
-    @DisplayName("채팅이 닫히고 방 목록에서도 사라진다")
-    void chatCloses() throws Exception {
-        mockMvc.perform(get("/api/requests/" + acceptedId + "/chat")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(applicantB)))
-                .andExpect(status().isOk());
-
+    @DisplayName("취소하면 채팅 서버에 알릴 ROOM_INVALIDATED 가 쌓인다")
+    void cancelNotifiesChatServer() throws Exception {
         cancel(author).andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/requests/" + acceptedId + "/chat")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(applicantB)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("REQUEST_NOT_ACCEPTED"));
-        // 목록에 남아 있으면 눌렀을 때만 막히는 방이 보인다
-        mockMvc.perform(get("/api/users/me/chats")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(applicantB)))
-                .andExpect(jsonPath("$").isEmpty());
+        var events = chatOutboxRepository.findAll();
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getEventType()).isEqualTo(ChatEventType.ROOM_INVALIDATED);
+        assertThat(events.get(0).requestIdList()).containsExactly(acceptedId);
     }
 
     @Test

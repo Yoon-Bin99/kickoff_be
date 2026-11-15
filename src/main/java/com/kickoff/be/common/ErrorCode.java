@@ -75,8 +75,9 @@ public enum ErrorCode {
     PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않습니다."),
     ACTIVE_MATCH_EXISTS(HttpStatus.CONFLICT, "예정된 매칭이 있어 탈퇴할 수 없습니다."),
     MATCH_CANCEL_EXPIRED(HttpStatus.CONFLICT, "이미 지난 경기는 매칭을 취소할 수 없습니다."),
-    /** 매칭 채팅 (계약서 §6-1, v1.12.0). 경기 시각이 지나면 읽기 전용이다. */
-    CHAT_CLOSED(HttpStatus.CONFLICT, "경기 시각이 지나 메시지를 보낼 수 없습니다."),
+    // CHAT_CLOSED 가 여기 있었다. 매칭 채팅이 별도 서버로 가면서 BE 에는 이 코드를 낼
+    // 경로가 하나도 남지 않았다 (v1.31.0, 계약서 §10 전환 순서 4). 계약서 §0 의 에러
+    // 목록에는 그대로 있고, 이제 채팅 서버가 낸다.
     REVIEW_NOT_AVAILABLE(HttpStatus.CONFLICT, "아직 리뷰를 쓸 수 없는 매칭입니다."),
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 리뷰를 작성했습니다."),
     /*

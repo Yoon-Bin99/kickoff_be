@@ -7,8 +7,6 @@ import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
 import com.kickoff.be.post.repository.MatchPostRepository;
-import com.kickoff.be.chat.repository.ChatLeaveRepository;
-import com.kickoff.be.chat.repository.ChatMessageRepository;
 import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
@@ -134,10 +132,6 @@ public abstract class IntegrationTestSupport {
     protected MatchRequestRepository requestRepository;
     @Autowired
     protected ReviewRepository reviewRepository;
-    @Autowired
-    protected ChatMessageRepository chatMessageRepository;
-    @Autowired
-    protected ChatLeaveRepository chatLeaveRepository;
     /** 채팅 서버로 보낼 이벤트 대기열 (계약서 §10, v1.31.0). */
     @Autowired
     protected com.kickoff.be.chatlink.repository.ChatOutboxRepository chatOutboxRepository;
@@ -191,8 +185,6 @@ public abstract class IntegrationTestSupport {
         // 경기 기록은 v1.10.0 부터 신청도 참조하므로 신청보다 먼저 지운다.
         reviewRepository.deleteAll();
         teamRecordRepository.deleteAll();
-        // 채팅은 신청과 팀을 참조한다 (v1.12.0, 나가기 상태는 v1.13.0)
-        chatLeaveRepository.deleteAll();
         // 고객센터는 사용자만 참조한다 (v1.22.0). 메시지가 방보다 먼저다.
         supportMessageRepository.deleteAll();
         supportRoomRepository.deleteAll();
@@ -200,7 +192,6 @@ public abstract class IntegrationTestSupport {
         // 레이트리밋이 이 표의 행 수로 판정하므로, 남아 있으면 다음 테스트의 첫 요청이
         // 429 로 막힌다.
         passwordResetCodeRepository.deleteAll();
-        chatMessageRepository.deleteAll();
         // 채팅 서버로 보낼 이벤트 (v1.31.0). 아무것도 참조하지 않지만 반드시 비운다 —
         // 취소·탈퇴를 거치는 테스트가 줄줄이 행을 남겨서, 안 비우면 outbox 를 세는
         // 테스트가 자기가 만들지 않은 행까지 센다.

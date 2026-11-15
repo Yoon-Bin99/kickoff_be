@@ -72,14 +72,9 @@ public interface AccountDeletionRepository extends JpaRepository<User, Long> {
     @Query("delete from Review rv where rv.reviewerTeam.id = :teamId or rv.targetTeam.id = :teamId")
     int deleteReviewsOfTeam(@Param("teamId") Long teamId);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("delete from ChatLeave cl where cl.request.id in :requestIds or cl.team.id = :teamId")
-    int deleteChatLeaves(@Param("requestIds") Collection<Long> requestIds,
-                         @Param("teamId") Long teamId);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("delete from ChatMessage cm where cm.request.id in :requestIds")
-    int deleteChatMessages(@Param("requestIds") Collection<Long> requestIds);
+    // 채팅 메시지·나가기 기록을 지우는 쿼리가 여기 둘 있었다. v1.31.0 에서 그 표가 채팅
+    // 서버로 갔고(§10), 그쪽 DB 는 우리 표를 참조하지 않는다 — 대신 같은 트랜잭션에서
+    // chat_outbox 에 PURGE 를 적어 알린다(AccountDeletionService 참고).
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

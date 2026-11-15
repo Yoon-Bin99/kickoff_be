@@ -63,7 +63,8 @@ com.kickoff.be
 ├── matchrequest    entity(MatchRequest, RequestStatus) / ...
 │                   (PostRequestCount 같은 조회 프로젝션은 repository에)
 ├── review          팀 평가 (계약서 §7)
-├── chat            매칭 성사 후 1:1 채팅
+├── chatlink        채팅 서버(kickoff_chat)와의 내부 규약 (§10) — 내부 API·chat_outbox
+│                   매칭 채팅 자체는 v1.31.0 에서 별도 서버로 갔다. 옛 chat 패키지는 없다
 ├── support         고객센터 — FAQ·AI 상담·운영자 연결 (§7-1)
 ├── oauth           카카오·네이버 소셜 로그인 (§3-1)
 ├── verification    전화번호 문자 인증 (§3-2)

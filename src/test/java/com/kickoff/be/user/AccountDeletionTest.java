@@ -7,8 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.kickoff.be.chat.entity.ChatLeave;
-import com.kickoff.be.chat.entity.ChatMessage;
+import com.kickoff.be.chatlink.entity.ChatEventType;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.passwordreset.entity.PasswordResetCode;
@@ -148,9 +147,9 @@ class AccountDeletionTest extends IntegrationTestSupport {
     // ── 얽힌 계정 지우기 (500 으로 막히는 경로가 없는가)
 
     @Test
-    @DisplayName("팀·글·신청·리뷰·전적·채팅·문의가 다 달린 계정도 지워진다")
+    @DisplayName("팀·글·신청·리뷰·전적·문의가 다 달린 계정도 지워진다")
     void deletesFullyEntangledAccount() throws Exception {
-        // 지난 경기의 수락된 매칭 — 리뷰·전적·채팅이 달릴 수 있는 유일한 조합이다
+        // 지난 경기의 수락된 매칭 — 리뷰·전적이 달릴 수 있는 유일한 조합이다
         MatchPost past = createPost(ownerTeam, "지난 경기",
                 OffsetDateTime.now().minusDays(3), true);
         MatchRequest done = acceptedRequest(past, opponentTeam);
@@ -161,8 +160,6 @@ class AccountDeletionTest extends IntegrationTestSupport {
         // 양 팀이 그 경기를 전적으로 기록한다 — 상대 것은 살아남아야 한다
         writeRecord(owner, done.getId());
         writeRecord(opponent, done.getId());
-        // 채팅도 오간다
-        chatHistory(done);
         // 내 팀에 팀원이 있고, 나는 남의 팀에 가입 신청을 넣었고, 고객센터 문의도 했다
         addMember(owner, ownerTeam.getId(), "새팀원");
         applyToJoin(member, ownerTeam.getId());
@@ -172,6 +169,30 @@ class AccountDeletionTest extends IntegrationTestSupport {
 
         assertThat(userRepository.findById(owner.getId())).isEmpty();
         assertThat(teamRepository.findById(ownerTeam.getId())).isEmpty();
+    }
+
+    /**
+     * 대화는 BE 가 더 이상 갖고 있지 않다 (v1.31.0, 계약서 §10). 지우는 일은 채팅 서버가
+     * 하고, BE 는 같은 트랜잭션에서 PURGE 를 적어 알리는 데까지가 몫이다.
+     *
+     * <b>여기가 빠지면 증상이 없다.</b> 탈퇴는 멀쩡히 끝나고 화면도 정상인데, 탈퇴한
+     * 사람의 대화만 채팅 서버에 영원히 남는다 — 방침 §3 이 약속한 "지체 없이 파기"가
+     * 조용히 안 지켜지는 자리다. (전달·경보는 {@code ChatOutboxDeliveryTest} 가 본다.)
+     */
+    @Test
+    @DisplayName("탈퇴하면 채팅 서버에 대화를 지우라는 PURGE 가 쌓인다")
+    void withdrawalQueuesChatPurge() throws Exception {
+        MatchPost past = createPost(ownerTeam, "지난 경기",
+                OffsetDateTime.now().minusDays(3), true);
+        MatchRequest done = acceptedRequest(past, opponentTeam);
+
+        deleteMe(owner, password()).andExpect(status().isNoContent());
+
+        var events = chatOutboxRepository.findAll();
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getEventType()).isEqualTo(ChatEventType.PURGE);
+        assertThat(events.get(0).requestIdList()).contains(done.getId());
+        assertThat(events.get(0).teamIdList()).containsExactly(ownerTeam.getId());
     }
 
     @Test
@@ -375,18 +396,6 @@ class AccountDeletionTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"ourScore\":3,\"opponentScore\":1}"))
                 .andExpect(status().isCreated());
-    }
-
-    /**
-     * 채팅은 API 로 만들 수 없다 — 리뷰를 쓰려면 지난 경기여야 하는데, 지난 경기의
-     * 채팅은 닫혀 있다(409 CHAT_CLOSED). "경기 전에 나눈 대화가 남아 있는 방"은 실제로
-     * 존재하는 상태라, 엔티티로 직접 만든다.
-     */
-    private void chatHistory(MatchRequest request) {
-        chatMessageRepository.save(ChatMessage.text(request, ownerTeam, "안녕하세요"));
-        chatMessageRepository.save(ChatMessage.text(request, opponentTeam, "네 반갑습니다"));
-        // 나가기 기록도 삭제 경로에 걸린다 — 여기가 빠지면 외래키에서 막힌다
-        chatLeaveRepository.save(ChatLeave.of(request, ownerTeam));
     }
 
     private void addMember(User teamOwner, long teamId, String name) throws Exception {

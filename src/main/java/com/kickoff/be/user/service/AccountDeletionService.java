@@ -101,13 +101,12 @@ public class AccountDeletionService {
         Long teamId = team.getId();
         List<Long> requestIds = deletionRepository.findRequestIdsInvolving(teamId);
 
-        // 채팅 서버에도 같은 것을 지우라고 알린다 (계약서 §10 PURGE). 아래 삭제는 <b>BE
-        // 쪽 옛 채팅 표</b>만 비운다 — 전환이 끝나면 대화는 채팅 서버에만 쌓이고, 그쪽
-        // DB 는 우리 표를 참조하지 않으므로(§10) 알려 주지 않으면 탈퇴한 사람의 대화가
-        // 거기 영원히 남는다. 방침 §3 이 약속한 "지체 없이 파기"가 지켜지지 않는 자리다.
+        // 대화는 채팅 서버가 지운다 (계약서 §10 PURGE). v1.31.0 전까지는 여기서 BE 쪽
+        // 표를 직접 비웠는데, 그 표가 채팅 서버로 갔고 <b>그쪽 DB 는 우리 표를 참조하지
+        // 않는다</b> — 알려 주지 않으면 탈퇴한 사람의 대화가 거기 영원히 남는다. 방침 §3 이
+        // 약속한 "지체 없이 파기"가 지켜지지 않는 자리다.
         //
-        // 신청이 없어도 적는다 — 그 팀의 나가기 기록은 신청과 따로 남아 있을 수 있다
-        // (바로 아래 else 가지가 같은 이유로 deleteChatLeaves 를 부른다).
+        // 신청이 없어도 적는다 — 그 팀의 나가기 기록은 신청과 따로 남아 있을 수 있다.
         //
         // 같은 트랜잭션이라 탈퇴가 롤백되면 이 기록도 사라진다. 반대로 채팅 서버가 꺼져
         // 있어도 탈퇴는 성공한다 — 전달은 스케줄러가 나중에, 복구된 뒤에 한다.
@@ -118,11 +117,6 @@ public class AccountDeletionService {
             // 이걸 안 하면 아래 신청 삭제가 외래키에 걸린다 — 그리고 지워 버리면
             // 상대 팀 전적에서 실제로 한 경기가 사라진다.
             deletionRepository.detachRecordsFromRequests(requestIds);
-            deletionRepository.deleteChatLeaves(requestIds, teamId);
-            deletionRepository.deleteChatMessages(requestIds);
-        } else {
-            // 신청이 없어도 팀 자체의 나가기 기록은 있을 수 있다.
-            deletionRepository.deleteChatLeaves(List.of(-1L), teamId);
         }
 
         // 리뷰는 신청을 참조한다(not null). 신청보다 먼저 지워야 한다.

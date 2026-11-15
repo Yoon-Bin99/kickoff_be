@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.kickoff.be.chat.entity.ChatLeave;
 import com.kickoff.be.chatlink.security.InternalSecretFilter;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.post.entity.MatchPost;
@@ -255,15 +254,20 @@ class InternalChatApiTest extends IntegrationTestSupport {
 
     /**
      * BE 는 "보낼지 말지"를 판단하지 않는다 (계약서 §10) — 상대가 나갔는지, 지금 소켓으로
-     * 보고 있는지는 채팅 서버만 아는 사실이라 그쪽이 정한 뒤 부른다. 그래서 나가기
-     * 기록이 있어도 그대로 나간다.
+     * 보고 있는지는 채팅 서버만 아는 사실이라 그쪽이 정한 뒤 부른다.
+     *
+     * v1.31.0 전에는 나가기 기록을 BE 가 들고 있어서 "그게 있어도 그대로 나간다"를 확인할
+     * 수 있었다. 이제 그 표 자체가 BE 에 없으므로(§10 전환 순서 4) <b>검사할 방법이 없는
+     * 것이 보장</b>이다. 남은 확인은 취소된 방에도 그대로 나간다는 것 — 받을지는 이미
+     * 정해져서 왔다는 뜻이다.
      */
     @Test
-    @DisplayName("BE 는 나가기 검사를 다시 하지 않는다 — 받을지는 채팅 서버가 이미 정했다")
-    void pushDoesNotRecheckLeaveState() throws Exception {
+    @DisplayName("취소된 방에도 요청대로 보낸다 — 받을지는 채팅 서버가 이미 정했다")
+    void pushDoesNotSecondGuessTheChatServer() throws Exception {
         MatchRequest accepted = acceptedRequest(post, applicantTeam);
         givePushToken(applicantOwner);
-        chatLeaveRepository.save(ChatLeave.of(accepted, applicantTeam));
+        transactionTemplate.executeWithoutResult(status -> requestRepository
+                .findById(accepted.getId()).orElseThrow().cancelMatch());
 
         mockMvc.perform(internalPush(pushBody(applicantOwner.getId(), accepted.getId())))
                 .andExpect(status().isAccepted());
