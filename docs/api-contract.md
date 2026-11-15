@@ -1,7 +1,14 @@
-# Kickoff API 계약 v1 (현재 v1.31.4)
+# Kickoff API 계약 v1 (현재 v1.32.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE/채팅 서버 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.32.0 (2026-11-15): **웹은 refresh token을 HttpOnly 쿠키로 받는다** (사용자 결정 — "웹은 웹 표준 방식으로"). §3
+> 「웹의 토큰 전달」 신설. 웹 클라이언트가 `X-Kickoff-Client: web` 헤더로 자신을 밝히면, 토큰을 내주는 모든 응답(로그인·
+> 가입·소셜 코드 교환·refresh)이 refresh token을 **본문에서 빼고** `Set-Cookie`(HttpOnly·Secure·SameSite)로 준다. 웹의
+> refresh·logout은 본문이 아니라 쿠키로 동작한다. access token은 지금처럼 본문으로 받아 **메모리에만** 둔다(웹의
+> localStorage 저장 폐지). **앱(네이티브)은 그대로다** — 헤더를 보내지 않으면 v1.31.4와 같은 응답이 온다. 채팅 서버는
+> 쿠키를 쓰지 않는다(access token만 본다). 요청 위조 방어로 쿠키를 쓰는 두 경로에 Origin 검사를 둔다.
 
 > v1.31.4 (2026-11-15): `POST_HAS_REQUESTS`의 **안내 문구만** 고침(BE 지적). 화면의 "신청 N건"(`requestCount`)은 대기·수락만
 > 세는데 삭제를 막는 기준은 모든 상태라, 거절·취소된 신청만 남은 글은 "신청 0건"으로 보이면서 지워지지 않는다. 그래서
@@ -568,11 +575,54 @@ v1.3.0 추가 필드:
 
 - **access token 1시간 / refresh token 30일.** 로그인·가입·소셜·refresh 응답이 항상
   두 토큰을 함께 준다: `{ "accessToken": "...", "refreshToken": "...", "user": {...} }`
-  (refresh 응답에는 `user` 없음 — 아래 참고)
+  (refresh 응답에는 `user` 없음 — 아래 참고). **웹은 `refreshToken`이 본문 대신 HttpOnly 쿠키로 간다** —
+  아래 「웹의 토큰 전달」(v1.32.0).
 - **로테이션**: refresh를 쓸 때마다 새 refresh가 발급되고 이전 것은 즉시 무효.
   사용자당 활성 refresh token은 **1개** (push token과 같은 단일 기기 정책 —
   새 로그인이 이전 기기의 refresh를 무효화한다)
 - 서버는 refresh token을 해시로 저장한다 (유출 대비 원문 비보관)
+
+### 웹의 토큰 전달 (v1.32.0)
+
+브라우저에서 refresh token을 스크립트가 읽을 수 있는 곳(localStorage)에 두면, 페이지에 악성 스크립트가 심겼을 때 30일짜리
+토큰을 통째로 잃는다. 그래서 **웹은 refresh token을 HttpOnly 쿠키로만** 주고받는다. 앱(네이티브)은 기기 보안 저장소를
+쓰므로 지금 방식 그대로다.
+
+**어느 쪽인지는 클라이언트가 헤더로 밝힌다**: 웹 FE는 아래 다섯 경로에 `X-Kickoff-Client: web`을 붙인다. 헤더가 없거나
+다른 값이면 앱으로 보고 v1.31.4와 똑같이 동작한다(본문에 `refreshToken`).
+
+| 경로 | 헤더가 `web`일 때 |
+|---|---|
+| `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/oauth/exchange` | 응답 본문의 `refreshToken`은 **`null`**, 대신 `Set-Cookie`로 준다. 나머지 본문은 같다 |
+| `POST /api/auth/refresh` | **본문 없이** 부른다(본문의 `refreshToken`은 읽지 않는다). 쿠키의 토큰으로 검사·로테이션하고, 응답은 `{ "accessToken": "...", "refreshToken": null }` + 새 쿠키. 쿠키가 없거나 무효면 401 `INVALID_REFRESH_TOKEN` + 쿠키 삭제 |
+| `POST /api/auth/logout` | 지금처럼 서버의 refresh token을 폐기하고(204), 추가로 쿠키를 지운다(`Max-Age=0`) |
+
+- 그 밖에 refresh token을 내주는 응답이 있다면(BE가 전수 확인) 같은 규칙을 따른다. 소셜 로그인의 웹 복귀는 이미 일회용
+  코드 교환(§3-1)이라 토큰이 주소에 실리지 않는다.
+- **쿠키**: 이름 `kickoff_rt`, `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/auth`, `Max-Age` = refresh 수명(30일).
+  `Path`를 좁혀 다른 API 요청에는 실리지 않는다 — 일반 API의 인증은 계속 `Authorization` 헤더뿐이다(쿠키로 인증되는
+  경로는 refresh·logout 둘).
+  - 설정(env): `AUTH_COOKIE_SECURE`(기본 prod `true` / dev `false` — http://localhost), `AUTH_COOKIE_SAMESITE`(기본 `Strict`),
+    `AUTH_COOKIE_DOMAIN`(기본 없음). **웹과 API를 같은 사이트(같은 도메인 아래)에 두는 것이 전제다** — 서로 다른 사이트면
+    `SameSite=None`이 필요해져 방어가 약해진다. 운영 구성을 그렇게 잡는다(인프라).
+- **요청 위조 방어**: 헤더가 `web`인 refresh·logout은 `Origin` 헤더가 허용 오리진(`CORS_ALLOWED_ORIGINS`)에 있어야 한다 —
+  없거나 다르면 403 `FORBIDDEN`. 허용 목록이 비어 있는 dev에서는 검사하지 않는다. `X-Kickoff-Client`는 단순 요청에 붙일 수
+  없는 헤더라 다른 사이트의 폼 전송으로는 이 경로에 닿지 못하고, `SameSite=Strict`가 그 위의 방어다.
+- **CORS**: 허용 오리진에 한해 `Access-Control-Allow-Credentials: true`를 준다(`*`와는 함께 쓸 수 없다). **운영에서는
+  `CORS_ALLOWED_ORIGINS`가 반드시 있어야 한다** — 비어 있으면 브라우저가 쿠키를 받지 않아 웹 로그인이 유지되지 않는다.
+  허용 헤더에 `X-Kickoff-Client`를 넣는다.
+- 정책은 그대로다: 로테이션, 사용자당 활성 refresh token 1개(웹 로그인이 앱의 refresh를 무효화하고 그 반대도 같다),
+  서버는 해시만 저장, 로그아웃 뒤에도 access token은 만료(최대 1시간)까지 유효.
+
+**FE(웹) 규칙**
+- access token은 **메모리에만** 둔다. localStorage·sessionStorage에 토큰을 쓰지 않는다. 예전에 저장한 토큰 키는 시작할 때 지운다.
+- 새로고침·새 탭에서는 시작할 때 `POST /api/auth/refresh`(쿠키 자동 전송)로 access token을 받는다. 401이면 로그아웃 상태다.
+  이 한 번은 "로그인하지 않은 방문자"에게도 일어나므로 실패를 오류로 표시하지 않는다.
+- 쿠키가 실리게 하는 옵션(`withCredentials`)은 **위 다섯 경로에만** 켠다. 다른 API와 채팅 서버 요청에는 켜지 않는다.
+- 여러 탭이 동시에 refresh하면 로테이션 때문에 한쪽이 무효가 된다 — 탭 사이에서 refresh를 한 번에 하나씩만 하게
+  직렬화한다(Web Locks. 지원하지 않는 브라우저에서는 지금처럼 탭 안에서만 묶는다).
+- 앱(네이티브) 코드는 바뀌지 않는다: 헤더를 보내지 않고, 본문의 `refreshToken`을 기기 보안 저장소에 둔다.
+- 채팅 서버(§6-1)는 쿠키를 쓰지 않는다 — REST와 소켓 `AUTH` 모두 메모리의 access token을 쓴다.
 
 ### POST /api/auth/refresh — 인증 불필요 (v1.7.0)
 
@@ -580,10 +630,11 @@ v1.3.0 추가 필드:
 (새 쌍. user는 없다 — FE는 필요하면 /auth/me로).
 만료·무효·로테이션된 토큰이면 401 `INVALID_REFRESH_TOKEN` — FE는 이때만 로그인
 화면으로 보낸다 (access 만료 401과 구분).
+웹은 본문 없이 쿠키로 부른다 — 위 「웹의 토큰 전달」(v1.32.0).
 
 ### POST /api/auth/logout — 인증 필요 (v1.7.0)
 
-서버의 refresh token 폐기. 204. FE는 이어서 로컬 토큰·push token(null)을 정리한다.
+서버의 refresh token 폐기. 204. FE는 이어서 로컬 토큰·push token(null)을 정리한다. 웹은 서버가 쿠키도 지운다(v1.32.0).
 멱등 — 이미 폐기됐어도 204.
 **이미 발급된 access token은 로그아웃 후에도 만료(최대 1시간)까지 유효하다** — 즉시
 차단하려면 매 요청 DB 조회가 필요해 access를 1시간으로 짧게 잡는 것으로 절충했다.

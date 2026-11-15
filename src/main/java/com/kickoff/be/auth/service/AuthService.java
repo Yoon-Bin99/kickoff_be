@@ -2,7 +2,6 @@ package com.kickoff.be.auth.service;
 
 import com.kickoff.be.auth.dto.AuthResponse;
 import com.kickoff.be.auth.dto.LoginRequest;
-import com.kickoff.be.auth.dto.RefreshRequest;
 import com.kickoff.be.auth.dto.SignupRequest;
 import com.kickoff.be.auth.dto.TokenResponse;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
@@ -137,8 +136,14 @@ public class AuthService {
      * 토큰 추측에 힌트가 된다.
      */
     @Transactional
-    public TokenResponse refresh(RefreshRequest request) {
-        String hash = refreshTokenProvider.hash(request.refreshToken());
+    public TokenResponse refresh(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            // 웹은 쿠키에서 읽어 오므로 여기까지 빈 값이 올 수 있다(앱 경로는 @NotBlank 가
+            // 먼저 거른다). 빈 해시로 조회하면 "아무에게도 안 맞음"이라 결과는 같지만,
+            // 뜻이 분명하도록 앞에서 끊는다.
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+        String hash = refreshTokenProvider.hash(refreshToken);
         User user = userRepository.findByRefreshTokenHash(hash)
                 .filter(candidate -> candidate.hasValidRefreshToken(OffsetDateTime.now()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));

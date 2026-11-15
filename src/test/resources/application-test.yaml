@@ -61,3 +61,13 @@ chat:
   internal:
     secret: test-chat-internal-secret
     url: http://localhost:18090
+
+# 웹의 refresh token 쿠키 (계약서 §3, v1.32.0).
+#
+# Secure 를 끈다 — MockMvc 는 평문 요청이고, 켜 두면 테스트가 "브라우저라면 저장되지
+# 않았을 쿠키"를 검사하게 된다. 속성 자체는 WebTokenDeliveryTest 가 운영 설정으로
+# 따로 확인한다.
+auth:
+  cookie:
+    secure: false
+    same-site: Strict

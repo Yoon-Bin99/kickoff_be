@@ -1,5 +1,6 @@
 package com.kickoff.be.oauth.controller;
 
+import com.kickoff.be.auth.cookie.WebTokenDelivery;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.oauth.dto.OAuthExchangeRequest;
@@ -77,6 +78,7 @@ public class OAuthController {
             """;
 
     private final OAuthService oauthService;
+    private final WebTokenDelivery webTokenDelivery;
 
     /**
      * 웹이 받은 일회용 코드를 토큰으로 바꾼다 (계약서 §3-1, v1.26.0). 인증 불필요.
@@ -90,8 +92,18 @@ public class OAuthController {
      */
     @PostMapping("/api/auth/oauth/exchange")
     public ResponseEntity<OAuthExchangeResponse> exchange(
-            @Valid @RequestBody OAuthExchangeRequest request) {
-        return ResponseEntity.ok(OAuthExchangeResponse.of(oauthService.exchange(request.code())));
+            @Valid @RequestBody OAuthExchangeRequest request, HttpServletRequest http) {
+        OAuthExchangeResponse response =
+                OAuthExchangeResponse.of(oauthService.exchange(request.code()));
+        if (!webTokenDelivery.isWeb(http)) {
+            return ResponseEntity.ok(response);
+        }
+        // 이 경로는 원래 웹 전용이지만(§3-1 v1.26.0) 헤더를 기준으로 가른다 — 다른 세
+        // 경로와 규칙이 같아야 읽는 사람이 "여기만 다른가"를 다시 확인하지 않는다.
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE,
+                        webTokenDelivery.issueCookie(response.refreshToken()))
+                .body(response.withoutRefreshToken());
     }
 
     /**

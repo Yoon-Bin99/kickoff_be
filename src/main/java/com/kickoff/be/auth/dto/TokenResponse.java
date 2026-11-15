@@ -8,4 +8,9 @@ package com.kickoff.be.auth.dto;
  * /api/auth/me 를 부른다.
  */
 public record TokenResponse(String accessToken, String refreshToken) {
+
+    /** 웹에는 refresh 가 쿠키로 간다 (계약서 §3, v1.32.0). 칸은 null 로 남긴다. */
+    public TokenResponse withoutRefreshToken() {
+        return new TokenResponse(accessToken, null);
+    }
 }

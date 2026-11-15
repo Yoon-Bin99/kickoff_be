@@ -117,6 +117,32 @@ curl -X POST http://localhost:8080/api/auth/login \
 > **시드를 바꾸면 이 표도 같이 고칠 것.** 표가 실제와 어긋나면 FE가 "미작성"인 줄 알고 검증한
 > 매칭에 이미 리뷰가 들어 있는 식의 오탐이 난다. 실제로 그렇게 한 번 헛돌았다.
 
+## 웹과 앱의 토큰 전달 (v1.32.0)
+
+access token은 둘 다 본문으로 받는다. **갈리는 것은 refresh token 하나다.**
+
+| | 앱 (네이티브) | 웹 |
+|---|---|---|
+| 자기를 밝히는 법 | 아무것도 안 보낸다 | 요청 헤더 `X-Kickoff-Client: web` |
+| refresh token | 응답 본문 (`refreshToken`) | **HttpOnly 쿠키** `kickoff_rt` (본문은 `null`) |
+| refresh 부를 때 | 본문에 토큰 | 본문 없이 — 쿠키가 자동으로 간다 |
+| 저장 | 기기 보안 저장소 | 어디에도 없다 (스크립트가 읽을 수 없다) |
+
+웹에서 refresh token을 스크립트가 읽을 수 있는 곳(localStorage)에 두면, 페이지에 악성
+스크립트가 한 번 심기는 것으로 30일짜리 토큰을 통째로 잃는다. 앱은 기기 보안 저장소를
+쓰므로 그 문제가 없고, 그래서 **앱 경로는 한 글자도 바뀌지 않았다** — 헤더를 보내지
+않으면 v1.31.4와 똑같이 동작한다.
+
+쿠키는 `Path=/api/auth`로 좁혀 둔다. 일반 API 요청에는 따라붙지 않는다 — 그쪽 인증은
+계속 `Authorization` 헤더뿐이고, 쿠키로 인증되는 경로는 `refresh`·`logout` 둘이다.
+
+그 둘은 **`Origin` 검사**를 한 겹 더 탄다(`CORS_ALLOWED_ORIGINS` 기준). 쿠키는 브라우저가
+알아서 붙이므로, 없으면 남의 페이지가 사용자를 로그아웃시킬 수 있다. 허용 목록이 비어
+있는 개발에서는 판정 기준이 없어 검사하지 않는다.
+
+관련 설정은 `AUTH_COOKIE_SECURE`·`AUTH_COOKIE_SAMESITE`·`AUTH_COOKIE_DOMAIN`이고,
+규칙 전체는 계약서 §3 「웹의 토큰 전달」에 있다.
+
 ## 소셜 로그인
 
 카카오·네이버 로그인은 **키가 있어야 켜진다.** 키 없이도 서버는 정상적으로 뜨고, 키가 없는
@@ -363,7 +389,11 @@ docker run -p 8080:8080 -e DB_URL=... -e DB_USERNAME=... -e DB_PASSWORD=... -e J
 | `DB_USERNAME` | O | DB 사용자 |
 | `DB_PASSWORD` | O | DB 비밀번호 |
 | `JWT_SECRET` | O | JWT 서명 키. HS256이라 **32바이트 이상**. 안 주면 개발용 기본값이 그대로 쓰인다 |
-| `PORT` | | 없으면 8080. Railway 같은 PaaS가 주입한다 |
+| `PORT` | | 없으면 8080. PaaS가 주입한다 |
+| `CORS_ALLOWED_ORIGINS` | **웹은 O** | 웹 도메인을 콤마로. **비우면 웹 로그인이 새로고침에서 끊긴다** — 쿠키를 허용할 수 없다(§3, v1.32.0). 앱은 영향 없다 |
+| `AUTH_COOKIE_SECURE` | | 운영 기본 `true`. **끄지 말 것** — 평문 구간이 한 번이라도 있으면 30일짜리 refresh token이 네트워크에 흐른다 |
+| `AUTH_COOKIE_SAMESITE` | | 기본 `Strict`. 웹과 API를 같은 사이트에 두면 바꿀 일이 없다 |
+| `AUTH_COOKIE_DOMAIN` | | 비우면 요청 호스트에만 붙는다(기본). 서브도메인 공유가 필요할 때만 |
 | `OAUTH_ALLOWED_REDIRECTS` | △ | 로그인 후 복귀 허용 주소. 기본 `kickoff://*` — **아래 경고 참고** |
 | `OAUTH_CALLBACK_BASE_URL` | △ | 콜백 오리진 고정 (`https://<도메인>`). 비우면 요청 오리진에서 만든다 |
 | `KAKAO_CLIENT_ID` 등 | | 소셜 로그인 키 4종. 없으면 해당 제공자만 비활성 |
@@ -398,9 +428,12 @@ Successfully applied N migration(s)      ← Flyway 적용
   좁히지 못한 이유는 웹 미리보기를 운영 서버에 붙여 확인하는 개발 관례 때문이다 —
   지금 좁히면 그 작업이 끊긴다. **웹을 정식 배포하는 시점에 `CORS_ALLOWED_ORIGINS`로
   도메인을 좁힐 것** (콤마 구분, `*` 와일드카드 가능. 빈 값이면 전부 허용이라 현행 유지).
-  자격증명 허용(`allowCredentials`)은 운영에서 이미 꺼 두었다. 인증이 `Authorization`
-  헤더라 켤 이유가 없고, `*` 오리진과 함께 두면 나중에 세션 쿠키를 하나라도 도입할 때
-  아무 사이트나 그 쿠키를 태워 부를 수 있는 상태가 된다
+
+  > **v1.32.0부터 이것이 웹 로그인의 전제가 됐다.** 웹은 refresh token을 쿠키로 받는데
+  > (아래 「웹과 앱의 토큰 전달」), 자격증명 허용은 **허용 목록이 있을 때만** 켜진다 —
+  > 목록이 비면 스프링은 요청 Origin을 그대로 반향하고, 거기에 쿠키까지 허용하면 아무
+  > 사이트나 사용자의 쿠키를 태워 우리 API를 부를 수 있다. 그래서 운영에서 목록이 비어
+  > 있으면 쿠키를 주지 않고 기동 로그에 WARN 한 줄을 남긴다. **앱은 영향이 없다**
 
 ### PostgreSQL로 한 번은 띄워보고 배포할 것
 
@@ -457,6 +490,19 @@ AWS 서울(`ap-northeast-2`) 이전**이다. 어디로 어떻게 갈지는
 
 리전을 서울이 아닌 곳에 만들면 이 항목이 되살아난다 — **`ap-northeast-2` 고정.**
 
+### ⓞ-1 선행 조건 — 웹 도메인과 `CORS_ALLOWED_ORIGINS`
+
+**웹을 함께 올린다면 `CORS_ALLOWED_ORIGINS`가 반드시 있어야 한다** (계약서 §3, v1.32.0).
+웹은 refresh token을 쿠키로 받는데, 목록이 비어 있으면 쿠키를 허용할 수 없어 **로그인이
+새로고침에서 끊긴다.** 기동 로그에 WARN 한 줄이 나가는 것이 유일한 단서다 — 브라우저
+콘솔의 CORS 오류는 서버 로그에 아무것도 남기지 않는다. 앱만 올린다면 해당 없다.
+
+**웹과 API를 같은 사이트(같은 도메인 아래)에 둔다.** 예: `kickoff.example`(웹) +
+`api.kickoff.example`(API). 서로 다른 사이트면 `SameSite=None`이 필요해져 요청 위조
+방어가 한 겹 얇아진다. 그 구성으로 간다면 `AUTH_COOKIE_SAMESITE=None`과
+`AUTH_COOKIE_SECURE=true`를 **함께** 줘야 한다 — Secure 없이 None이면 브라우저가 쿠키를
+아예 거부한다(기동 때 WARN).
+
 ### ⓞ-2 선행 조건 — `SEED_DATA`를 주지 않는다
 
 **운영에 시드를 넣지 않는다.** 시드 계정의 이메일과 공통 비밀번호가 이 저장소(공개)의
@@ -483,7 +529,10 @@ AWS 서울(`ap-northeast-2`) 이전**이다. 어디로 어떻게 갈지는
 | `JWT_SECRET` | **O** | 기동은 되지만 **개발용 기본값이 그대로 쓰인다** — 저장소에 적혀 있는 값이라 누구나 토큰을 위조할 수 있다. HS256이라 32바이트 이상 |
 | `PORT` | | 8080. PaaS가 주입한다 |
 | `SPRING_PROFILES_ACTIVE` | | `Dockerfile`에 `prod`가 박혀 있다. **직접 띄울 때는 반드시 줄 것** — 없으면 dev로 떠서 H2 인메모리에 붙고, 재시작마다 데이터가 사라지는데 기동은 정상이다 |
-| `CORS_ALLOWED_ORIGINS` | | 전부 허용(`*`). 웹 정식 배포 시 좁힐 것 |
+| `CORS_ALLOWED_ORIGINS` | **웹은 O** | 전부 허용(`*`)이고 **쿠키는 허용되지 않는다** — 그 상태로는 웹 로그인이 새로고침에서 끊긴다(계약서 §3, v1.32.0). 기동 로그에 WARN 한 줄이 나간다. 앱은 영향 없다 |
+| `AUTH_COOKIE_SECURE` | | `true`(운영 기본). 끄면 refresh 쿠키가 평문으로 오간다 |
+| `AUTH_COOKIE_SAMESITE` | | `Strict`. `None`으로 바꾸면서 `AUTH_COOKIE_SECURE`를 끄면 **브라우저가 쿠키를 거부한다**(기동 WARN) |
+| `AUTH_COOKIE_DOMAIN` | | 없음. 요청 호스트에만 붙는다 |
 | `OAUTH_ALLOWED_REDIRECTS` | △ | `kickoff://*`만. **Expo Go로 붙는 동안 `exp://*`를 빠뜨리면 증상이 안 보인다** (위 소셜 로그인 절의 경고 참고) |
 | `OAUTH_CALLBACK_BASE_URL` | △ | 요청 오리진에서 콜백을 만든다. 프록시 뒤라면 `forward-headers-strategy: framework`가 처리하지만, 도메인을 고정하고 싶으면 `https://<도메인>`으로 줄 것 |
 | `KAKAO_CLIENT_ID` / `KAKAO_CLIENT_SECRET` | | 카카오 로그인만 비활성 (기동 로그 `활성 소셜 제공자`에서 빠진다) |

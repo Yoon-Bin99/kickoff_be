@@ -22,4 +22,9 @@ public record OAuthExchangeResponse(
         return new OAuthExchangeResponse(result.accessToken(), result.refreshToken(),
                 result.newUser());
     }
+
+    /** 웹에는 refresh 가 쿠키로 간다 (계약서 §3, v1.32.0). 칸은 null 로 남긴다. */
+    public OAuthExchangeResponse withoutRefreshToken() {
+        return new OAuthExchangeResponse(accessToken, null, isNewUser);
+    }
 }

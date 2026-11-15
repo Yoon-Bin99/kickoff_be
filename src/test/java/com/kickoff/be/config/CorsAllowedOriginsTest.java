@@ -59,11 +59,38 @@ class CorsAllowedOriginsTest {
         assertThat(originsOf(",,,")).as("전부 비면 현행 유지로 되돌아간다").containsExactly("*");
     }
 
+    /**
+     * v1.32.0 에서 규칙이 바뀌었다. 전에는 "운영에서는 끈다"였다 — 인증이 헤더뿐이라 켤
+     * 이유가 없었다. 이제 <b>웹이 refresh token 을 쿠키로 받으므로</b>(계약서 §3) 켜지
+     * 않으면 브라우저가 그 쿠키를 저장하지 않는다.
+     *
+     * 다만 <b>"전부 허용"과 함께 켜지는 않는다.</b> 목록이 비면 스프링은 요청 Origin 을
+     * 그대로 반향하는데, 거기에 자격증명까지 허용하면 아무 사이트나 사용자의 쿠키를 태워
+     * 우리 API 를 부를 수 있다. 계약서가 "운영에서는 CORS_ALLOWED_ORIGINS 가 반드시
+     * 있어야 한다"고 적은 이유이고, 비었을 때의 증상(웹 로그인이 유지되지 않음)도 거기 있다.
+     */
     @Test
-    @DisplayName("운영은 자격증명 허용이 꺼져 있다 — 헤더 인증이라 켤 이유가 없다")
-    void prodDisablesCredentials() {
-        assertThat(configOf("prod", "").getAllowCredentials()).isFalse();
-        assertThat(configOf("dev", "").getAllowCredentials()).isTrue();
+    @DisplayName("운영은 허용 목록이 있을 때만 자격증명을 켠다")
+    void prodAllowsCredentialsOnlyWithExplicitOrigins() {
+        assertThat(configOf("prod", "").getAllowCredentials())
+                .as("목록이 비면 요청 Origin 을 그대로 반향하므로 쿠키를 허용할 수 없다")
+                .isFalse();
+        assertThat(configOf("prod", "https://kickoff.example").getAllowCredentials())
+                .as("좁혀 두었으면 웹 쿠키를 받을 수 있어야 한다")
+                .isTrue();
+    }
+
+    /** 개발은 목록이 비어도 켠다 — 스프링이 {@code *} 가 아니라 요청 Origin 을 돌려준다. */
+    @Test
+    @DisplayName("개발은 목록이 비어도 자격증명을 켠다")
+    void devAllowsCredentials() {
+        CorsConfiguration config = configOf("dev", "");
+
+        assertThat(config.getAllowCredentials()).isTrue();
+        assertThat(config.getAllowedOrigins())
+                .as("'*' 를 그대로 내보내면 자격증명과 함께 쓸 수 없다 — 패턴 쪽에 들어가야 한다")
+                .isNull();
+        assertThat(config.getAllowedOriginPatterns()).containsExactly("*");
     }
 
     /** 웹에서 토큰을 실어 보내려면 이 헤더가 열려 있어야 한다. */
@@ -97,8 +124,8 @@ class CorsAllowedOriginsTest {
         environment.setActiveProfiles(profile);
 
         UrlBasedCorsConfigurationSource source =
-                (UrlBasedCorsConfigurationSource) new CorsConfig(environment, raw)
-                        .corsConfigurationSource();
+                (UrlBasedCorsConfigurationSource) new CorsConfig(environment,
+                        new AllowedOrigins(raw)).corsConfigurationSource();
         return source.getCorsConfigurations().get("/**");
     }
 }

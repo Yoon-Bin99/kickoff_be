@@ -169,6 +169,24 @@ kickoff:
   # 화면에 보여 줄 데이터가 필요하면 시드가 아니라 실제 계정으로 만든다.
   seed-data: ${SEED_DATA:false}
 
+auth:
+  cookie:
+    # 웹의 refresh token 쿠키 속성 (계약서 §3 「웹의 토큰 전달」, v1.32.0).
+    # 이름은 kickoff_rt, HttpOnly·Path=/api/auth 는 코드에 고정이다 — 설정으로 풀면
+    # "스크립트가 못 읽는다"와 "다른 API 에는 안 실린다"는 보장이 설정 실수로 사라진다.
+    #
+    # <b>운영에서 끄지 말 것.</b> 평문 구간이 한 번이라도 있으면 30일짜리 토큰이 그대로
+    # 네트워크에 흐른다. 개발 기본값만 false 인 것은 http://localhost 라서다 —
+    # Secure 를 붙이면 브라우저가 쿠키를 저장하지 않는다(아래 dev 블록).
+    secure: ${AUTH_COOKIE_SECURE:true}
+    # Strict / Lax / None. 웹과 API 를 같은 사이트에 두는 것이 전제라 Strict 로 충분하다.
+    # None 으로 바꾸면 요청 위조 방어가 한 겹 얇아지고, Secure 없이 None 이면 브라우저가
+    # 쿠키를 아예 거부한다(기동 때 WARN 한 줄이 나간다).
+    same-site: ${AUTH_COOKIE_SAMESITE:Strict}
+    # 비우면 요청 호스트에만 붙는다(기본). 서브도메인끼리 공유해야 할 때만 쓴다 —
+    # 넓히면 그 도메인 아래 모든 호스트가 이 쿠키를 보게 된다.
+    domain: ${AUTH_COOKIE_DOMAIN:}
+
 jwt:
   # 운영에서는 반드시 JWT_SECRET 환경변수로 덮어쓸 것 (HS256이라 32바이트 이상 필요)
   secret: ${JWT_SECRET:kickoff-local-dev-secret-key-change-me-in-production-0123456789}
@@ -241,6 +259,12 @@ kickoff:
     # <b>운영에는 이 기본값이 없다.</b> 아래 prod 블록에 없고 최상단은 빈 값이라,
     # SUPPORT_OPERATOR_EMAIL 을 주지 않으면 운영자는 아무도 아니다.
     operator-email: ${SUPPORT_OPERATOR_EMAIL:choi@example.com}
+
+# 개발은 http://localhost 라 Secure 쿠키를 저장하지 못한다 (계약서 §3, v1.32.0).
+# 운영 기본값은 최상단의 true 다 — 여기서만 내린다.
+auth:
+  cookie:
+    secure: ${AUTH_COOKIE_SECURE:false}
 
 # 채팅 서버 연결 (계약서 §10, v1.31.0). 개발 기본값이 있는 유일한 프로파일이다.
 # 비밀값은 <b>채팅 서버의 dev 기본값과 같은 문자열</b>이어야 한다 — 다르면 양쪽이 조용히
