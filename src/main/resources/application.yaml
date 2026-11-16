@@ -361,6 +361,24 @@ spring:
       ddl-auto: validate
     show-sql: false
 
+# 파일 로그 (배포 준비 B-1). <b>채팅 서버와 같은 환경변수 이름</b>을 쓴다 — 두 서버의
+# 로그 설정이 한 벌로 관리되게 하려는 것이다.
+#
+# <b>스프링의 환경변수 이름 규칙에 기대지 않고 여기 명시한다.</b>
+# LOGGING_LOGBACK_ROLLINGPOLICY_MAXHISTORY 같은 이름은 길고 한 글자만 틀려도 조용히
+# 무시된다 — 그러면 보관이 기본 7일로 떨어지는데, 에러 없이 로그만 사라져서 필요한 날에야
+# 안다. 여기 적어 두면 틀린 이름은 그냥 안 먹고 기본값(90일)이 남는다.
+#
+# LOG_FILE 이 비면 파일로 쓰지 않는다(콘솔만) — 도커 로그만 쓰는 환경을 그대로 둔다.
+logging:
+  file:
+    name: ${LOG_FILE:}
+  logback:
+    rollingpolicy:
+      max-history: ${LOG_MAX_HISTORY:90}
+      max-file-size: ${LOG_MAX_FILE_SIZE:50MB}
+      total-size-cap: ${LOG_TOTAL_SIZE_CAP:3GB}
+
 server:
   # PaaS 는 TLS 를 프록시에서 끊고 앱에는 평문 HTTP 로 넘긴다. 이 설정이 없으면
   # request.getScheme() 이 http, 호스트도 내부 값이라 요청에서 만들어내는 주소가 전부
