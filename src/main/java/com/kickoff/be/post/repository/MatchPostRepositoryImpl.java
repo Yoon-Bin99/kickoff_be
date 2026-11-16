@@ -29,6 +29,7 @@ public class MatchPostRepositoryImpl implements MatchPostRepositoryCustom {
                                   PostStatus status, String keyword,
                                   List<DateFilter.Range> dates, Set<Integer> storedHours,
                                   java.util.Collection<Long> excludedPostIds,
+                                  java.util.Collection<Long> excludedTeamIds,
                                   Pageable pageable) {
         List<String> where = new ArrayList<>();
         Map<String, Object> params = new LinkedHashMap<>();
@@ -91,6 +92,12 @@ public class MatchPostRepositoryImpl implements MatchPostRepositoryCustom {
         if (excludedPostIds != null && !excludedPostIds.isEmpty()) {
             where.add("p.id not in :excludedPostIds");
             params.put("excludedPostIds", excludedPostIds);
+        }
+
+        // 차단한 팀의 글도 그 사람 화면에서만 빠진다 (계약서 §7-2 「차단의 효과」).
+        if (excludedTeamIds != null && !excludedTeamIds.isEmpty()) {
+            where.add("p.team.id not in :excludedTeamIds");
+            params.put("excludedTeamIds", excludedTeamIds);
         }
 
         String predicate = String.join("\n  and ", where);

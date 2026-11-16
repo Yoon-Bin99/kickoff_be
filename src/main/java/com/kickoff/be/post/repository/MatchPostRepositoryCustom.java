@@ -30,5 +30,6 @@ public interface MatchPostRepositoryCustom {
     Page<MatchPost> search(OffsetDateTime now, String region, SkillLevel skillLevel,
                            PostStatus status, String keyword,
                            List<DateFilter.Range> dates, Set<Integer> storedHours,
-                           Collection<Long> excludedPostIds, Pageable pageable);
+                           Collection<Long> excludedPostIds, Collection<Long> excludedTeamIds,
+                           Pageable pageable);
 }

@@ -20,10 +20,24 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @EntityGraph(attributePaths = {"request", "request.post", "reviewerTeam", "targetTeam"})
     Page<Review> findByTargetTeamId(Long targetTeamId, Pageable pageable);
 
-    /** 신고한 사람 화면에서 그 리뷰를 뺀 목록 (계약서 §7-2). */
+    /**
+     * 신고한 리뷰와 차단한 팀이 쓴 리뷰를 뺀 목록 (계약서 §7-2).
+     *
+     * 둘을 한 조회로 묶은 것은 <b>같은 화면의 같은 일</b>이기 때문이다 — 보는 사람에게만
+     * 빠진다. 나눠 부르면 페이징이 두 번 어긋난다.
+     */
+    @Query("""
+            select r from Review r
+            where r.targetTeam.id = :targetTeamId
+              and (:excludedIds is null or r.id not in :excludedIds)
+              and (:excludedTeamIds is null or r.reviewerTeam.id not in :excludedTeamIds)
+            """)
     @EntityGraph(attributePaths = {"request", "request.post", "reviewerTeam", "targetTeam"})
-    Page<Review> findByTargetTeamIdAndIdNotIn(Long targetTeamId, Collection<Long> excludedIds,
-                                              Pageable pageable);
+    Page<Review> findVisibleByTargetTeamId(@Param("targetTeamId") Long targetTeamId,
+                                           @Param("excludedIds") Collection<Long> excludedIds,
+                                           @Param("excludedTeamIds")
+                                           Collection<Long> excludedTeamIds,
+                                           Pageable pageable);
 
     boolean existsByRequestIdAndReviewerTeamId(Long requestId, Long reviewerTeamId);
 

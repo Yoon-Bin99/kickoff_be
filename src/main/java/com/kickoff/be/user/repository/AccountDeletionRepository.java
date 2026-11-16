@@ -158,6 +158,21 @@ public interface AccountDeletionRepository extends JpaRepository<User, Long> {
     @Query("delete from UserConsent uc where uc.user.id = :userId")
     int deleteConsentsOf(@Param("userId") Long userId);
 
+    /**
+     * 차단 (계약서 §7-2 — "탈퇴하면 그 계정이 건 차단과 그 계정의 팀을 대상으로 한 차단이
+     * 함께 지워진다").
+     *
+     * 두 방향을 모두 지운다. 한쪽만 지우면 사라진 팀을 가리키는 차단이 남아, 그 사람의
+     * 차단 목록에 빈 줄이 서거나 조회가 터진다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from TeamBlock b where b.blocker.id = :userId")
+    int deleteBlocksBy(@Param("userId") Long userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from TeamBlock b where b.blockedTeam.owner.id = :userId")
+    int deleteBlocksAgainstTeamsOf(@Param("userId") Long userId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from User u where u.id = :userId")
     int deleteUser(@Param("userId") Long userId);

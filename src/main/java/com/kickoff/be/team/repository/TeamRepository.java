@@ -44,13 +44,19 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
                       like concat('%', cast(:keyword as string), '%') escape '!')
               and (:region is null
                    or lower(t.region) like lower(concat('%', cast(:region as string), '%')) escape '!')
+              and (:excludedTeamIds is null or t.id not in :excludedTeamIds)
             order by case when :keyword is null then 0
                           when lower(replace(t.name, ' ', ''))
                                like concat(cast(:keyword as string), '%') escape '!' then 0
                           else 1 end,
                      t.createdAt desc, t.id desc
             """)
+    /**
+     * @param excludedTeamIds 차단한 팀 (계약서 §7-2 — 팀 찾기에서 빠진다). 없으면 null 을
+     *                        넘긴다 — 빈 컬렉션을 {@code in} 에 넣으면 DB 마다 다르게 군다.
+     */
     Page<Team> search(@Param("keyword") String keyword, @Param("region") String region,
+                      @Param("excludedTeamIds") java.util.Collection<Long> excludedTeamIds,
                       Pageable pageable);
 
     Optional<Team> findByOwnerId(Long ownerId);

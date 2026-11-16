@@ -169,6 +169,9 @@ public class AccountDeletionService {
         deletionRepository.deleteSupportRoomOf(userId);
         deletionRepository.deleteSocialAccountsOf(userId);
         deletionRepository.deleteConsentsOf(userId);
+        // 차단은 그 사람의 화면 설정이지 분쟁 기록이 아니다 — 남겨 둘 이유가 없다 (§7-2).
+        deletionRepository.deleteBlocksBy(userId);
+        deletionRepository.deleteBlocksAgainstTeamsOf(userId);
         // refresh·push token 은 users 행에 있어 계정과 함께 사라진다.
         deletionRepository.deleteUser(userId);
     }

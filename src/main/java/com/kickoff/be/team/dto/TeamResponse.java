@@ -53,7 +53,15 @@ public record TeamResponse(
          *
          * <b>팀 전체가 아니라 소개만</b> 가려진다 — 팀 페이지 자체는 열린다.
          */
-        ModerationResponse introductionModeration
+        ModerationResponse introductionModeration,
+
+        /**
+         * 내가 이 팀을 차단했는지 (계약서 §7-2, v1.35.0). 비로그인은 false.
+         *
+         * FE 는 이 값이 true 면 팀 페이지에 가림막과 "차단 해제"를 보인다 — 차단한 팀의
+         * 페이지는 <b>열린다</b>. 닫아 버리면 해제할 길이 사라진다.
+         */
+        @JsonProperty("blockedByMe") boolean blockedByMe
 ) {
 
     /**
@@ -71,7 +79,7 @@ public record TeamResponse(
      */
     public static TeamResponse of(Team team, Long viewerId, ReviewStats reviewStats,
                                   TeamRole myRole, RecordSummary recordSummary,
-                                  JoinStatus myJoinStatus) {
+                                  JoinStatus myJoinStatus, boolean blockedByMe) {
         // 가려진 소개는 감독 본인에게도 보이지 않는다 (계약서 §7-2) — 글과 다른 점이다.
         // 글 상세는 작성자가 자기 글을 확인·이의 제기해야 해서 열어 두지만, 소개는 그
         // 자리에 조치 표시가 서고 원문은 팀 수정 화면에서도 쓰지 못한다(410).
@@ -98,7 +106,8 @@ public record TeamResponse(
                 team.getTeamColor(),
                 team.getFormation(),
                 recordSummary,
-                introductionModeration
+                introductionModeration,
+                blockedByMe
         );
     }
 }

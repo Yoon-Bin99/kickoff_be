@@ -37,11 +37,13 @@ public class TeamController {
     /** 팀 찾기 (계약서 §4, v1.11.0). 인증 불필요. */
     @GetMapping
     public ResponseEntity<PageResponse<TeamSummary>> search(
+            // 인증이 선택인 조회다 — 토큰이 있으면 그 사람이 차단한 팀을 뺀다 (§7-2).
+            @LoginUser User viewer,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String region,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(teamService.search(keyword, region, page, size));
+        return ResponseEntity.ok(teamService.search(viewer, keyword, region, page, size));
     }
 
     @GetMapping("/me")

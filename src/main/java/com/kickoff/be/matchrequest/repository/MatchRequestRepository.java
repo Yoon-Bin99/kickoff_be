@@ -69,6 +69,22 @@ public interface MatchRequestRepository extends JpaRepository<MatchRequest, Long
     List<MatchRequest> findByPostIdAndStatusAndIdNot(Long postId, RequestStatus status, Long id);
 
     /**
+     * 두 팀 사이의 수락된 매칭 (계약서 §7-2 차단).
+     *
+     * 방향을 가리지 않는다 — 어느 쪽이 글을 썼든 두 팀이 잡은 경기는 하나의 사실이다.
+     */
+    @Query("""
+            select r from MatchRequest r
+            join fetch r.post p
+            join fetch p.team
+            join fetch r.applicantTeam
+            where r.status = com.kickoff.be.matchrequest.entity.RequestStatus.ACCEPTED
+              and ((p.team.id = :teamA and r.applicantTeam.id = :teamB)
+                or (p.team.id = :teamB and r.applicantTeam.id = :teamA))
+            """)
+    List<MatchRequest> findAcceptedBetween(@Param("teamA") Long teamA, @Param("teamB") Long teamB);
+
+    /**
      * 내가 주장인 팀이 당사자인 <b>수락된</b> 매칭 — 곧 내 채팅방 목록이다 (계약서 §6-1, v1.13.0).
      *
      * 채팅은 주장만 들어오므로 소유자 기준으로 바로 거른다. 사용자가 팀을 여럿 가질 수

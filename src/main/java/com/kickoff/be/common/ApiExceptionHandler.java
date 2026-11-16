@@ -1,6 +1,9 @@
 package com.kickoff.be.common;
 
+import com.kickoff.be.block.service.BlockHasUpcomingMatchException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.http.InvalidParameterException;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +25,28 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Slf4j
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    /**
+     * 차단과 겹치는 예정 경기 (계약서 §7-2, v1.35.2).
+     *
+     * 공통 형식에 {@code matchAt} 한 칸이 더 붙는 <b>유일한</b> 응답이다 — FE 확인창이
+     * 날짜를 말할 수 있어야 한다. 공통 응답에 nullable 칸을 다는 대신 여기서만 그린다.
+     * BusinessException 의 하위라 더 좁은 이 핸들러가 먼저 잡힌다.
+     */
+    @ExceptionHandler(BlockHasUpcomingMatchException.class)
+    public ResponseEntity<Map<String, Object>> handleBlockConflict(
+            BlockHasUpcomingMatchException e) {
+        ErrorResponse body = ErrorResponse.of(e.getErrorCode(), e.getMessage(),
+                e.getFieldErrors());
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("status", body.status());
+        payload.put("code", body.code());
+        payload.put("message", body.message());
+        payload.put("timestamp", body.timestamp());
+        payload.put("fieldErrors", body.fieldErrors());
+        payload.put("matchAt", e.getMatchAt());
+        return ResponseEntity.status(e.getErrorCode().getStatus()).body(payload);
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {

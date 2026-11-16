@@ -95,9 +95,11 @@ public class ReviewService {
         // 리뷰는 자리 표시로 남지만, 내가 신고한 것은 아예 보이지 않는다 — 전자는
         // 모두에게 일어난 일이고 후자는 내 화면의 일이다.
         java.util.List<Long> reported = hiddenForViewer.reviewIdsFor(viewer);
-        Page<Review> reviews = reported.isEmpty()
-                ? reviewRepository.findByTargetTeamId(teamId, pageable)
-                : reviewRepository.findByTargetTeamIdAndIdNotIn(teamId, reported, pageable);
+        java.util.List<Long> blocked = hiddenForViewer.blockedTeamIdsFor(viewer);
+        Page<Review> reviews = reviewRepository.findVisibleByTargetTeamId(teamId,
+                reported.isEmpty() ? null : reported,
+                blocked.isEmpty() ? null : blocked,
+                pageable);
         // 리뷰마다 작성 팀 평점을 조회하면 페이지 크기만큼 쿼리가 는다 (계약서 §2, v1.10.0)
         Map<Long, ReviewStats> reviewerStats = reviewRepository.statsMapOf(
                 reviews.getContent().stream()

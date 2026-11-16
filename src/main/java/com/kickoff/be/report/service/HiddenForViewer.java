@@ -15,14 +15,18 @@ import org.springframework.transaction.annotation.Transactional;
  * 계속 눈앞에 있으면, 신고가 아무 일도 하지 않은 것처럼 보인다. 다른 사람에게는 그대로
  * 보인다 — 한 사람의 신고로 모두의 화면에서 사라지면 그것이 공격 수단이 된다.
  *
- * 글·리뷰 조회가 신고 표를 직접 조인하지 않도록 여기서 id 만 모아 준다. 조인으로 엮으면
- * 두 도메인이 쿼리 하나에 묶이고, 다음에 조건이 하나 더 붙을 때(차단) 더 엉킨다.
+ * <b>차단도 같은 성격이라 여기서 함께 답한다</b>(§7-2 「차단의 효과」) — 둘 다 "보는
+ * 사람에게만" 일어나는 일이고, 계약서도 같은 절에 둔다.
+ *
+ * 글·리뷰 조회가 신고·차단 표를 직접 조인하지 않도록 여기서 id 만 모아 준다. 조인으로
+ * 엮으면 도메인들이 쿼리 하나에 묶이고, 조건이 하나 더 붙을 때마다 더 엉킨다.
  */
 @Component
 @RequiredArgsConstructor
 public class HiddenForViewer {
 
     private final ReportRepository reportRepository;
+    private final com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
 
     /** 이 사람이 신고해 둔 모집글. 비로그인이면 빈 목록이다. */
     @Transactional(readOnly = true)
@@ -34,6 +38,20 @@ public class HiddenForViewer {
     @Transactional(readOnly = true)
     public List<Long> reviewIdsFor(User viewer) {
         return targetIdsFor(viewer, ReportTargetType.REVIEW);
+    }
+
+    /**
+     * 이 사람이 차단한 팀 (계약서 §7-2 「차단의 효과」).
+     *
+     * 신고와 같은 자리에 둔 것은 <b>같은 성격</b>이기 때문이다 — 둘 다 "보는 사람에게만"
+     * 일어나는 일이고, 목록 조회가 그 두 표를 직접 조인하지 않게 하려는 것이다.
+     */
+    @Transactional(readOnly = true)
+    public List<Long> blockedTeamIdsFor(User viewer) {
+        if (viewer == null) {
+            return List.of();
+        }
+        return blockRepository.findBlockedTeamIdsBy(viewer.getId());
     }
 
     private List<Long> targetIdsFor(User viewer, ReportTargetType targetType) {

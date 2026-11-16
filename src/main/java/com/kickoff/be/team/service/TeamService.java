@@ -48,6 +48,7 @@ public class TeamService {
     private final TeamRecordRepository teamRecordRepository;
     private final TeamAuthz teamAuthz;
     private final TeamJoinService teamJoinService;
+    private final com.kickoff.be.report.service.HiddenForViewer hiddenForViewer;
 
     @Transactional
     public TeamResponse create(User owner, TeamCreateRequest request) {
@@ -82,8 +83,9 @@ public class TeamService {
 
         // 방금 만든 팀이라 리뷰도 기록도 있을 수 없고, 만든 사람이 곧 소유자다.
         // 방금 만든 팀이라 가입 신청도 있을 수 없다.
+        // 방금 만든 내 팀이라 차단해 뒀을 수 없다.
         return TeamResponse.of(team, owner.getId(), ReviewStats.EMPTY, TeamRole.OWNER,
-                RecordSummary.EMPTY, null);
+                RecordSummary.EMPTY, null, false);
     }
 
     @Transactional(readOnly = true)
@@ -92,8 +94,9 @@ public class TeamService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_NOT_FOUND));
         // 소유 기준으로 찾아온 팀이라 역할을 조회할 필요가 없다.
         // 소유자가 자기 팀에 가입 신청을 낼 일은 없다 (낼 수도 없다 — 409).
+        // 내 팀이다 — 자기 팀은 차단할 수 없다(400).
         return TeamResponse.of(team, user.getId(), reviewRepository.statsOf(team.getId()),
-                TeamRole.OWNER, teamRecordRepository.summaryOf(team.getId()), null);
+                TeamRole.OWNER, teamRecordRepository.summaryOf(team.getId()), null, false);
     }
 
     /**
@@ -102,8 +105,13 @@ public class TeamService {
      * 카드에 평점이 실리므로 팀별 집계를 배치로 모은다 — 카드마다 조회하면 N+1 이다.
      */
     @Transactional(readOnly = true)
-    public PageResponse<TeamSummary> search(String keyword, String region, int page, int size) {
+    public PageResponse<TeamSummary> search(User viewer, String keyword, String region,
+                                            int page, int size) {
+        // 차단한 팀은 팀 찾기에서 빠진다 (계약서 §7-2). 빈 목록 대신 null 을 넘긴다 —
+        // 빈 컬렉션을 in 에 넣으면 DB 마다 다르게 군다.
+        java.util.List<Long> blocked = hiddenForViewer.blockedTeamIdsFor(viewer);
         Page<Team> teams = teamRepository.search(normalizeKeyword(keyword), escapeRegion(region),
+                blocked.isEmpty() ? null : blocked,
                 PageRequest.of(Math.max(page, 0), clampSize(size)));
         Map<Long, ReviewStats> stats = reviewRepository.statsMapOf(
                 teams.getContent().stream().map(Team::getId).toList());
@@ -176,9 +184,11 @@ public class TeamService {
     public TeamResponse get(Long teamId, User viewer) {
         Team team = teamAuthz.requireTeam(teamId);
         Long viewerId = viewer == null ? null : viewer.getId();
+        // 차단한 팀의 페이지는 열린다 (계약서 §7-2) — 닫으면 해제할 길이 사라진다.
         return TeamResponse.of(team, viewerId, reviewRepository.statsOf(team.getId()),
                 teamAuthz.roleOf(team, viewerId), teamRecordRepository.summaryOf(team.getId()),
-                teamJoinService.myJoinStatus(teamId, viewerId));
+                teamJoinService.myJoinStatus(teamId, viewerId),
+                hiddenForViewer.blockedTeamIdsFor(viewer).contains(teamId));
     }
 
     @Transactional
@@ -208,7 +218,7 @@ public class TeamService {
         // 고칠 수 있는 사람은 이미 소속이라 대기 중인 신청이 있을 수 없다.
         return TeamResponse.of(team, user.getId(), reviewRepository.statsOf(team.getId()),
                 teamAuthz.roleOf(team, user.getId()),
-                teamRecordRepository.summaryOf(team.getId()), null);
+                teamRecordRepository.summaryOf(team.getId()), null, false);
     }
 
     /** 팀 프로필 확장 필드 (계약서 §4-1, v1.8.0). 셋 다 명시적 null 로 지울 수 있다. */

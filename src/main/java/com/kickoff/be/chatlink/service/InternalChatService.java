@@ -7,6 +7,8 @@ import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.push.dto.ChatPushEvent;
+import com.kickoff.be.block.repository.TeamBlockRepository;
+import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.review.dto.ReviewStats;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -31,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InternalChatService {
 
     private final MatchRequestRepository requestRepository;
+    private final TeamBlockRepository blockRepository;
     private final ReviewRepository reviewRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -42,7 +45,7 @@ public class InternalChatService {
     public RoomContext room(Long requestId) {
         MatchRequest request = requestRepository.findDetailById(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_NOT_FOUND));
-        return RoomContext.of(request, statsOf(List.of(request)));
+        return RoomContext.of(request, statsOf(List.of(request)), isBlocked(request));
     }
 
     /**
@@ -62,7 +65,23 @@ public class InternalChatService {
             return List.of();
         }
         Map<Long, ReviewStats> stats = statsOf(rooms);
-        return rooms.stream().map(room -> RoomContext.of(room, stats)).toList();
+        return rooms.stream()
+                .map(room -> RoomContext.of(room, stats, isBlocked(room)))
+                .toList();
+    }
+
+    /**
+     * 두 팀의 감독 중 누구라도 상대 팀을 차단했는지 (계약서 §7-2·§10, v1.35.0).
+     *
+     * 방마다 한 번씩 묻는다. 방 목록은 한 사람이 가진 수락된 매칭이라 길지 않고, 차단은
+     * 양방향·두 팀 조합이라 배치로 모으려면 조회가 더 복잡해진다 — 길어지면 그때 묶는다.
+     */
+    private boolean isBlocked(MatchRequest request) {
+        Team postTeam = request.getPost().getTeam();
+        Team applicantTeam = request.getApplicantTeam();
+        return blockRepository.existsBetween(
+                postTeam.getOwner().getId(), postTeam.getId(),
+                applicantTeam.getOwner().getId(), applicantTeam.getId());
     }
 
     /**

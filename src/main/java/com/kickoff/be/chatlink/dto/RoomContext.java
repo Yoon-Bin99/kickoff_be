@@ -28,7 +28,16 @@ public record RoomContext(
         OffsetDateTime matchAt,
         OffsetDateTime updatedAt,
         Party postTeam,
-        Party applicantTeam
+        Party applicantTeam,
+
+        /**
+         * 두 팀의 감독 중 누구라도 상대 팀을 차단했는지 (계약서 §7-2·§10, v1.35.0).
+         *
+         * 채팅 서버는 이 값이 true 면 그 방을 <b>보낼 수 없는 방</b>으로 다룬다 —
+         * 읽기·나가기·방 목록은 그대로다. 사유는 드러내지 않는다(차단 사실을 상대에게
+         * 알리지 않는 것이 이 기능의 전제다).
+         */
+        boolean blocked
 ) {
 
     /**
@@ -39,7 +48,8 @@ public record RoomContext(
     public record Party(Long ownerUserId, TeamSummary team) {
     }
 
-    public static RoomContext of(MatchRequest request, Map<Long, ReviewStats> stats) {
+    public static RoomContext of(MatchRequest request, Map<Long, ReviewStats> stats,
+                                 boolean blocked) {
         MatchPost post = request.getPost();
         return new RoomContext(
                 request.getId(),
@@ -49,7 +59,8 @@ public record RoomContext(
                 post.getMatchAt(),
                 request.getUpdatedAt(),
                 partyOf(post.getTeam(), stats),
-                partyOf(request.getApplicantTeam(), stats));
+                partyOf(request.getApplicantTeam(), stats),
+                blocked);
     }
 
     private static Party partyOf(Team team, Map<Long, ReviewStats> stats) {

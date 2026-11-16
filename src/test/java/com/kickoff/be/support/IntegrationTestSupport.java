@@ -192,6 +192,10 @@ public abstract class IntegrationTestSupport {
             reportChatMessageRepository;
     @Autowired
     protected StubReportContextClient reportContextClient;
+
+    /** 차단 (계약서 §7-2, v1.35.0). */
+    @Autowired
+    protected com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
     @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
@@ -225,6 +229,8 @@ public abstract class IntegrationTestSupport {
         teamAdminRepository.deleteAll();
         // 가입 신청은 팀과 사용자를 함께 참조한다 (v1.11.0)
         teamJoinRequestRepository.deleteAll();
+        // 차단은 팀과 사용자를 함께 참조한다 (v1.35.0)
+        blockRepository.deleteAll();
         teamRepository.deleteAll();
         // 전화번호 인증은 아무것도 참조하지 않지만, 레이트리밋이 남으면 다음 테스트의
         // 발송이 429 로 막힌다 (v1.15.0)

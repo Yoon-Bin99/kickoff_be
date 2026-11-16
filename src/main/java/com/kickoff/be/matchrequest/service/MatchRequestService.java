@@ -45,6 +45,7 @@ public class MatchRequestService {
     private final ApplicationEventPublisher eventPublisher;
     private final ChatOutboxRecorder chatOutboxRecorder;
     private final MatchContactProperties matchContactProperties;
+    private final com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
 
     @Transactional
     public RequestResponse create(Long postId, User user, RequestCreateRequest request) {
@@ -59,6 +60,12 @@ public class MatchRequestService {
         // 지난 경기는 status 가 OPEN 이어도 신청을 받지 않는다 (계약서 §5 지난 경기 규칙).
         if (!post.acceptsRequests()) {
             throw new BusinessException(ErrorCode.POST_NOT_OPEN);
+        }
+        // 차단 관계면 어느 방향이든 신청할 수 없다 (계약서 §7-2). 문구는 차단 사실을
+        // 드러내지 않는다 — "지금은 이 팀에 신청할 수 없습니다".
+        if (blockRepository.existsBetween(user.getId(), myTeam.getId(),
+                post.getTeam().getOwner().getId(), post.getTeam().getId())) {
+            throw new BusinessException(ErrorCode.REQUEST_NOT_ALLOWED);
         }
         // 취소·거절 이력은 재신청을 막지 않는다 (계약서 §6).
         if (requestRepository.existsByPostIdAndApplicantTeamIdAndStatusIn(
@@ -223,8 +230,17 @@ public class MatchRequestService {
      * 믿어야 할지 알 수 없다.
      */
     private boolean contactVisible(MatchRequest request) {
-        return matchContactProperties.isVisibleAt(request.getPost().getMatchAt(),
-                OffsetDateTime.now());
+        if (!matchContactProperties.isVisibleAt(request.getPost().getMatchAt(),
+                OffsetDateTime.now())) {
+            return false;
+        }
+        // 차단 관계면 서로의 연락처·계좌가 null 이다 (계약서 §7-2). 표시 기간과 같은
+        // 자리에서 판정한다 — 둘을 나누면 같은 질문에 답하는 곳이 두 군데가 된다.
+        Team postTeam = request.getPost().getTeam();
+        Team applicantTeam = request.getApplicantTeam();
+        return !blockRepository.existsBetween(
+                postTeam.getOwner().getId(), postTeam.getId(),
+                applicantTeam.getOwner().getId(), applicantTeam.getId());
     }
 
     /**

@@ -64,6 +64,7 @@ public class PostService {
     private final ChatOutboxRecorder chatOutboxRecorder;
     private final MatchContactProperties matchContactProperties;
     private final com.kickoff.be.report.service.HiddenForViewer hiddenForViewer;
+    private final com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
 
     /**
      * 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5).
@@ -87,7 +88,8 @@ public class PostService {
                 DateFilter.parse(dates), TimeSlotFilter.parseToStoredHours(times),
                 // 신고한 사람 화면에서는 그 글이 바로 빠진다 (계약서 §7-2). 신고까지 한
                 // 글이 계속 눈앞에 있으면 신고가 아무 일도 하지 않은 것처럼 보인다.
-                hiddenForViewer.postIdsFor(viewer), pageable);
+                hiddenForViewer.postIdsFor(viewer),
+                hiddenForViewer.blockedTeamIdsFor(viewer), pageable);
         return toSummaryPage(posts);
     }
 
@@ -459,6 +461,30 @@ public class PostService {
                 ModerationResponse.messageFor(post.getModeration().getStatus(), false));
     }
 
+    /**
+     * 두 팀 사이에 차단이 있는지 (계약서 §7-2 — <b>감독의 차단만</b>).
+     *
+     * 보는 사람이 감독이 아니면 두 팀 사이의 효과는 없다. 팀원이 상대 팀을 차단했다고
+     * 감독끼리 잡은 경기의 연락처가 사라지면 안 된다.
+     */
+    private boolean blockedBetween(Team postTeam, Long viewerTeamId, Long viewerId) {
+        if (viewerTeamId == null) {
+            return false;
+        }
+        return blockRepository.existsBetween(viewerId, viewerTeamId,
+                postTeam.getOwner().getId(), postTeam.getId());
+    }
+
+    /**
+     * 차단 관계일 때도 <b>작성자 본인의 계좌는 그대로</b> 보인다 — 자기가 등록한 값을
+     * 확인·수정하는 길이고, 차단은 상대와의 사이를 끊는 것이지 자기 글을 못 보게 하는
+     * 것이 아니다.
+     */
+    private PaymentInfo paymentForAuthorOnly(MatchPost post, MatchRequest accepted,
+                                             Long viewerId) {
+        return post.isWrittenBy(viewerId) ? paymentFor(post, accepted, viewerId, null) : null;
+    }
+
     private void requireAuthor(MatchPost post, User user) {
         if (!post.isWrittenBy(user.getId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
@@ -474,7 +500,7 @@ public class PostService {
         RecordSummary teamRecordSummary = teamRecordRepository.summaryOf(post.getTeam().getId());
         if (viewer == null) {
             return PostDetail.of(post, requestCount, null, null, null, null, teamReviewStats,
-                    null, teamRecordSummary);
+                    null, teamRecordSummary, false);
         }
 
         Long viewerId = viewer.getId();
@@ -487,10 +513,16 @@ public class PostService {
                         .orElse(null);
 
         MatchRequest accepted = requestRepository.findAcceptedByPostId(post.getId()).orElse(null);
+        // 차단 관계면 서로의 연락처·계좌가 null 이다 (계약서 §7-2) — 매칭은 그대로 두고
+        // 조율 수단만 끊는다. 이미 지난 경기의 리뷰 작성 같은 것은 영향을 받지 않는다.
+        boolean blocked = blockedBetween(post.getTeam(), viewerTeamId, viewerId);
         return PostDetail.of(post, requestCount, viewerId, myRequestStatus,
-                contactFor(post, accepted, viewerId, viewerTeamId),
-                paymentFor(post, accepted, viewerId, viewerTeamId), teamReviewStats,
-                teamAuthz.roleOf(post.getTeam(), viewerId), teamRecordSummary);
+                blocked ? null : contactFor(post, accepted, viewerId, viewerTeamId),
+                blocked ? paymentForAuthorOnly(post, accepted, viewerId)
+                        : paymentFor(post, accepted, viewerId, viewerTeamId),
+                teamReviewStats,
+                teamAuthz.roleOf(post.getTeam(), viewerId), teamRecordSummary,
+                hiddenForViewer.blockedTeamIdsFor(viewer).contains(post.getTeam().getId()));
     }
 
     /**

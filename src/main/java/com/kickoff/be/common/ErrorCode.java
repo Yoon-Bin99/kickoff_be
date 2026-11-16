@@ -144,6 +144,23 @@ public enum ErrorCode {
     VERIFICATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요."),
     SMS_SEND_FAILED(HttpStatus.BAD_GATEWAY, "인증번호 발송에 실패했습니다."),
 
+    // ── 차단 (계약서 §7-2, v1.35.0)
+
+    /**
+     * 차단하려는 팀과 예정된 매칭이 있다. {@code cancelUpcomingMatch: true} 로 다시
+     * 보내야 한다 — 조율 수단만 끊고 경기를 남기면 양 팀이 구장에서 만난다.
+     */
+    BLOCK_HAS_UPCOMING_MATCH(HttpStatus.CONFLICT,
+            "예정된 매칭이 있습니다. 취소와 함께 차단할 수 있습니다."),
+
+    /**
+     * 차단 관계라 신청할 수 없다.
+     *
+     * <b>문구가 차단 사실을 드러내지 않는다</b> (계약서 §7-2) — 상대에게 차단을 알리지
+     * 않는 것이 이 기능의 전제다. "차단당했습니다"라고 답하면 그 전제가 무너진다.
+     */
+    REQUEST_NOT_ALLOWED(HttpStatus.CONFLICT, "지금은 이 팀에 신청할 수 없습니다."),
+
     // ── 신고 (계약서 §7-2, v1.35.0)
 
     REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 신고한 내용입니다."),
