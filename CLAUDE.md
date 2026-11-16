@@ -72,12 +72,15 @@ com.kickoff.be
 ├── place           카카오 장소 검색 프록시 (§5-1)
 ├── legal           약관·개인정보처리방침 정적 서빙
 ├── consent         동의 기록·판정 (§3) — 항목별 기록, pendingConsents, 동의 게이트
+├── report          신고 (§7-2) — 접수·자동 임시 가림, 운영자 신고함·조치·통지
+├── block           차단 (§7-2) — 팀 단위, 화면 효과와 두 팀 사이 효과
+├── operator        운영자 인증 (§7-2) — TOTP 세션, X-Operator-Token, 접속기록
 ├── push            Expo 푸시 (§8)          — client / dto / service
 ├── sms             문자 발송 어댑터          — client
 └── email           메일 발송 어댑터          — client
 ```
 
-도메인이 열아홉이라 전부 펼치지 않았다. **레이어별 하위 패키지 원칙은 모든 도메인에
+도메인이 스물둘이라 전부 펼치지 않았다. **레이어별 하위 패키지 원칙은 모든 도메인에
 똑같이 적용**된다 — 위에서 `/ ...` 로 줄인 자리도 `entity / repository / service /
 controller / dto` 구성이다. 외부 호출을 감싸는 도메인(push·sms·email·place·oauth·support)은
 `client` 하위 패키지에 어댑터를 둔다.

@@ -79,7 +79,11 @@ public class OperatorSessionService {
         failures.remove(operator.getId());
 
         String token = newToken();
-        OffsetDateTime expiresAt = OffsetDateTime.now().plus(SESSION_TTL);
+        // 밀리초까지만 내보낸다. 윈도우는 100ns 정밀도라 소수점이 7자리로 나가고,
+        // 엄격한 파서를 쓰는 클라이언트가 걸린다 (ErrorResponse 와 같은 이유).
+        OffsetDateTime expiresAt = OffsetDateTime.now()
+                .plus(SESSION_TTL)
+                .truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
         sessions.put(token, new Session(operator.getId(), expiresAt));
         sweepExpired();
         return new OperatorSessionResponse(token, expiresAt);

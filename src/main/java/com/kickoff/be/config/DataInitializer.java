@@ -5,6 +5,10 @@ import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.repository.MatchPostRepository;
+import com.kickoff.be.block.entity.TeamBlock;
+import com.kickoff.be.report.entity.Report;
+import com.kickoff.be.report.entity.ReportReason;
+import com.kickoff.be.report.entity.ReportTargetType;
 import com.kickoff.be.review.entity.Review;
 import com.kickoff.be.review.repository.ReviewRepository;
 import com.kickoff.be.team.entity.AgeGroup;
@@ -102,6 +106,8 @@ public class DataInitializer implements ApplicationRunner {
     private final TeamRecordRepository teamRecordRepository;
     private final TeamJoinRequestRepository joinRequestRepository;
     private final SocialAccountRepository socialAccountRepository;
+    private final com.kickoff.be.report.repository.ReportRepository reportRepository;
+    private final com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
     private final PasswordEncoder passwordEncoder;
 
     /** 입금받을 계좌. depositAmount 를 넣는 글에만 붙는다. */
@@ -409,12 +415,69 @@ public class DataInitializer implements ApplicationRunner {
         long withCoordinates = posts.stream().filter(MatchPost::hasCoordinates).count();
         seedTeamPage(saebyeok, goyang, goyang.getOwner());
         seedMembership(saebyeok, incheon.getOwner(), seongnam.getOwner());
+        seedModeration(saebyeok, mapo, songpa, goyang);
 
-        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건(매칭연동 {}건), 관리자 {}명, 가입신청 {}건",
+        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건(매칭연동 {}건), 관리자 {}명, 가입신청 {}건, 신고 {}건, 차단 {}건",
                 teamCount, postCount, openCount, withCoordinates, requestCount,
                 reviewRepository.count(), teamMemberRepository.count(),
                 teamRecordRepository.count(), matchLinkedRecordCount(),
-                teamAdminRepository.count(), joinRequestRepository.count());
+                teamAdminRepository.count(), joinRequestRepository.count(),
+                reportRepository.count(), blockRepository.count());
+    }
+
+    /**
+     * 신고·가림·차단을 화면으로 밟을 수 있게 하나씩 둔다 (계약서 §7-2, v1.35.0).
+     *
+     * <b>운영자 화면과 사용자 화면을 함께 본다.</b> 신고함에 처리 전 건이 없으면 운영자
+     * 목록이 빈 화면이고, 가려진 리뷰가 없으면 자리 표시를 그려볼 수 없다. 차단은 한 쌍만
+     * 둔다 — 두 팀 사이 효과(신청 409·연락처 null)를 밟는 데 한 쌍이면 충분하다.
+     *
+     * @param saebyeok 신고자 쪽(김주장) — 마포 글을 신고하고 고양을 차단해 둔다
+     * @param mapo     신고된 글의 작성 팀
+     * @param songpa   가려진 리뷰를 쓴 팀
+     * @param goyang   차단당한 팀
+     */
+    private void seedModeration(Team saebyeok, Team mapo, Team songpa, Team goyang) {
+        // 1) 처리 전 신고 두 건 — 운영자 신고함에 목록이 보인다.
+        //    서로 다른 신고자가 하나씩이라 자동 가림(3명)에는 못 미친다.
+        postRepository.findByTeamId(mapo.getId(),
+                        org.springframework.data.domain.PageRequest.of(0, 1))
+                .getContent().stream().findFirst()
+                .ifPresent(target -> reportRepository.save(Report.builder()
+                        .reporterUserId(saebyeok.getOwner().getId())
+                        .reporterTeamId(saebyeok.getId())
+                        .reportedUserId(mapo.getOwner().getId())
+                        .targetType(ReportTargetType.POST)
+                        .targetId(target.getId())
+                        .reason(ReportReason.SPAM)
+                        .detail("광고 글로 보입니다.")
+                        .targetTitle(target.getTitle())
+                        .targetBody(target.getContent())
+                        .build()));
+        reportRepository.save(Report.builder()
+                .reporterUserId(saebyeok.getOwner().getId())
+                .reporterTeamId(saebyeok.getId())
+                .reportedUserId(goyang.getOwner().getId())
+                .targetType(ReportTargetType.TEAM)
+                .targetId(goyang.getId())
+                .reason(ReportReason.NO_SHOW)
+                .detail("약속한 경기에 나오지 않았습니다.")
+                .targetTitle(goyang.getName())
+                .targetBody(goyang.getIntroduction())
+                .build());
+
+        // 2) 임시로 가려진 리뷰 한 건 — 목록에서 자리 표시로 보이고 평점에서는 빠진다.
+        reviewRepository.findAll().stream()
+                .filter(review -> review.getReviewerTeam().getId().equals(songpa.getId()))
+                .findFirst()
+                .ifPresent(review -> review.hide(OffsetDateTime.now()));
+
+        // 3) 차단 한 쌍 — 김주장이 고양 킥커스를 차단해 둔다. 그 계정으로 로그인하면
+        //    고양의 글·리뷰가 목록에서 빠지고 팀 페이지에 blockedByMe 가 선다.
+        blockRepository.save(TeamBlock.builder()
+                .blocker(saebyeok.getOwner())
+                .blockedTeam(goyang)
+                .build());
     }
 
     /**
