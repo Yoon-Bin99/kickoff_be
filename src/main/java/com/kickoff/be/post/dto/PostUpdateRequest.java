@@ -81,12 +81,16 @@ public record PostUpdateRequest(
         Patchable<String> accountHolder,
 
         /**
-         * 지도 좌표 (계약서 §5-1). 쌍으로만 바뀐다 — 한쪽만 보내면 400 이고, 지우려면 둘 다
-         * null 이다. 범위 검증은 어노테이션이 아니라 PostService 가 한다.
+         * 장소 연결 (계약서 §5-1, v1.37.0). 쌍으로만 바뀐다 — 한쪽만 보내면 400 이고,
+         * 연결을 끊으려면 둘 다 null 을 보낸다. 둘 다 안 보내면 기존 값이 그대로 남는다.
+         *
+         * <b>판정은 요청 본문 기준이다</b> — 병합 결과로 보면 "ID 만 지우는" 요청이 기존
+         * 검색어와 짝이 맞는 것처럼 보여 통과한다. 형식 검증도 PostService 가 한다
+         * (Patchable 안의 값은 어노테이션이 닿지 않는다).
          */
-        Patchable<Double> latitude,
+        Patchable<String> kakaoPlaceId,
 
-        Patchable<Double> longitude,
+        Patchable<String> placeQuery,
 
         /**
          * 계좌 공개 확인 (계약서 §5, v1.34.0).

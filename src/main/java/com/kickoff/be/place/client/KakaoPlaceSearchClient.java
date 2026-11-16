@@ -61,38 +61,31 @@ public class KakaoPlaceSearchClient implements PlaceSearchClient {
         return documents.stream()
                 .filter(Map.class::isInstance)
                 .map(doc -> toPlace((Map<String, Object>) doc))
+                // ID 가 없는 줄은 뺀다 (계약서 §5-1, v1.37.0). 고르면 저장할 값이 없어
+                // 지도를 그릴 수 없는 줄이다 — 보여 주면 고를 수 있게 되는 것이 문제다.
+                .filter(place -> place.id() != null)
                 .toList();
     }
 
     /**
      * 카카오 문서 한 건을 계약서 형태로 옮긴다.
      *
-     * <b>x 가 경도, y 가 위도다.</b> 이름만 보면 x=위도로 읽기 쉬운데 반대다. 뒤집혀도 타입과
-     * 형식은 멀쩡해서 지도에 찍어보기 전에는 드러나지 않는다 — 그래서 이 메서드를 따로 떼어
-     * 실제 카카오 응답으로 단위 테스트를 건다.
+     * <b>좌표(x·y)는 읽지 않는다</b> (계약서 §5-1, v1.37.1). 내려 주지 않기로 한 값이라
+     * 꺼낼 이유가 없고, 꺼내 두면 언젠가 어딘가에 저장된다.
      *
      * road_address_name 은 없을 때 null 이 아니라 빈 문자열로 온다. 실제 응답 첫 건부터
      * 그렇게 왔다.
      */
     static Place toPlace(Map<String, Object> document) {
         return new Place(
+                blankToNull((String) document.get("id")),
                 (String) document.get("place_name"),
                 (String) document.get("address_name"),
-                blankToNull((String) document.get("road_address_name")),
-                parseCoordinate(document.get("y")),
-                parseCoordinate(document.get("x")));
+                blankToNull((String) document.get("road_address_name")));
     }
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
     }
 
-    /** 카카오는 좌표를 숫자가 아니라 문자열로 준다. */
-    private static double parseCoordinate(Object value) {
-        try {
-            return Double.parseDouble(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.PLACE_SEARCH_FAILED);
-        }
-    }
 }

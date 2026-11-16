@@ -22,8 +22,6 @@ public record PostSummary(
         SkillLevel preferredSkillLevel,
         Integer rentalFee,
         Integer depositAmount,
-        Double latitude,
-        Double longitude,
         PostStatus status,
         /**
          * 운영 조치 (계약서 §7-2, v1.35.0). 조치가 없으면 null.
@@ -49,8 +47,6 @@ public record PostSummary(
                 post.getPreferredSkillLevel(),
                 post.getRentalFee(),
                 post.getDepositAmount(),
-                post.getLatitude(),
-                post.getLongitude(),
                 post.getStatus(),
                 ModerationResponse.of(post.getModeration()),
                 requestCount,

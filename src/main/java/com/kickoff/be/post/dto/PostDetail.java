@@ -30,8 +30,18 @@ public record PostDetail(
         SkillLevel preferredSkillLevel,
         Integer rentalFee,
         Integer depositAmount,
-        Double latitude,
-        Double longitude,
+
+        /**
+         * 사용자가 고른 장소의 카카오 장소 ID (계약서 §5-1, v1.37.0). 없으면 null.
+         *
+         * <b>목록({@code PostSummary})에는 싣지 않는다</b> — 목록은 지도를 그리지 않는다.
+         * 지도는 보는 사람의 기기가 이 값과 {@code placeQuery} 로 다시 조회해 그린다.
+         */
+        String kakaoPlaceId,
+
+        /** 그 장소를 찾을 때 사용자가 친 검색어 (계약서 §5-1). */
+        String placeQuery,
+
         PostStatus status,
         /**
          * 운영 조치 (계약서 §7-2, v1.35.0). 조치가 없으면 null.
@@ -66,8 +76,8 @@ public record PostDetail(
                 post.getPreferredSkillLevel(),
                 post.getRentalFee(),
                 post.getDepositAmount(),
-                post.getLatitude(),
-                post.getLongitude(),
+                post.getKakaoPlaceId(),
+                post.getPlaceQuery(),
                 post.getStatus(),
                 ModerationResponse.of(post.getModeration()),
                 post.getViewCount(),

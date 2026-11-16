@@ -1,10 +1,9 @@
 package com.kickoff.be.post.dto;
 
 import com.kickoff.be.team.entity.SkillLevel;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -68,16 +67,19 @@ public record PostCreateRequest(
         String accountHolder,
 
         /**
-         * 지도 좌표 (계약서 §5-1). 좌표 없이도 글은 등록된다 — 장소를 직접 입력한 경우다.
-         * 다만 넣는다면 <b>반드시 쌍으로</b>. 하나만 오면 400 이다 (PostService 에서 검증).
+         * 사용자가 고른 장소의 카카오 장소 ID (계약서 §5-1, v1.37.0).
+         *
+         * 없이도 글은 등록된다 — 장소를 직접 입력한 경우다. 다만 넣는다면
+         * <b>{@code placeQuery} 와 쌍으로</b>. 하나만 오면 400 이다 (PostService 에서 검증).
+         *
+         * 서버는 이 값을 카카오에 확인하지 않는다 — ID 로 조회하는 API 가 없다. 형식만 본다.
          */
-        @DecimalMin(value = "-90.0", message = "위도는 -90 이상이어야 합니다.")
-        @DecimalMax(value = "90.0", message = "위도는 90 이하여야 합니다.")
-        Double latitude,
+        @Pattern(regexp = "[0-9]{1,20}", message = "장소 ID 는 숫자 1~20자여야 합니다.")
+        String kakaoPlaceId,
 
-        @DecimalMin(value = "-180.0", message = "경도는 -180 이상이어야 합니다.")
-        @DecimalMax(value = "180.0", message = "경도는 180 이하여야 합니다.")
-        Double longitude,
+        /** 그 장소를 찾을 때 사용자가 친 검색어 (계약서 §5-1). 사용자의 글자다. */
+        @Size(min = 1, max = 100, message = "검색어는 1~100자여야 합니다.")
+        String placeQuery,
 
         /**
          * 계좌 공개 확인 (계약서 §5, v1.34.0).

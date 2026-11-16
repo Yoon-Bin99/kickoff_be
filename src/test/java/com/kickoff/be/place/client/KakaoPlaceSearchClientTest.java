@@ -28,7 +28,8 @@ class KakaoPlaceSearchClientTest {
 
     private static final String SEARCH_URL = "https://dapi.kakao.com/v2/local/search/keyword.json";
     private static final String BODY = """
-            {"documents":[{"place_name":"강서구민운동장","address_name":"서울 강서구 화곡동 980-16",
+            {"documents":[{"id":"8245930","place_name":"강서구민운동장",
+            "address_name":"서울 강서구 화곡동 980-16",
             "road_address_name":"서울 강서구 남부순환로 172","x":"126.8351","y":"37.5586"}]}""";
 
     @Test
@@ -44,9 +45,10 @@ class KakaoPlaceSearchClientTest {
 
         List<Place> places = client(builder).search("강서구민운동장", 5);
 
+        // 좌표는 응답에 싣지 않는다 (계약서 §5-1, v1.37.1) — 카카오가 줘도 버린다.
         assertThat(places).singleElement()
-                .extracting(Place::name, Place::latitude, Place::longitude)
-                .containsExactly("강서구민운동장", 37.5586, 126.8351);
+                .extracting(Place::id, Place::name)
+                .containsExactly("8245930", "강서구민운동장");
         server.verify();
     }
 

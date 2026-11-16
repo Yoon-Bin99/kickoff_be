@@ -120,7 +120,7 @@ public class PostService {
         profanityFilter.check("content", request.content());
         requirePaymentShareConfirmed(request.paymentShareConfirmed(), request.bankName(),
                 request.accountNumber(), request.accountHolder());
-        requireCoordinatePair(request.latitude(), request.longitude());
+        requirePlacePair(request.kakaoPlaceId(), request.placeQuery());
         MatchPost post = postRepository.save(MatchPost.builder()
                 .team(team)
                 .title(request.title())
@@ -135,8 +135,8 @@ public class PostService {
                 .bankName(request.bankName())
                 .accountNumber(request.accountNumber())
                 .accountHolder(request.accountHolder())
-                .latitude(request.latitude())
-                .longitude(request.longitude())
+                .kakaoPlaceId(request.kakaoPlaceId())
+                .placeQuery(trimmed(request.placeQuery()))
                 .build());
         if (hasAnyAccountValue(request.bankName(), request.accountNumber(),
                 request.accountHolder())) {
@@ -173,7 +173,7 @@ public class PostService {
                 Patchable.valueOf(request.bankName()),
                 Patchable.valueOf(request.accountNumber()),
                 Patchable.valueOf(request.accountHolder()));
-        applyCoordinatePatch(post, request.latitude(), request.longitude());
+        applyPlacePatch(post, request.kakaoPlaceId(), request.placeQuery());
         applyClearableFields(post, request);
         OffsetDateTime matchAtBefore = post.getMatchAt();
         post.update(Patchable.valueOf(request.title()), Patchable.valueOf(request.content()),
@@ -352,61 +352,77 @@ public class PostService {
      * 그 밖의 조합(한쪽만 보냄, 한쪽만 null)은 전부 400 이다. 반쪽만 반영하면 이전 값과
      * 짝지어져 <b>조용히 틀린 지점</b>이 만들어진다.
      */
-    private void applyCoordinatePatch(MatchPost post, Patchable<Double> latitude,
-                                      Patchable<Double> longitude) {
-        boolean latitudeSent = Patchable.isPresent(latitude);
-        boolean longitudeSent = Patchable.isPresent(longitude);
-        if (!latitudeSent && !longitudeSent) {
+    /**
+     * 장소 연결은 <b>요청 본문 기준</b>으로 본다 (계약서 §5-1, v1.37.0).
+     *
+     * 둘 다 안 보내면 기존 값이 그대로 남고, 지우려면 둘 다 null 을 보낸다. 병합 결과로
+     * 판정하면 "ID 만 지우는" 요청이 기존 검색어와 짝이 맞는 것처럼 보여 통과한다 —
+     * 그러면 기기가 찾을 수 없는 반쪽 연결이 남는다.
+     */
+    private void applyPlacePatch(MatchPost post, Patchable<String> kakaoPlaceId,
+                                 Patchable<String> placeQuery) {
+        boolean idSent = Patchable.isPresent(kakaoPlaceId);
+        boolean querySent = Patchable.isPresent(placeQuery);
+        if (!idSent && !querySent) {
             return;
         }
-        if (latitudeSent != longitudeSent) {
-            throw coordinatePairViolation(latitudeSent ? "longitude" : "latitude");
+        if (idSent != querySent) {
+            throw placePairViolation(idSent ? "placeQuery" : "kakaoPlaceId");
         }
-        Double latitudeValue = Patchable.valueOf(latitude);
-        Double longitudeValue = Patchable.valueOf(longitude);
-        if ((latitudeValue == null) != (longitudeValue == null)) {
-            throw coordinatePairViolation(latitudeValue == null ? "latitude" : "longitude");
+        String id = Patchable.valueOf(kakaoPlaceId);
+        String query = trimmed(Patchable.valueOf(placeQuery));
+        if ((id == null) != (query == null)) {
+            throw placePairViolation(id == null ? "kakaoPlaceId" : "placeQuery");
         }
-        if (latitudeValue != null) {
-            requireCoordinateRange(latitudeValue, longitudeValue);
+        if (id != null) {
+            // PATCH 는 어노테이션 검증을 못 탄다 (Patchable 안의 값이라서).
+            requirePlaceFormat(id, query);
         }
-        post.updateCoordinates(latitudeValue, longitudeValue);
-    }
-
-    /** PATCH 는 어노테이션 검증을 못 타므로 범위를 여기서 본다 (계약서 §5-1). */
-    private void requireCoordinateRange(double latitude, double longitude) {
-        if (latitude < -90 || latitude > 90) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
-                    new ErrorResponse.FieldError("latitude", "위도는 -90~90 이어야 합니다.")));
-        }
-        if (longitude < -180 || longitude > 180) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
-                    new ErrorResponse.FieldError("longitude", "경도는 -180~180 이어야 합니다.")));
-        }
-    }
-
-    private BusinessException coordinatePairViolation(String field) {
-        return new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
-                new ErrorResponse.FieldError(field, "위도와 경도는 함께 보내야 합니다.")));
+        post.updatePlaceLink(id, query);
     }
 
     /**
-     * POST 의 좌표는 쌍으로만 받는다 (계약서 §5-1). 하나만 오면 400 이다.
+     * POST 의 장소 연결도 쌍으로만 받는다 (계약서 §5-1). 하나만 오면 400 이다.
      *
-     * 계좌 검증(requireAccountWhenDepositSet)과 달리 <b>병합된 결과가 아니라 요청 본문</b>을
-     * 본다. 계좌는 클라이언트가 값을 되읽을 수 없어서 금액만 보내는 PATCH 를 허용해야 하지만,
-     * 좌표는 응답에 그대로 실려 나가므로 고칠 때 둘 다 보낼 수 있다. 그리고 위도만 바꾸면
-     * 이전 경도와 짝지어져 <b>엉뚱한 지점</b>을 가리키게 되는데, 그건 조용히 틀리는 종류의
-     * 사고라 요청 단계에서 막는 편이 낫다. 계약서가 PATCH 를 따로 규정하지 않아 이렇게 정했다.
+     * ID 만 있으면 기기가 그 장소를 찾을 검색어가 없고, 검색어만 있으면 결과의 어느 줄이
+     * 그 장소인지 가릴 수 없다 — 둘 중 하나로는 지도를 그릴 수 없다.
      */
-    private void requireCoordinatePair(Double latitude, Double longitude) {
-        if ((latitude == null) == (longitude == null)) {
+    private void requirePlacePair(String kakaoPlaceId, String placeQuery) {
+        String query = trimmed(placeQuery);
+        if ((kakaoPlaceId == null) == (query == null)) {
+            if (kakaoPlaceId != null) {
+                requirePlaceFormat(kakaoPlaceId, query);
+            }
             return;
         }
-        String missing = latitude == null ? "latitude" : "longitude";
-        throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-                List.of(new ErrorResponse.FieldError(missing,
-                        "위도와 경도는 함께 보내야 합니다.")));
+        throw placePairViolation(kakaoPlaceId == null ? "kakaoPlaceId" : "placeQuery");
+    }
+
+    private void requirePlaceFormat(String kakaoPlaceId, String placeQuery) {
+        if (!kakaoPlaceId.matches("[0-9]{1,20}")) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                    new ErrorResponse.FieldError("kakaoPlaceId",
+                            "장소 ID 는 숫자 1~20자여야 합니다.")));
+        }
+        if (placeQuery == null || placeQuery.isEmpty() || placeQuery.length() > 100) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                    new ErrorResponse.FieldError("placeQuery", "검색어는 1~100자여야 합니다.")));
+        }
+    }
+
+    private BusinessException placePairViolation(String field) {
+        return new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                new ErrorResponse.FieldError(field,
+                        "장소 ID 와 검색어는 함께 보내야 합니다.")));
+    }
+
+    /** 검색어는 앞뒤 공백을 떼고 저장한다 (계약서 §5-1). 빈 문자열은 없는 것으로 본다. */
+    private String trimmed(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /** depositAmount 를 받으려면 보낼 곳이 있어야 한다 (계약서 §5). */

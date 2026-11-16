@@ -23,8 +23,8 @@ import org.springframework.test.web.servlet.ResultActions;
  */
 class PlaceSearchTest extends IntegrationTestSupport {
 
-    private static final Place GANGSEO = new Place("강서구민운동장", "서울 강서구 화곡동 980-16",
-            "서울 강서구 남부순환로 172", 37.5586, 126.8351);
+    private static final Place GANGSEO = new Place("8245930", "강서구민운동장",
+            "서울 강서구 화곡동 980-16", "서울 강서구 남부순환로 172");
 
     private User user;
 
@@ -44,8 +44,11 @@ class PlaceSearchTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.places[0].name").value("강서구민운동장"))
                 .andExpect(jsonPath("$.places[0].address").value("서울 강서구 화곡동 980-16"))
                 .andExpect(jsonPath("$.places[0].roadAddress").value("서울 강서구 남부순환로 172"))
-                .andExpect(jsonPath("$.places[0].latitude").value(37.5586))
-                .andExpect(jsonPath("$.places[0].longitude").value(126.8351));
+                .andExpect(jsonPath("$.places[0].id").value("8245930"))
+                // 좌표는 내려보내지 않는다 (계약서 §5-1, v1.37.1) — 고르는 화면은
+                // 이름·주소만 보이고, 미리보기 지도는 기기가 장소 ID 로 다시 그린다.
+                .andExpect(jsonPath("$.places[0].latitude").doesNotExist())
+                .andExpect(jsonPath("$.places[0].longitude").doesNotExist());
     }
 
     @Test
@@ -61,8 +64,8 @@ class PlaceSearchTest extends IntegrationTestSupport {
     @Test
     @DisplayName("도로명 주소는 null 일 수 있다")
     void roadAddressIsNullable() throws Exception {
-        placeSearchClient.willReturn(new Place("화명생태공원 중앙광장", "부산 북구 화명동 1718-25",
-                null, 35.22794721853528, 129.00424202369086));
+        placeSearchClient.willReturn(new Place("26338954", "화명생태공원 중앙광장",
+                "부산 북구 화명동 1718-25", null));
 
         search("화명생태공원", null)
                 .andExpect(status().isOk())

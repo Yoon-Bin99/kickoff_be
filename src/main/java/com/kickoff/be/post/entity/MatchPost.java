@@ -63,8 +63,8 @@ public class MatchPost extends BaseTimeEntity {
      * <b>길이만 본다</b> — 사용자가 고친 값을 그대로 저장한다. 실제 주소와 맞는지 검증하지
      * 않는 이유는 그럴 방법이 없어서다(같은 장소가 지도마다 다른 이름·주소로 나온다).
      *
-     * 좌표(latitude·longitude)와 따로 둔다. 장소 검색에서 고르면 셋이 함께 오지만, 직접
-     * 입력한 글은 장소명만 있고 나머지가 없다 — 묶으면 그 상태를 표현할 수 없다.
+     * <b>v1.37.0 부터 검색 결과로 채우지 않는다</b> — 카카오 응답을 저장할 수 없어서다.
+     * 사용자가 손으로 적은 글자만 들어온다.
      */
     @Column(name = "location_address", length = 100)
     private String locationAddress;
@@ -106,13 +106,21 @@ public class MatchPost extends BaseTimeEntity {
     private String accountHolder;
 
     /**
-     * 지도에 찍을 좌표 (계약서 §5-1). 둘 다 nullable 이고 <b>언제나 쌍으로만</b> 존재한다 —
-     * 한쪽만 있으면 엉뚱한 지점을 가리키게 되므로 서비스에서 쌍 검증을 한다.
-     * 장소를 직접 입력한 글은 좌표가 없고, FE 는 그때 지도 영역 자체를 숨긴다.
+     * 사용자가 검색 결과에서 고른 장소의 카카오 장소 ID (계약서 §5-1, v1.37.0).
+     *
+     * <b>좌표 대신 이것을 저장한다.</b> 카카오 로컬 검색의 응답(이름·주소·좌표)은 저장할
+     * 수 없고, 장소 ID 와 사용자가 직접 친 글자만 저장할 수 있다(카카오 운영자 답변).
+     * 지도는 보는 사람의 기기가 이 둘로 다시 조회해 그린다.
+     *
+     * {@code placeQuery} 와 <b>언제나 쌍으로만</b> 존재한다 — ID 만 있으면 기기가 그
+     * 장소를 찾을 검색어가 없고, 검색어만 있으면 어느 줄이 그 장소인지 가릴 수 없다.
      */
-    private Double latitude;
+    @Column(name = "kakao_place_id", length = 20)
+    private String kakaoPlaceId;
 
-    private Double longitude;
+    /** 그 장소를 찾을 때 사용자가 친 검색어 (계약서 §5-1). 사용자의 글자다. */
+    @Column(name = "place_query", length = 100)
+    private String placeQuery;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -144,7 +152,7 @@ public class MatchPost extends BaseTimeEntity {
                       String locationAddress, String region, SkillLevel preferredSkillLevel,
                       Integer rentalFee, Integer depositAmount, String bankName,
                       String accountNumber, String accountHolder,
-                      Double latitude, Double longitude) {
+                      String kakaoPlaceId, String placeQuery) {
         this.team = team;
         this.title = title;
         this.content = content;
@@ -158,8 +166,8 @@ public class MatchPost extends BaseTimeEntity {
         this.bankName = bankName;
         this.accountNumber = accountNumber;
         this.accountHolder = accountHolder;
-        this.latitude = latitude;
-        this.longitude = longitude;
+        this.kakaoPlaceId = kakaoPlaceId;
+        this.placeQuery = placeQuery;
         this.status = PostStatus.OPEN;
         this.viewCount = 0;
     }
@@ -281,17 +289,18 @@ public class MatchPost extends BaseTimeEntity {
     }
 
     /**
-     * 좌표는 update 에 섞지 않고 따로 받는다. 다른 필드는 "null 이면 안 건드림"이지만 좌표는
-     * <b>null 이 지우기</b>라서, 같은 메서드에 두면 규칙이 둘로 갈려 헷갈린다.
-     * 요청에 좌표가 실제로 담겨 왔을 때만 호출된다 (계약서 §5-1).
+     * 장소 연결은 update 에 섞지 않고 따로 받는다. 다른 필드는 "null 이면 안 건드림"이지만
+     * 이 둘은 <b>null 이 지우기</b>(연결 끊기)라서, 같은 메서드에 두면 규칙이 둘로 갈린다.
+     * 요청에 둘 중 하나라도 담겨 왔을 때만 호출된다 (계약서 §5-1).
      */
-    public void updateCoordinates(Double latitude, Double longitude) {
-        this.latitude = latitude;
-        this.longitude = longitude;
+    public void updatePlaceLink(String kakaoPlaceId, String placeQuery) {
+        this.kakaoPlaceId = kakaoPlaceId;
+        this.placeQuery = placeQuery;
     }
 
-    public boolean hasCoordinates() {
-        return latitude != null && longitude != null;
+    /** 지도를 그릴 수 있는 글인지 — 둘이 함께 있어야 기기가 그 장소를 찾을 수 있다. */
+    public boolean hasPlaceLink() {
+        return kakaoPlaceId != null && placeQuery != null;
     }
 
     /** 입금 안내를 만들 수 있는 상태인지 — 계좌가 다 채워져 있어야 한다. */

@@ -60,40 +60,27 @@ public class DataInitializer implements ApplicationRunner {
     private static final String RAW_PASSWORD = "pass1234";
 
     /**
-     * 지도에 찍히는 구장 (계약서 §5·§5-1).
+     * 글에 붙는 장소 설명 (계약서 §5·§5-1).
      *
-     * <b>주소와 좌표를 한 상수에 묶는다.</b> 전에는 좌표만 배열로 들고 있었는데,
-     * v1.29.0 에서 주소까지 생기면서 둘을 따로 두면 갈라진다 — 그리고 <b>갈라진 적이
-     * 있다</b>. "강서구민운동장"은 카카오에 없는 이름이라(검색하면 부산 화명동이 유사
-     * 매칭으로 나온다) 계약서 §5-1 예시 좌표를 그대로 썼는데, 그 값이 가리키는 지점에는
-     * 아무 구장도 없었다. 사용자가 "카카오맵 위치가 다르게 나온다"고 한 것이 이것이다.
-     * 묶어 두면 "주소는 여기, 마커는 저기"가 될 수 없다.
+     * <b>v1.37.0 에서 좌표가 폐지되면서 성격이 바뀌었다.</b> 전에는 카카오 로컬 검색으로
+     * 조회한 주소와 좌표를 그대로 담았는데, 이제 카카오 응답은 저장할 수 없는 값이다
+     * (카카오 운영자 답변 — 저장해도 되는 것은 장소 ID 와 사용자가 직접 적은 글자뿐이다).
      *
-     * 값은 전부 <b>우리 장소 검색 API(§5-1, 카카오 로컬)로 직접 조회한 첫 결과</b>다.
-     * FE 가 쓰는 것과 같은 경로라, 화면에서 그 구장을 검색하면 같은 값이 나온다.
-     * <b>지어내지 않는다</b> — 검색에 안 나오는 구장은 주소·좌표 없이 둔다.
+     * 그래서 여기 적힌 것은 <b>사람이 손으로 적은 것처럼 보이는 한 줄</b>이다. 도로명
+     * 주소를 정확히 옮기지 않는 것이 의도다 — 옮기면 그게 곧 카카오 응답을 저장한
+     * 모양이 된다. 시드에 {@code kakaoPlaceId} 를 넣지 않는 이유도 같다.
      *
-     * 좌표를 주지 않은 글이 훨씬 많다. 좌표 있는 글과 없는 글 양쪽을 FE 가 다 봐야 한다.
-     *
-     * @param address  도로명 주소 (카카오 roadAddress)
+     * 장소 설명이 없는 글이 훨씬 많다. 있는 글과 없는 글 양쪽을 FE 가 다 봐야 한다.
      */
-    private record SeedVenue(String address, double latitude, double longitude) {
+    private record SeedVenue(String address) {
     }
 
-    /**
-     * 서울 강서구. <b>"강서구민운동장"을 쓰지 않는다</b> — 카카오에 없는 이름이라 마커를
-     * 찍을 수 없다. 실제로 검색되는 강서구 축구장으로 바꿨다.
-     */
-    private static final SeedVenue UJANGSAN =
-            new SeedVenue("서울 강서구 우장산로 72", 37.5504723833644, 126.845130338752);
-    private static final SeedVenue OLYMPIC_PARK =
-            new SeedVenue("서울 송파구 올림픽로 424", 37.5169382511733, 127.123340764599);
+    private static final SeedVenue UJANGSAN = new SeedVenue("서울 강서구 우장산 근린공원 옆");
+    private static final SeedVenue OLYMPIC_PARK = new SeedVenue("서울 송파구 올림픽공원 안");
     private static final SeedVenue GOYANG_STADIUM =
-            new SeedVenue("경기 고양시 일산서구 중앙로 1601", 37.67640372499092, 126.74308829942302);
-    private static final SeedVenue TANCHEON =
-            new SeedVenue("경기 성남시 분당구 탄천로 215", 37.4101849257468, 127.121331148072);
-    private static final SeedVenue NAMDONG =
-            new SeedVenue("인천 남동구 소래로 500", 37.4346425602455, 126.733811034142);
+            new SeedVenue("경기 고양시 일산서구 종합운동장 보조구장");
+    private static final SeedVenue TANCHEON = new SeedVenue("경기 성남시 분당구 탄천 옆 구장");
+    private static final SeedVenue NAMDONG = new SeedVenue("인천 남동구 남동체육관 옆");
 
     private final UserRepository userRepository;
     private final ConsentService consentService;
@@ -412,13 +399,15 @@ public class DataInitializer implements ApplicationRunner {
                     "시드 데이터가 저장되지 않았다 — 팀 %d, 모집글 %d".formatted(teamCount, postCount));
         }
         long openCount = posts.stream().filter(MatchPost::isOpen).count();
-        long withCoordinates = posts.stream().filter(MatchPost::hasCoordinates).count();
+        long withAddress = posts.stream()
+                .filter(post -> post.getLocationAddress() != null)
+                .count();
         seedTeamPage(saebyeok, goyang, goyang.getOwner());
         seedMembership(saebyeok, incheon.getOwner(), seongnam.getOwner());
         seedModeration(saebyeok, mapo, songpa, goyang, incheon);
 
-        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건(매칭연동 {}건), 관리자 {}명, 가입신청 {}건, 신고 {}건, 차단 {}건",
-                teamCount, postCount, openCount, withCoordinates, requestCount,
+        log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 주소 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건(매칭연동 {}건), 관리자 {}명, 가입신청 {}건, 신고 {}건, 차단 {}건",
+                teamCount, postCount, openCount, withAddress, requestCount,
                 reviewRepository.count(), teamMemberRepository.count(),
                 teamRecordRepository.count(), matchLinkedRecordCount(),
                 teamAdminRepository.count(), joinRequestRepository.count(),
@@ -737,8 +726,12 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 지도에 찍히는 글. {@code venue} 가 주소와 좌표를 함께 들고 온다 — 셋이 어긋날 수
-     * 없게 하는 것이 {@link SeedVenue} 를 만든 이유다 (그 주석에 전말을 적었다).
+     * 장소 설명이 붙은 글. {@code venue} 는 <b>사람이 적은 것처럼 보이는 주소 한 줄</b>이다.
+     *
+     * <b>카카오 응답을 옮겨 적지 않는다</b> (계약서 §5-1, v1.37.0) — 검색 결과의 이름·주소·
+     * 좌표는 저장할 수 없는 값이고, 시드도 같은 규칙을 따른다. 좌표는 아예 없어졌고
+     * {@code kakaoPlaceId} 는 시드에 넣지 않는다(실제 ID 를 적으려면 카카오에서 받아와야
+     * 하는데, 그 응답을 저장하지 않는다는 규칙과 어긋난다).
      */
     private MatchPost post(Team team, SeedAccount account, String title, String content,
                            int dayOffset, LocalTime time, String location, String region,
@@ -756,6 +749,7 @@ public class DataInitializer implements ApplicationRunner {
                 .matchAt(matchAt)
                 .location(location)
                 .locationAddress(venue == null ? null : venue.address())
+                // 좌표는 폐지됐고(v1.37.0) 장소 ID 는 시드에 넣지 않는다 — 위 주석 참고.
                 .region(region)
                 .preferredSkillLevel(preferredSkillLevel)
                 .rentalFee(rentalFee)
@@ -763,8 +757,6 @@ public class DataInitializer implements ApplicationRunner {
                 .bankName(account == null ? null : account.bankName())
                 .accountNumber(account == null ? null : account.accountNumber())
                 .accountHolder(account == null ? null : account.accountHolder())
-                .latitude(venue == null ? null : venue.latitude())
-                .longitude(venue == null ? null : venue.longitude())
                 .build();
     }
 
