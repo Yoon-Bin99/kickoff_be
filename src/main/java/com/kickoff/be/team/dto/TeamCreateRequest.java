@@ -3,9 +3,10 @@ package com.kickoff.be.team.dto;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -49,6 +50,22 @@ public record TeamCreateRequest(
         String teamColor,
 
         @Size(max = 10, message = "포메이션은 10자를 넘을 수 없습니다.")
-        String formation
+        String formation,
+
+        /**
+         * 연락처 제공 동의 (계약서 §3 「동의」, v1.34.1). <b>true 필수다.</b>
+         *
+         * 매칭이 성사되면 감독의 닉네임·휴대전화 번호가 상대 팀 감독에게 제공된다
+         * (제3자 제공, 제17조). 전화번호가 넘어가는 사람은 <b>감독뿐</b>이라 가입이 아니라
+         * 여기서 받는다 — 팀원으로만 활동할 가입자에게 필수로 요구하지 않는다.
+         *
+         * 팀 정보에 저장되지 않고 응답에도 없다. 서버는 이 값을 보고 동의 기록을 남긴다.
+         *
+         * {@code Boolean} + {@code @NotNull} 인 이유는 가입의 동의 항목과 같다 — 누락과
+         * 거부를 구별해야 안내 문구를 고를 수 있다.
+         */
+        @NotNull(message = "연락처 제공 동의 여부가 필요합니다. 앱을 최신 버전으로 업데이트해 주세요.")
+        @AssertTrue(message = "매칭 성사 시 연락처 제공에 동의해야 팀을 만들 수 있습니다.")
+        Boolean contactSharingConsent
 ) {
 }

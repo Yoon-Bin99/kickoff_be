@@ -5,6 +5,7 @@ import com.kickoff.be.auth.jwt.JwtTokenProvider;
 import com.kickoff.be.auth.jwt.SecurityErrorResponder;
 import com.kickoff.be.chatlink.client.ChatLinkProperties;
 import com.kickoff.be.chatlink.security.InternalSecretFilter;
+import com.kickoff.be.consent.service.ConsentGate;
 import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +28,7 @@ public class SecurityConfig {
     private final SecurityErrorResponder securityErrorResponder;
     private final CorsConfigurationSource corsConfigurationSource;
     private final ChatLinkProperties chatLinkProperties;
+    private final ConsentGate consentGate;
 
     /**
      * H2 콘솔 경로를 열어 줄지 (개발 전용).
@@ -49,11 +51,13 @@ public class SecurityConfig {
                           SecurityErrorResponder securityErrorResponder,
                           CorsConfigurationSource corsConfigurationSource,
                           ChatLinkProperties chatLinkProperties,
+                          ConsentGate consentGate,
                           Environment environment) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.securityErrorResponder = securityErrorResponder;
         this.corsConfigurationSource = corsConfigurationSource;
         this.chatLinkProperties = chatLinkProperties;
+        this.consentGate = consentGate;
         this.devProfile = environment.matchesProfiles("dev");
     }
 
@@ -194,7 +198,15 @@ public class SecurityConfig {
                         // 공공 데이터라 개인정보가 실리지 않는다.
                         .requestMatchers(HttpMethod.GET, "/api/holidays").permitAll()
 
-                        .anyRequest().authenticated();
+                        // 인증이 필요한 나머지 전부. <b>여기에 동의 검사가 함께 있다</b>
+                        // (계약서 §3 「동의」, v1.34.0) — 이 자리의 뜻이 정확히 계약의
+                        // "인증이 필요한 API"다. 인증이 선택인 조회 API 는 위에서 모두
+                        // permitAll 로 걸러지므로 여기 오지 않는다.
+                        //
+                        // 필터로 만들지 않은 이유: 그러면 "인증이 필요한 API"가 무엇인지
+                        // 위 목록과 <b>따로</b> 적어야 하고, 두 목록이 어긋나는 날 조용히
+                        // 틀린다. 동의 전에도 되는 여섯 경로는 ConsentGate 안에 있다.
+                        .anyRequest().access(consentGate);
                 })
                 // 내부 비밀 헤더 검사를 <b>JWT 필터보다 먼저</b> 넣는다 (계약서 §10).
                 // 두 필터는 같은 자리에 들어가므로 등록 순서가 곧 실행 순서다.

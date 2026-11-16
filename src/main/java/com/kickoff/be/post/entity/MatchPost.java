@@ -119,6 +119,15 @@ public class MatchPost extends BaseTimeEntity {
     @Column(nullable = false)
     private int viewCount;
 
+    /**
+     * 계좌가 상대 팀 감독에게 보인다는 것을 작성자가 확인한 시각 (계약서 §5, v1.34.0).
+     *
+     * 응답에 싣지 않는다 — 화면이 쓸 값이 아니고, 제3자 제공을 알렸다는 서버의 기록이다.
+     * 계좌를 적거나 고칠 때마다 새로 찍힌다(그때마다 확인을 다시 받으므로).
+     */
+    @Column(name = "payment_share_confirmed_at")
+    private OffsetDateTime paymentShareConfirmedAt;
+
     @Builder
     private MatchPost(Team team, String title, String content, OffsetDateTime matchAt, String location,
                       String locationAddress, String region, SkillLevel preferredSkillLevel,
@@ -220,6 +229,11 @@ public class MatchPost extends BaseTimeEntity {
         }
     }
 
+    /** 계좌를 적거나 고칠 때 확인 시각을 남긴다 (계약서 §5, v1.34.0). */
+    public void confirmPaymentShare(OffsetDateTime confirmedAt) {
+        this.paymentShareConfirmedAt = confirmedAt;
+    }
+
     /**
      * 입금액과 계좌 3필드를 <b>한꺼번에</b> 지운다 (계약서 §5, v1.5.1).
      *
@@ -231,6 +245,8 @@ public class MatchPost extends BaseTimeEntity {
         this.bankName = null;
         this.accountNumber = null;
         this.accountHolder = null;
+        // 계좌가 없어지면 확인도 가리킬 대상이 없다.
+        this.paymentShareConfirmedAt = null;
     }
 
     /**

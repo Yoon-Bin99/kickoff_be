@@ -224,7 +224,7 @@ class WebTokenCookieTest extends IntegrationTestSupport {
 
     private String signupBody() {
         return """
-                {"email":"%s","password":"%s","nickname":"김주장","phone":"010-1111-1111","termsAgreed":true}
+                {"email":"%s","password":"%s","nickname":"김주장","phone":"010-1111-1111","consents":{"age14":true,"terms":true,"privacy":true}}
                 """.formatted(EMAIL, PASSWORD);
     }
 

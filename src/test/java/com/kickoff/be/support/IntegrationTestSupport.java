@@ -2,6 +2,7 @@ package com.kickoff.be.support;
 
 import com.jayway.jsonpath.JsonPath;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
+import com.kickoff.be.consent.service.ConsentService;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.MatchPost;
@@ -174,6 +175,13 @@ public abstract class IntegrationTestSupport {
     protected com.kickoff.be.verification.service.SmsDispatchQuota smsDispatchQuota;
     @Autowired
     protected com.kickoff.be.auth.service.LoginAttemptLimiter loginAttemptLimiter;
+    /** 동의 기록 (계약서 §3 「동의」, v1.34.1). 아래 헬퍼들이 쓴다. */
+    @Autowired
+    protected ConsentService consentService;
+    @Autowired
+    protected com.kickoff.be.consent.repository.UserConsentRepository consentRepository;
+    @Autowired
+    protected com.kickoff.be.consent.service.LegalProperties legalProperties;
     @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
@@ -215,6 +223,8 @@ public abstract class IntegrationTestSupport {
         // 안 비우면 목록 테스트가 자기가 넣지 않은 5건을 같이 세게 된다 (v1.27.0).
         stadiumRepository.deleteAll();
         // 소셜 연동은 사용자를 참조하므로 사용자보다 먼저 지운다
+        // 동의 기록은 사용자를 참조하므로 사용자보다 먼저 지운다 (v1.34.1).
+        consentRepository.deleteAll();
         socialAccountRepository.deleteAll();
         userRepository.deleteAll();
         kakaoStub.reset();
@@ -235,10 +245,11 @@ public abstract class IntegrationTestSupport {
      * 비밀번호도 없다: 소셜 계정은 비밀번호 로그인을 하지 않는다.
      */
     protected User createUserWithoutEmail(String nickname, String phone) {
-        return userRepository.save(User.builder()
-                .nickname(nickname)
-                .phone(phone)
-                .build());
+        User user = createUserWithoutConsents(nickname, phone);
+        // 소셜 가입자여도 동의는 마친 상태로 둔다 — 이 헬퍼를 쓰는 테스트들이 보려는 것은
+        // 소셜 분기이고, 동의 게이트에 걸리면 그 분기에 닿지 못한다.
+        consentService.recordSignupConsents(user);
+        return user;
     }
 
     protected User createUserWithoutPhone(String email, String nickname) {
@@ -255,15 +266,39 @@ public abstract class IntegrationTestSupport {
      */
     protected User createUserWithPassword(String email, String nickname, String phone,
                                           String rawPassword) {
-        return userRepository.save(User.builder()
+        User user = userRepository.save(User.builder()
                 .email(email)
                 .password(passwordEncoder.encode(rawPassword))
+                .nickname(nickname)
+                .phone(phone)
+                .build());
+        // 가입 화면 세 항목을 기록한다 (계약서 §3 「동의」, v1.34.1).
+        //
+        // <b>이게 없으면 거의 모든 테스트가 403 CONSENT_REQUIRED 를 받는다.</b> 이 헬퍼는
+        // 가입 API 를 거치지 않고 엔티티를 바로 만들기 때문에, 서버가 보는 상태는 "동의한
+        // 적 없는 계정"이다. 동의 자체를 검증하는 테스트는 아래 createUserWithoutConsents 를
+        // 쓴다 — 그쪽만 그 상태를 일부러 만든다.
+        consentService.recordSignupConsents(user);
+        return user;
+    }
+
+    /**
+     * 동의 기록이 없는 계정 — 소셜 최초 로그인의 모양이다 (계약서 §3 「동의」).
+     *
+     * 동의 게이트(403 CONSENT_REQUIRED)를 검증하는 테스트만 쓴다. 다른 테스트가 쓰면
+     * 그 테스트의 모든 요청이 403 이 되어 <b>무엇을 보려던 것인지 알 수 없게</b> 된다.
+     */
+    protected User createUserWithoutConsents(String nickname, String phone) {
+        return userRepository.save(User.builder()
                 .nickname(nickname)
                 .phone(phone)
                 .build());
     }
 
     protected Team createTeam(User owner, String teamName, String region) {
+        // 팀 소유자는 연락처 제공 동의까지 받은 모양이어야 한다 (계약서 §3, v1.34.1) —
+        // 없으면 pendingConsents 에 contactSharing 이 떠서 그 계정의 모든 요청이 403 이다.
+        consentService.recordContactSharing(owner);
         return teamRepository.save(Team.builder()
                 .owner(owner)
                 .name(teamName)

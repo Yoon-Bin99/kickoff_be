@@ -168,6 +168,7 @@ public class AccountDeletionService {
         deletionRepository.deleteSupportMessagesOf(userId);
         deletionRepository.deleteSupportRoomOf(userId);
         deletionRepository.deleteSocialAccountsOf(userId);
+        deletionRepository.deleteConsentsOf(userId);
         // refresh·push token 은 users 행에 있어 계정과 함께 사라진다.
         deletionRepository.deleteUser(userId);
     }

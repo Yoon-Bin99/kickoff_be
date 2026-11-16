@@ -148,6 +148,16 @@ public interface AccountDeletionRepository extends JpaRepository<User, Long> {
     @Query("delete from SocialAccount sa where sa.user.id = :userId")
     int deleteSocialAccountsOf(@Param("userId") Long userId);
 
+    /**
+     * 동의 기록 (계약서 §3 「동의」 — "탈퇴하면 함께 지운다").
+     *
+     * 계정에 딸린 기록이라 계정과 함께 사라져야 한다. 남겨 두면 탈퇴한 사람의 동의 이력이
+     * 가리킬 대상 없이 쌓이고, 그 자체가 보관할 근거 없는 개인정보가 된다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from UserConsent uc where uc.user.id = :userId")
+    int deleteConsentsOf(@Param("userId") Long userId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from User u where u.id = :userId")
     int deleteUser(@Param("userId") Long userId);

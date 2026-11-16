@@ -13,6 +13,13 @@ public enum ErrorCode {
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없습니다."),
+    /**
+     * 필수 동의를 마치지 않은 계정의 호출 (계약서 §3 「동의」, v1.34.0).
+     *
+     * <b>401 과 구별되어야 한다.</b> 401 이면 FE 는 refresh 를 타고 실패하면 로그인 화면으로
+     * 보내는데, 여기서 필요한 것은 동의 화면이다 — 로그인은 이미 돼 있다.
+     */
+    CONSENT_REQUIRED(HttpStatus.FORBIDDEN, "필수 항목에 동의해야 서비스를 이용할 수 있습니다."),
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
     /**

@@ -36,7 +36,8 @@ class TeamClearFieldsTest extends IntegrationTestSupport {
                                 {"name": "FC 새벽", "region": "서울 강서구",
                                  "homeGround": "강서구민운동장", "skillLevel": "INTERMEDIATE",
                                  "ageGroup": "THIRTIES", "memberCount": 18,
-                                 "introduction": "매주 토요일 오전 7시에 모입니다."}"""))
+                                 "introduction": "매주 토요일 오전 7시에 모입니다.",
+                                 "contactSharingConsent": true}"""))
                 .andExpect(status().isCreated()));
     }
 

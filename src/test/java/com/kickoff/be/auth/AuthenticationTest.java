@@ -35,7 +35,7 @@ class AuthenticationTest extends IntegrationTestSupport {
                         .content("""
                                 {"email":"new@example.com","password":"pass1234!",
                                  "nickname":"김주장","phone":"010-1234-5678",
-                                 "termsAgreed":true}
+                                 "consents":{"age14":true,"terms":true,"privacy":true}}
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
@@ -71,7 +71,7 @@ class AuthenticationTest extends IntegrationTestSupport {
                         .content("""
                                 {"email":"dup@example.com","password":"pass1234!",
                                  "nickname":"다른사람","phone":"010-2222-2222",
-                                 "termsAgreed":true}
+                                 "consents":{"age14":true,"terms":true,"privacy":true}}
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
@@ -203,7 +203,7 @@ class AuthenticationTest extends IntegrationTestSupport {
                         .content("""
                                 {"email":"not-an-email","password":"short",
                                  "nickname":"김","phone":"01012345678",
-                                 "termsAgreed":true}
+                                 "consents":{"age14":true,"terms":true,"privacy":true}}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))

@@ -9,6 +9,7 @@ import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.entity.RequestStatus;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.MatchPost;
+import com.kickoff.be.post.service.MatchContactProperties;
 import com.kickoff.be.post.repository.MatchPostRepository;
 import com.kickoff.be.push.dto.MatchPushEvent;
 import com.kickoff.be.push.dto.PushEventType;
@@ -18,6 +19,7 @@ import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.user.entity.User;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +44,7 @@ public class MatchRequestService {
     private final TeamRecordRepository teamRecordRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ChatOutboxRecorder chatOutboxRecorder;
+    private final MatchContactProperties matchContactProperties;
 
     @Transactional
     public RequestResponse create(Long postId, User user, RequestCreateRequest request) {
@@ -72,7 +75,7 @@ public class MatchRequestService {
         // 방금 만든 신청이라 리뷰도 전적도 있을 수 없다. 팀 평점은 두 팀뿐이라 그대로 조회한다.
         return RequestResponse.of(saved, user.getId(), false, false,
                 reviewRepository.statsOf(myTeam.getId()),
-                reviewRepository.statsOf(post.getTeam().getId()));
+                reviewRepository.statsOf(post.getTeam().getId()), contactVisible(saved));
     }
 
     /** 한 글에 온 신청 — 글 작성자만 볼 수 있다. */
@@ -214,6 +217,17 @@ public class MatchRequestService {
     }
 
     /**
+     * 경기 뒤 연락처·계좌 표시 기간 안인지 (계약서 §5 「표시 기간」, v1.34.1).
+     *
+     * 글 상세와 같은 판정을 쓴다 — 두 응답이 같은 값을 다르게 가리면 FE 가 어느 쪽을
+     * 믿어야 할지 알 수 없다.
+     */
+    private boolean contactVisible(MatchRequest request) {
+        return matchContactProperties.isVisibleAt(request.getPost().getMatchAt(),
+                OffsetDateTime.now());
+    }
+
+    /**
      * 알림 이벤트를 발행한다. 실제 발송은 AFTER_COMMIT 리스너가 맡는다 — 여기서 바로 보내면
      * 롤백된 트랜잭션에 대한 유령 알림이 나간다 (계약서 §8).
      *
@@ -273,7 +287,7 @@ public class MatchRequestService {
         Map<Long, ReviewStats> stats = teamStatsOf(List.of(request));
         return RequestResponse.of(request, viewer.getId(), reviewed, recorded,
                 statOf(stats, request.getApplicantTeam().getId()),
-                statOf(stats, request.getPost().getTeam().getId()));
+                statOf(stats, request.getPost().getTeam().getId()), contactVisible(request));
     }
 
     private List<RequestResponse> toResponses(List<MatchRequest> requests, User viewer) {
@@ -286,7 +300,8 @@ public class MatchRequestService {
                 .map(r -> RequestResponse.of(r, viewerId, reviewed.contains(r.getId()),
                         recorded.contains(r.getId()),
                         statOf(stats, r.getApplicantTeam().getId()),
-                        statOf(stats, r.getPost().getTeam().getId())))
+                        statOf(stats, r.getPost().getTeam().getId()),
+                        contactVisible(r)))
                 .toList();
     }
 

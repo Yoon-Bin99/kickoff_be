@@ -40,10 +40,19 @@ public record RequestResponse(
     /**
      * 두 팀의 평점(applicantTeamStats·postTeamStats)은 호출자가 배치로 모아 넘긴다
      * (계약서 §2, v1.10.0) — 신청마다 조회하면 목록에서 N+1 이다.
+     *
+     * {@code contactVisible} 은 경기 뒤 표시 기간 안인지다 (계약서 §5 「표시 기간」,
+     * v1.34.1). 호출자가 계산해 넘긴다 — 설정값을 읽어야 해서 DTO 가 들 수 없고,
+     * 목록에서는 글마다 달라지므로 한 번 계산해 두고 재사용할 수도 없다.
+     *
+     * <b>여기서는 작성자도 함께 가려진다.</b> 글 상세(§5)와 다른 점이다 — 그쪽은
+     * 작성자가 자기 계좌를 확인·수정하는 길이라 기간과 무관하지만, 이 응답의
+     * payment 는 애초에 <b>돈을 보낼 쪽(신청 팀)</b>에게만 나간다.
      */
     public static RequestResponse of(MatchRequest request, Long viewerId,
                                      boolean myReviewWritten, boolean myRecordWritten,
-                                     ReviewStats applicantTeamStats, ReviewStats postTeamStats) {
+                                     ReviewStats applicantTeamStats, ReviewStats postTeamStats,
+                                     boolean contactVisible) {
         MatchPost post = request.getPost();
         return new RequestResponse(
                 request.getId(),
@@ -57,8 +66,8 @@ public record RequestResponse(
                 TeamSummary.of(post.getTeam(), postTeamStats),
                 request.getMessage(),
                 request.getStatus(),
-                contactFor(request, viewerId),
-                paymentFor(request, viewerId),
+                contactFor(request, viewerId, contactVisible),
+                paymentFor(request, viewerId, contactVisible),
                 request.isDepositPaid(),
                 myReviewWritten,
                 myRecordWritten,
@@ -70,8 +79,9 @@ public record RequestResponse(
      * 수락된 신청에 한해, 매칭된 두 팀에게만 상대 연락처를 준다.
      * 글 작성자가 보면 신청 팀 연락처, 신청 팀이 보면 글 작성 팀 연락처.
      */
-    private static ContactInfo contactFor(MatchRequest request, Long viewerId) {
-        if (viewerId == null || !request.isAccepted()) {
+    private static ContactInfo contactFor(MatchRequest request, Long viewerId,
+                                          boolean contactVisible) {
+        if (viewerId == null || !request.isAccepted() || !contactVisible) {
             return null;
         }
         MatchPost post = request.getPost();
@@ -88,8 +98,9 @@ public record RequestResponse(
      * 계좌는 <b>돈을 보낼 쪽</b>, 즉 수락된 신청 팀에게만 보인다.
      * 작성자는 payment 가 null 이고 depositPaid 로 입금 확인 상태만 본다 (계약서 §6).
      */
-    private static PaymentInfo paymentFor(MatchRequest request, Long viewerId) {
-        if (viewerId == null || !request.isAccepted()) {
+    private static PaymentInfo paymentFor(MatchRequest request, Long viewerId,
+                                          boolean contactVisible) {
+        if (viewerId == null || !request.isAccepted() || !contactVisible) {
             return null;
         }
         if (!request.getApplicantTeam().isOwnedBy(viewerId)) {

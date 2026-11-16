@@ -1,6 +1,7 @@
 package com.kickoff.be.auth.dto;
 
-import jakarta.validation.constraints.AssertTrue;
+import com.kickoff.be.consent.dto.SignupConsents;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -46,17 +47,21 @@ public record SignupRequest(
         String activityRegion,
 
         /**
-         * 약관·개인정보처리방침 동의 (계약서 §3, v1.21.0). <b>필수이고 true 여야 한다.</b>
+         * 동의 (계약서 §3 「동의」, v1.34.0·v1.34.1). <b>필수다.</b>
          *
-         * {@code Boolean} 이고 {@code @NotNull} 을 따로 붙인 이유: Bean Validation 에서
-         * {@code @AssertTrue} 는 <b>null 을 통과시킨다</b>. primitive boolean 으로 두면
-         * 필드를 아예 안 보낸 요청이 false 로 바인딩돼 "동의 안 함"과 구별되지 않는데,
-         * 그건 구버전 앱이 보내는 모양이라 <b>누락을 거부로 오해</b>하게 된다. 둘 다 400 이라
-         * 결과는 같지만, 안내 문구가 달라야 사용자가 무엇을 해야 할지 안다.
+         * 세 항목을 따로 받는다 — 개인정보 보호법 제22조 제1항이 항목을 나누어 받으라고
+         * 하고, 무엇에 동의했는지가 기록으로 남아야 한다. 옛 {@code termsAgreed} 한 칸은
+         * 폐지했다(보내도 읽지 않는다).
+         *
+         * 연락처 제공 동의는 여기 없다 — 전화번호가 상대에게 넘어가는 사람은 감독뿐이라
+         * <b>팀을 만들 때</b> 받는다(v1.34.1).
+         *
+         * {@code @NotNull} 로 오브젝트 자체의 누락을 먼저 거른다. 없으면 안쪽 항목 검증이
+         * 아예 돌지 않아서, 구버전 앱의 요청이 <b>조용히 동의 없이</b> 통과한다.
          */
-        @NotNull(message = "약관 동의 여부가 필요합니다. 앱을 최신 버전으로 업데이트해 주세요.")
-        @AssertTrue(message = "이용약관과 개인정보처리방침에 동의해야 가입할 수 있습니다.")
-        Boolean termsAgreed,
+        @NotNull(message = "동의 항목이 필요합니다. 앱을 최신 버전으로 업데이트해 주세요.")
+        @Valid
+        SignupConsents consents,
 
         /**
          * 전화번호 인증 토큰 (계약서 §3-2, v1.15.0).

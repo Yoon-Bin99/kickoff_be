@@ -1,6 +1,8 @@
 package com.kickoff.be.user.controller;
 
 import com.kickoff.be.auth.jwt.LoginUser;
+import com.kickoff.be.consent.dto.ConsentsRequest;
+import com.kickoff.be.consent.service.ConsentService;
 import com.kickoff.be.user.dto.PushTokenRequest;
 import com.kickoff.be.user.dto.UserResponse;
 import com.kickoff.be.user.dto.UserUpdateRequest;
@@ -35,6 +37,7 @@ public class UserController {
     private final UserService userService;
     private final AccountDeletionService accountDeletionService;
     private final TeamAdminService teamAdminService;
+    private final ConsentService consentService;
     /** 내가 소유·관리하는 팀 목록 (계약서 §4-2, v1.9.1). 없으면 빈 배열. */
     @GetMapping("/me/teams")
     public ResponseEntity<List<MyTeamResponse>> myTeams(@LoginUser User user) {
@@ -88,17 +91,23 @@ public class UserController {
     }
 
     /**
-     * 약관·개인정보처리방침 동의 기록 (계약서 §3-1, v1.25.0).
+     * 동의 기록 (계약서 §3 「동의」, v1.34.0). 동의 화면이 부른다.
      *
-     * <b>본문이 없다.</b> 무엇에 동의했는지는 현행 문서 한 벌뿐이라 서버가 받을 값이 없고,
-     * 동의 시각은 서버가 정해야 한다(클라이언트가 보낸 시각은 법적 근거가 못 된다).
+     * 본문에 {@code pendingConsents} 의 항목이 모두 {@code true} 로 들어 있어야 한다 —
+     * 빠졌거나 false 면 400 이고 {@code field} 는 항목 키다. 어느 항목이 필수인지는
+     * <b>서버가 판정한다</b>(§3), 그래서 요청 DTO 에 {@code @NotNull} 이 없다.
      *
-     * GET 이 아닌 이유는 상태를 바꾸기 때문이다. 멱등이지만 안전하지는 않다.
+     * 동의 시각은 서버가 정한다 — 클라이언트가 보낸 시각은 법적 근거가 못 된다.
+     *
+     * PUT 인 것은 멱등이기 때문이다. 같은 요청을 다시 보내면 시각만 새로 찍힌다 —
+     * 동의 화면에서 네트워크가 끊겨 재시도하는 경우가 정상 경로에 있다.
+     *
+     * 옛 {@code POST /me/terms-agreement} 는 폐지했다(없는 경로라 404).
      */
-    @PostMapping("/me/terms-agreement")
+    @PutMapping("/me/consents")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void agreeToTerms(@LoginUser User user) {
-        userService.agreeToTerms(user);
+    public void submitConsents(@LoginUser User user, @RequestBody ConsentsRequest request) {
+        consentService.submit(user, request);
     }
 
     /**

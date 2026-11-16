@@ -1,11 +1,13 @@
 package com.kickoff.be.auth.jwt;
 
 import com.kickoff.be.common.BusinessException;
+import com.kickoff.be.consent.service.ConsentGate;
 import com.kickoff.be.common.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -32,9 +34,27 @@ public class SecurityErrorResponder implements AuthenticationEntryPoint, AccessD
         resolver.resolveException(request, response, null, new BusinessException(ErrorCode.UNAUTHORIZED));
     }
 
+    /**
+     * 인가 거부는 전부 여기로 모인다 — 그래서 <b>이유를 가려야 한다.</b>
+     *
+     * 동의를 마치지 않은 계정의 호출은 403 `CONSENT_REQUIRED` 다(계약서 §3 「동의」,
+     * v1.34.0). 같은 403 이지만 FE 가 할 일이 다르다 — 보통의 403 은 그대로 두고, 이쪽은
+     * {@code GET /api/auth/me} 를 다시 읽어 동의 화면으로 보낸다.
+     *
+     * 거부한 쪽({@code ConsentGate})이 표식을 남기므로 여기서 추측하지 않는다. 이 자리에서
+     * 다시 판정하면 같은 규칙이 두 곳에 생긴다.
+     */
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException accessDeniedException) {
-        resolver.resolveException(request, response, null, new BusinessException(ErrorCode.FORBIDDEN));
+        ErrorCode code = isConsentDenial(accessDeniedException)
+                ? ErrorCode.CONSENT_REQUIRED
+                : ErrorCode.FORBIDDEN;
+        resolver.resolveException(request, response, null, new BusinessException(code));
+    }
+
+    private static boolean isConsentDenial(AccessDeniedException exception) {
+        return exception instanceof AuthorizationDeniedException denied
+                && denied.getAuthorizationResult() instanceof ConsentGate.ConsentDecision;
     }
 }

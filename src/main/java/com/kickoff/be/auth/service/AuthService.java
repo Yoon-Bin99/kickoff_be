@@ -6,6 +6,7 @@ import com.kickoff.be.auth.dto.SignupRequest;
 import com.kickoff.be.auth.dto.TokenResponse;
 import com.kickoff.be.auth.jwt.JwtTokenProvider;
 import com.kickoff.be.auth.jwt.RefreshTokenProvider;
+import com.kickoff.be.consent.service.ConsentService;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.oauth.repository.SocialAccountRepository;
@@ -34,6 +35,7 @@ public class AuthService {
     private final LoginAttemptLimiter loginAttemptLimiter;
     private final JwtTokenProvider tokenProvider;
     private final RefreshTokenProvider refreshTokenProvider;
+    private final ConsentService consentService;
     private final PhoneVerificationService verificationService;
 
     @Transactional
@@ -65,10 +67,11 @@ public class AuthService {
                 .nickname(request.nickname())
                 .phone(request.phone())
                 .activityRegion(request.activityRegion())
-                // 요청이 여기까지 왔다는 건 termsAgreed 가 true 라는 뜻이다 — false·누락은
-                // 검증에서 400 으로 끊긴다 (계약서 §3, v1.21.0).
-                .termsAgreedAt(OffsetDateTime.now())
                 .build());
+        // 요청이 여기까지 왔다는 건 세 항목이 모두 true 라는 뜻이다 — false·누락은 검증에서
+        // 400 으로 끊긴다 (계약서 §3 「동의」, v1.34.1). 기록은 저장 뒤에 한다: 동의가
+        // 가리키는 대상이 있어야 하고, 한 트랜잭션이라 함께 커밋되거나 함께 사라진다.
+        consentService.recordSignupConsents(user);
         return toAuthResponse(user);
     }
 
@@ -192,6 +195,7 @@ public class AuthService {
     private UserResponse toUserResponse(User user) {
         Team team = teamRepository.findByOwnerId(user.getId()).orElse(null);
         return UserResponse.of(user, team,
-                socialAccountRepository.findProvidersByUserId(user.getId()));
+                socialAccountRepository.findProvidersByUserId(user.getId()),
+                consentService.signupConsentCompletedAt(user), consentService.pendingFor(user));
     }
 }

@@ -125,7 +125,7 @@ class PostClearFieldsTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(postBody("\"depositAmount\": 50000, \"bankName\": \"\","
                                 + " \"accountNumber\": \"3333-01-1234567\","
-                                + " \"accountHolder\": \"김주장\"")))
+                                + " \"accountHolder\": \"김주장\", \"paymentShareConfirmed\": true")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("bankName"));
@@ -201,7 +201,8 @@ class PostClearFieldsTest extends IntegrationTestSupport {
 
     private static String depositJson() {
         return "\"depositAmount\": 50000, \"bankName\": \"카카오뱅크\","
-                + " \"accountNumber\": \"3333-01-1234567\", \"accountHolder\": \"김주장\"";
+                + " \"accountNumber\": \"3333-01-1234567\", \"accountHolder\": \"김주장\","
+                + " \"paymentShareConfirmed\": true";
     }
 
     /** 필수 필드를 채운 글을 만들고 id 를 준다. extraFields 는 그 위에 얹는 JSON 조각. */

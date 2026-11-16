@@ -226,7 +226,7 @@ class RefreshTokenTest extends IntegrationTestSupport {
                 .content("{\"email\": \"" + email + "\", \"password\": \"" + PASSWORD + "\","
                         + " \"nickname\": \"주장" + Math.abs(email.hashCode() % 10000) + "\","
                         + " \"phone\": \"010-1111-" + String.format("%04d", Math.abs(email.hashCode() % 10000)) + "\","
-                        + " \"termsAgreed\": true}"));
+                        + " \"consents\":{\"age14\":true,\"terms\":true,\"privacy\":true}}"));
     }
 
     private ResultActions login() throws Exception {

@@ -1,5 +1,6 @@
 package com.kickoff.be.config;
 
+import com.kickoff.be.consent.service.ConsentService;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.matchrequest.repository.MatchRequestRepository;
 import com.kickoff.be.post.entity.MatchPost;
@@ -91,6 +92,7 @@ public class DataInitializer implements ApplicationRunner {
             new SeedVenue("인천 남동구 소래로 500", 37.4346425602455, 126.733811034142);
 
     private final UserRepository userRepository;
+    private final ConsentService consentService;
     private final TeamRepository teamRepository;
     private final MatchPostRepository postRepository;
     private final MatchRequestRepository requestRepository;
@@ -156,6 +158,7 @@ public class DataInitializer implements ApplicationRunner {
         SeedAccount yoonAcc = new SeedAccount("토스뱅크", "1000-1234-5678", "윤코치");
 
         seedSocialUser();
+        seedConsentPendingUser();
 
         // account 가 null 인 글은 depositAmount 도 null 인 "협의" 케이스.
         // dayOffset 이 음수면 이미 지난 경기다.
@@ -559,6 +562,12 @@ public class DataInitializer implements ApplicationRunner {
                 .phone(phone)
                 .activityRegion(activityRegion)
                 .build());
+        // 동의 기록 (계약서 §3 「동의」, v1.34.1). 없으면 로그인 직후 동의 화면에 갇혀
+        // 시드 계정으로 아무 화면도 못 본다 — 그 상태는 consent@example.com 으로 본다
+        // (seedConsentPendingUser).
+        consentService.recordSignupConsents(owner);
+        // 팀 소유자라 연락처 제공 동의까지 받은 모양이어야 한다.
+        consentService.recordContactSharing(owner);
         return teamRepository.save(Team.builder()
                 .owner(owner)
                 .name(teamName)
@@ -568,6 +577,30 @@ public class DataInitializer implements ApplicationRunner {
                 .ageGroup(ageGroup)
                 .memberCount(memberCount)
                 .introduction(introduction)
+                .build());
+    }
+
+    /**
+     * 동의 화면에 서 있는 계정 하나 (계약서 §3 「동의」, v1.34.1).
+     *
+     * 이메일·비밀번호가 있고 <b>동의 기록만 없다</b> — 로그인은 되고, 그 뒤의 인증 API 는
+     * 전부 403 {@code CONSENT_REQUIRED} 다. FE 가 동의 화면을 로컬에서 밟는 길이다.
+     *
+     * <b>위의 소셜 두 계정으로는 밟을 수 없다.</b> 그쪽도 동의 기록이 없지만
+     * {@code providerUserId} 가 시드 값({@code seed-kakao-1})이라 실제 카카오 로그인으로는
+     * 그 계정에 닿지 않고 새 계정이 생긴다 — 비밀번호도 없어 로그인할 방법이 없다.
+     *
+     * 팀을 주지 않는 것은 소셜 계정과 같은 이유다. 팀 없는 사용자는 목록·검색 어디에도
+     * 안 나오므로 기존 화면에 영향을 주지 않는다. 그래서 {@code contactSharing} 도 받을
+     * 항목이 아니고, 이 계정이 보는 {@code pendingConsents} 는 세 항목이다.
+     */
+    private void seedConsentPendingUser() {
+        userRepository.save(User.builder()
+                .email("consent@example.com")
+                .password(passwordEncoder.encode(RAW_PASSWORD))
+                .nickname("동의대기")
+                .phone("010-0000-0008")
+                .activityRegion("서울")
                 .build());
     }
 
@@ -583,6 +616,10 @@ public class DataInitializer implements ApplicationRunner {
      * 화면들에 영향을 주지 않는다.
      */
     private void seedSocialUser() {
+        // <b>이 두 계정에는 동의 기록을 주지 않는다</b> (계약서 §3 「동의」, v1.34.1).
+        // 소셜 최초 로그인이 정확히 그 상태다. 다만 이 계정으로 로그인할 방법은 없으므로
+        // (비밀번호가 없고 providerUserId 가 시드 값이다) 동의 화면을 밟는 쪽은
+        // consent@example.com 이다 — README 「시드 계정」 표에 적어 두었다.
         User social = userRepository.save(User.builder()
                 .nickname("카카오가입자")
                 .phone("010-0000-0007")

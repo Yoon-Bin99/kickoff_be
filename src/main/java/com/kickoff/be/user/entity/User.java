@@ -76,27 +76,14 @@ public class User extends BaseTimeEntity {
     @Column(length = 200)
     private String expoPushToken;
 
-    /**
-     * 약관·개인정보처리방침에 동의한 시각 (계약서 §3, v1.21.0).
-     *
-     * <b>nullable 이다.</b> v1.21.0 이전에 가입한 계정과 소셜 가입자는 이 값이 없다 —
-     * 소셜 가입자의 앱 자체 동의 절차는 v1 범위 밖이다(§9). not null 로 걸면 기존 계정을
-     * 어떤 시각으로든 채워 넣어야 하는데, 그건 <b>받지 않은 동의를 받은 것처럼 기록</b>하는
-     * 일이다. 동의 기록은 나중에 분쟁의 근거가 되므로 지어내지 않는다.
-     *
-     * 응답에 싣지 않는다 (계약서 §3). 화면이 쓸 값이 아니고, 서버가 보관하는 기록이다.
-     */
-    private OffsetDateTime termsAgreedAt;
-
     @Builder
     private User(String email, String password, String nickname, String phone,
-                 String activityRegion, OffsetDateTime termsAgreedAt) {
+                 String activityRegion) {
         this.email = email;
         this.password = password;
         this.nickname = nickname;
         this.phone = phone;
         this.activityRegion = activityRegion;
-        this.termsAgreedAt = termsAgreedAt;
     }
 
     /**
@@ -150,20 +137,6 @@ public class User extends BaseTimeEntity {
         return refreshTokenHash != null
                 && refreshTokenExpiresAt != null
                 && refreshTokenExpiresAt.isAfter(now);
-    }
-
-    /**
-     * 약관·개인정보처리방침에 동의한 시각을 지금으로 기록한다 (계약서 §3-1, v1.25.0).
-     *
-     * <b>덮어쓴다.</b> 방침이 개정되면 같은 계정이 다시 동의하고, 그때는 새 시각이 남아야
-     * 한다 — FE 는 이 값과 현행 시행일을 비교해 재동의 여부를 정하므로, 옛 시각을 지키면
-     * 개정 후에도 영영 동의 화면이 떠 있게 된다.
-     *
-     * 시각을 인자로 받지 않고 여기서 만든다. 호출자가 정할 여지를 두면 "동의한 시각"이
-     * 아닌 값이 들어올 수 있는데, 이건 법적 근거로 남는 기록이라 그러면 안 된다.
-     */
-    public void agreeToTerms() {
-        this.termsAgreedAt = OffsetDateTime.now();
     }
 
     /** null 을 넣으면 등록 해제다 (계약서 §8). */

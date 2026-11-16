@@ -86,6 +86,18 @@ public record PostUpdateRequest(
          */
         Patchable<Double> latitude,
 
-        Patchable<Double> longitude
+        Patchable<Double> longitude,
+
+        /**
+         * 계좌 공개 확인 (계약서 §5, v1.34.0).
+         *
+         * 요청 본문에 계좌 3필드 중 하나라도 값이 있으면 <b>true 필수</b>다 — "이 계좌
+         * 정보는 매칭이 수락된 상대 팀 감독에게 보인다"는 확인이다. 판정은 PostService 가
+         * 한다: 어노테이션으로는 "다른 필드가 있을 때만 필수"를 표현할 수 없다.
+         *
+         * <b>요청 본문 기준</b>이라 계좌를 건드리지 않는 PATCH 에는 필요 없다. 글에
+         * 이미 계좌가 있는지와 무관하다 — 묻는 것은 "지금 이 값을 적겠는가"다.
+         */
+        Boolean paymentShareConfirmed
 ) {
 }

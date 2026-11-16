@@ -273,7 +273,7 @@ class SignupHardeningTest extends IntegrationTestSupport {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"email": "%s", "password": "%s", "nickname": "%s", "phone": "%s",
-                         "termsAgreed": true}
+                         "consents":{"age14":true,"terms":true,"privacy":true}}
                         """.formatted(email, password, nickname, phone)));
     }
 

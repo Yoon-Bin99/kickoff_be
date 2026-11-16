@@ -61,6 +61,7 @@ public class PostService {
     private final MatchRequestRepository requestRepository;
     private final ReviewRepository reviewRepository;
     private final ChatOutboxRecorder chatOutboxRecorder;
+    private final MatchContactProperties matchContactProperties;
 
     /**
      * 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5).
@@ -105,6 +106,8 @@ public class PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_REQUIRED));
         requireAccountWhenDepositSet(request.depositAmount(), request.bankName(),
                 request.accountNumber(), request.accountHolder());
+        requirePaymentShareConfirmed(request.paymentShareConfirmed(), request.bankName(),
+                request.accountNumber(), request.accountHolder());
         requireCoordinatePair(request.latitude(), request.longitude());
         MatchPost post = postRepository.save(MatchPost.builder()
                 .team(team)
@@ -123,6 +126,10 @@ public class PostService {
                 .latitude(request.latitude())
                 .longitude(request.longitude())
                 .build());
+        if (hasAnyAccountValue(request.bankName(), request.accountNumber(),
+                request.accountHolder())) {
+            post.confirmPaymentShare(OffsetDateTime.now());
+        }
         return toDetail(post, user);
     }
 
@@ -139,6 +146,15 @@ public class PostService {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
         requireNotCleared(request);
+        // 계좌 공개 확인은 <b>요청 본문</b>으로 본다 (계약서 §5, v1.34.0) — 계좌를 건드리지
+        // 않는 PATCH 에는 필요 없다. 병합 결과로 보면 계좌가 이미 있는 글의 제목만 고치는
+        // 요청까지 확인을 요구하게 된다. 아래 requireAccountWhenDepositSet 이 병합 결과를
+        // 보는 것과 기준이 다른데, 묻는 것이 다르기 때문이다: 저쪽은 "지금 글의 상태가
+        // 온전한가", 이쪽은 "지금 이 값을 적겠다고 확인했는가"다.
+        requirePaymentShareConfirmed(request.paymentShareConfirmed(),
+                Patchable.valueOf(request.bankName()),
+                Patchable.valueOf(request.accountNumber()),
+                Patchable.valueOf(request.accountHolder()));
         applyCoordinatePatch(post, request.latitude(), request.longitude());
         applyClearableFields(post, request);
         OffsetDateTime matchAtBefore = post.getMatchAt();
@@ -150,7 +166,38 @@ public class PostService {
         // PATCH 본문만 보고 판단하면 금액만 고치는 정상 요청이 막혀버린다.
         requireAccountWhenDepositSet(post.getDepositAmount(), post.getBankName(),
                 post.getAccountNumber(), post.getAccountHolder());
+        if (hasAnyAccountValue(Patchable.valueOf(request.bankName()),
+                Patchable.valueOf(request.accountNumber()),
+                Patchable.valueOf(request.accountHolder()))) {
+            post.confirmPaymentShare(OffsetDateTime.now());
+        }
         return toDetail(post, user);
+    }
+
+    /**
+     * 계좌를 적었으면 공개 확인이 있어야 한다 (계약서 §5, v1.34.0).
+     *
+     * <b>어노테이션으로는 표현할 수 없는 규칙이다</b> — "다른 필드에 값이 있을 때만 필수"라서
+     * 요청 하나를 통째로 봐야 한다.
+     *
+     * 세 칸 중 <b>하나라도</b> 값이 있으면 묻는다. 은행명만 고치는 요청에도 묻는 이유:
+     * 그 결과로 상대에게 보이는 계좌 한 벌이 달라진다.
+     */
+    private void requirePaymentShareConfirmed(Boolean confirmed, String bankName,
+                                              String accountNumber, String accountHolder) {
+        if (!hasAnyAccountValue(bankName, accountNumber, accountHolder)) {
+            return;
+        }
+        if (!Boolean.TRUE.equals(confirmed)) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(
+                    new ErrorResponse.FieldError("paymentShareConfirmed",
+                            "입금 계좌가 매칭이 수락된 상대 팀 감독에게 보이는 것을 확인해 주세요.")));
+        }
+    }
+
+    private boolean hasAnyAccountValue(String bankName, String accountNumber,
+                                       String accountHolder) {
+        return bankName != null || accountNumber != null || accountHolder != null;
     }
 
     /**
@@ -403,10 +450,19 @@ public class PostService {
                 teamAuthz.roleOf(post.getTeam(), viewerId), teamRecordSummary);
     }
 
-    /** 매칭이 성사된 두 팀만 서로의 연락처를 본다. */
+    /**
+     * 매칭이 성사된 두 팀만 서로의 연락처를 본다.
+     *
+     * <b>경기 뒤 {@code contact-visible-days}(기본 14)일까지만이다</b>(계약서 §5, v1.34.1).
+     * 연락처는 "매칭 성사 시 상대 팀 감독에게 제공"에 동의해서 넘어간 값이고, 그 동의가
+     * 말한 보유·이용 기간이 이 값이다 — 무기한 보이면 동의한 범위를 넘는다.
+     */
     private ContactInfo contactFor(MatchPost post, MatchRequest accepted, Long viewerId,
                                    Long viewerTeamId) {
         if (accepted == null) {
+            return null;
+        }
+        if (!matchContactProperties.isVisibleAt(post.getMatchAt(), OffsetDateTime.now())) {
             return null;
         }
         if (post.isWrittenBy(viewerId)) {
@@ -434,6 +490,13 @@ public class PostService {
         boolean acceptedApplicant = accepted != null && viewerTeamId != null
                 && accepted.getApplicantTeam().getId().equals(viewerTeamId);
         if (!post.isWrittenBy(viewerId) && !acceptedApplicant) {
+            return null;
+        }
+        // 표시 기간은 <b>상대 팀에게만</b> 적용된다 (계약서 §5, v1.34.1). 작성자 본인이
+        // 자기 글에서 보는 계좌는 기간과 무관하다 — 자기가 등록한 값을 확인·수정하는
+        // 길이고, 그걸 막으면 경기 뒤에는 계좌를 고칠 수 없게 된다.
+        if (!post.isWrittenBy(viewerId)
+                && !matchContactProperties.isVisibleAt(post.getMatchAt(), OffsetDateTime.now())) {
             return null;
         }
         return new PaymentInfo(post.getDepositAmount(), post.getBankName(),

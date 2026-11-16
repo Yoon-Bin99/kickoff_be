@@ -23,7 +23,7 @@ class UserProfileTest extends IntegrationTestSupport {
 
     private static final String TEAM_BODY = """
             {"name":"FC 새벽","region":"서울 강서구","skillLevel":"INTERMEDIATE",
-             "ageGroup":"THIRTIES","memberCount":15}
+             "ageGroup":"THIRTIES","memberCount":15,"contactSharingConsent":true}
             """;
 
     @Test

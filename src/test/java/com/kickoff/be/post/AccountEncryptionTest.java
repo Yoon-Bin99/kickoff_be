@@ -177,7 +177,7 @@ class AccountEncryptionTest extends IntegrationTestSupport {
         mockMvc.perform(patch("/api/posts/{id}", post.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(author))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountNumber\":\"110-999-888777\"}"))
+                        .content("{\"accountNumber\":\"110-999-888777\",\"paymentShareConfirmed\":true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.payment.accountNumber").value("110-999-888777"));
 
@@ -286,7 +286,8 @@ class AccountEncryptionTest extends IntegrationTestSupport {
         return """
                 {"title":"토요일 아침 상대 구합니다","content":"내용입니다.",
                  "matchAt":"%s","location":"우장산축구장","region":"서울 강서구",
-                 "depositAmount":%d,"bankName":"%s","accountNumber":"%s","accountHolder":"%s"}
+                 "depositAmount":%d,"bankName":"%s","accountNumber":"%s","accountHolder":"%s",
+                 "paymentShareConfirmed":true}
                 """.formatted(java.time.OffsetDateTime.now().plusDays(7),
                 DEPOSIT_AMOUNT, BANK, ACCOUNT_NUMBER, ACCOUNT_HOLDER);
     }

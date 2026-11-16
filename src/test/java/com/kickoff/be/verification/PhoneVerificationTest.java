@@ -228,7 +228,7 @@ class PhoneVerificationTest extends IntegrationTestSupport {
                         .content("""
                                 {"email": "old-client@example.com", "password": "pass1234!",
                                  "nickname": "구버전", "phone": "010-7777-1234",
-                                 "termsAgreed": true}
+                                 "consents":{"age14":true,"terms":true,"privacy":true}}
                                 """))
                 .andExpect(status().isCreated());
     }
@@ -287,7 +287,7 @@ class PhoneVerificationTest extends IntegrationTestSupport {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"email": "%s", "password": "pass1234!", "nickname": "가입자",
-                         "phone": "%s", "verificationToken": "%s", "termsAgreed": true}
+                         "phone": "%s", "verificationToken": "%s", "consents":{"age14":true,"terms":true,"privacy":true}}
                         """.formatted(email, phone, token)));
     }
 

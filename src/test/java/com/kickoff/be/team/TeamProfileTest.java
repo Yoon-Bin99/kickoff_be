@@ -162,7 +162,7 @@ class TeamProfileTest extends IntegrationTestSupport {
     private ResultActions createTeam(String extraFields) throws Exception {
         String body = "{\"name\": \"FC 새벽\", \"region\": \"서울 강서구\","
                 + " \"skillLevel\": \"INTERMEDIATE\", \"ageGroup\": \"THIRTIES\","
-                + " \"memberCount\": 18";
+                + " \"memberCount\": 18, \"contactSharingConsent\": true";
         if (extraFields != null) {
             body += ", " + extraFields;
         }

@@ -170,7 +170,8 @@ class AuthorizationMatrixTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name":"두 번째 팀","region":"서울 강남구","skillLevel":"AMATEUR",
-                                 "ageGroup":"TWENTIES","memberCount":11}
+                                 "ageGroup":"TWENTIES","memberCount":11,
+                                 "contactSharingConsent":true}
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("TEAM_ALREADY_EXISTS"));

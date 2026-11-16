@@ -277,7 +277,7 @@ class AccountDeletionTest extends IntegrationTestSupport {
                         .content("""
                                 {"email": "again@example.com", "password": "pass1234!",
                                  "nickname": "다시가입", "phone": "010-1111-1111",
-                                 "termsAgreed": true}
+                                 "consents":{"age14":true,"terms":true,"privacy":true}}
                                 """))
                 .andExpect(status().isCreated());
     }
@@ -326,6 +326,29 @@ class AccountDeletionTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{" + password() + "}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 동의 기록도 지워진다 (계약서 §3, v1.34.1).
+     *
+     * <b>남겨 둘 이유가 있어 보이지만 아니다.</b> "동의했다는 증거"는 분쟁에 쓰이는 값이지만,
+     * 그 분쟁의 상대인 계정 자체가 사라진 뒤에는 남은 것이 "누구인지 모르는 사람이 언제
+     * 동의했다"는 기록뿐이다 — 보관할 근거가 없다(방침 §3-1 "탈퇴 시 지체 없이 파기").
+     *
+     * {@code user_consents} 는 users 를 참조하므로 외래키가 함께 지워 줄 수도 있지만,
+     * 삭제 순서가 어긋나면 탈퇴가 통째로 실패한다. 명시적으로 지우고 여기서 확인한다.
+     */
+    @Test
+    @DisplayName("동의 기록도 지워진다")
+    void consentsArePurged() throws Exception {
+        Long userId = owner.getId();
+        assertThat(consentRepository.findByUserId(userId))
+                .as("지우기 전에는 있어야 한다 — 없으면 이 테스트가 아무것도 안 본다")
+                .isNotEmpty();
+
+        deleteMe(owner, password()).andExpect(status().isNoContent());
+
+        assertThat(consentRepository.findByUserId(userId)).isEmpty();
     }
 
     // ── 헬퍼

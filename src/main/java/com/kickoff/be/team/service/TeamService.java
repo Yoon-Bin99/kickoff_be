@@ -1,5 +1,6 @@
 package com.kickoff.be.team.service;
 
+import com.kickoff.be.consent.service.ConsentService;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.Patchable;
 import com.kickoff.be.common.ErrorCode;
@@ -40,6 +41,7 @@ public class TeamService {
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private final TeamRepository teamRepository;
+    private final ConsentService consentService;
     private final ReviewRepository reviewRepository;
     private final TeamRecordRepository teamRecordRepository;
     private final TeamAuthz teamAuthz;
@@ -69,6 +71,13 @@ public class TeamService {
                 .teamColor(request.teamColor())
                 .formation(request.formation())
                 .build());
+        // 연락처 제공 동의를 기록한다 (계약서 §3 「동의」, v1.34.1). 요청이 여기까지 왔다는
+        // 건 contactSharingConsent 가 true 라는 뜻이다 — false·누락은 검증에서 400 이다.
+        //
+        // 팀 생성과 같은 트랜잭션이다. 갈라 두면 팀은 있는데 동의 기록이 없는 계정이
+        // 생기고, 그 계정은 pendingConsents 에 contactSharing 이 떠서 동의 화면에 갇힌다.
+        consentService.recordContactSharing(owner);
+
         // 방금 만든 팀이라 리뷰도 기록도 있을 수 없고, 만든 사람이 곧 소유자다.
         // 방금 만든 팀이라 가입 신청도 있을 수 없다.
         return TeamResponse.of(team, owner.getId(), ReviewStats.EMPTY, TeamRole.OWNER,
