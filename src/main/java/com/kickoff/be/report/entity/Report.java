@@ -142,6 +142,20 @@ public class Report extends BaseTimeEntity {
         this.autoHidden = true;
     }
 
+    /**
+     * 운영자가 조치했다 (계약서 §7-2).
+     *
+     * 임시 가림이면 {@code TEMP_HIDDEN} 으로 남는다 — 30일 안에 다시 정해야 하는
+     * 미완의 건이라, CLOSED 로 묶으면 기한이 다가오는 것을 아무도 보지 않는다.
+     */
+    public void resolve(ReportStatus status, String action, String note,
+                        OffsetDateTime resolvedAt) {
+        this.status = status;
+        this.resolutionAction = action;
+        this.resolutionNote = note;
+        this.resolvedAt = resolvedAt;
+    }
+
     /** 신고자가 탈퇴했다 — 건 자체는 보관 기간까지 남는다 (계약서 §7-2). */
     public void forgetReporter() {
         this.reporterUserId = null;

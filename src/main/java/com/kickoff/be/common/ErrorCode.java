@@ -144,6 +144,13 @@ public enum ErrorCode {
     VERIFICATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요."),
     SMS_SEND_FAILED(HttpStatus.BAD_GATEWAY, "인증번호 발송에 실패했습니다."),
 
+    /**
+     * 이용 제한 중인 계정의 호출 (계약서 §7-2 「이용 제한」, v1.35.0).
+     *
+     * 동의 거부와 같은 403 이라 FE 는 코드로 가른다 — 이쪽은 이용 제한 안내 화면이다.
+     */
+    ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN, "이용이 제한된 계정입니다."),
+
     // ── 운영자 인증 (계약서 §7-2 「운영자 인증」, v1.35.1)
 
     /**

@@ -70,6 +70,15 @@ public class User extends BaseTimeEntity {
     private OffsetDateTime refreshTokenExpiresAt;
 
     /**
+     * 이용 제한이 끝나는 시각 (계약서 §7-2, v1.35.0). 제한 중이 아니면 null.
+     *
+     * 제한 중에도 <b>탈퇴와 고객센터는 열려 있다</b> — 이의 제기 창구를 막으면 제한이
+     * 통보 없는 추방이 된다.
+     */
+    @Column(name = "suspended_until")
+    private OffsetDateTime suspendedUntil;
+
+    /**
      * Expo push token. 사용자당 하나이고 마지막 등록이 이긴다 (계약서 §8).
      * 없으면 알림을 조용히 건너뛴다 — 알림이 없다고 매칭 흐름이 막히면 안 된다.
      */
@@ -90,6 +99,25 @@ public class User extends BaseTimeEntity {
      * PATCH /api/users/me — 여기서는 {@code null} 이 "안 건드림"이다 (계약서 §3).
      * 활동 지역은 null 이 "지우기"라 규칙이 반대여서 아래 전용 메서드로 뗐다.
      */
+    /**
+     * 이용 제한을 건다 (계약서 §7-2 「이용 제한」, v1.35.0).
+     *
+     * <b>기한이 지나면 저절로 풀린다</b> — 해제 배치를 두지 않는다. 배치로 비우면 도는
+     * 시각까지 늦게 풀리고, 안 도는 날이 있다. 판정은 읽을 때 한다.
+     */
+    public void suspendUntil(OffsetDateTime until) {
+        this.suspendedUntil = until;
+    }
+
+    /** 운영자가 제한을 푼다 (계약서 §7-2 — DELETE /api/admin/users/{id}/suspension). */
+    public void clearSuspension() {
+        this.suspendedUntil = null;
+    }
+
+    public boolean isSuspendedAt(OffsetDateTime now) {
+        return suspendedUntil != null && suspendedUntil.isAfter(now);
+    }
+
     public void updateProfile(String nickname, String phone) {
         if (nickname != null) {
             this.nickname = nickname;

@@ -10,5 +10,13 @@ package com.kickoff.be.support.entity;
 public enum SupportSender {
     USER,
     AI,
-    OPERATOR
+    OPERATOR,
+
+    /**
+     * 서버가 넣는 알림 (계약서 §7-1·§7-2, v1.35.0) — 신고 처리 결과 등.
+     *
+     * 사용자에게는 "킥오프 고객센터"로 보이지만 <b>방을 운영자 모드로 바꾸지 않는다</b>.
+     * 바꾸면 알림 한 줄 때문에 AI 응대가 멈추고, 아무도 답하지 않는 방이 생긴다.
+     */
+    NOTICE
 }

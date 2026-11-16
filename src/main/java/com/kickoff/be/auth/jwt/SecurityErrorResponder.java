@@ -2,6 +2,7 @@ package com.kickoff.be.auth.jwt;
 
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.consent.service.ConsentGate;
+import com.kickoff.be.user.service.SuspensionGate;
 import com.kickoff.be.common.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -47,14 +48,28 @@ public class SecurityErrorResponder implements AuthenticationEntryPoint, AccessD
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException accessDeniedException) {
-        ErrorCode code = isConsentDenial(accessDeniedException)
-                ? ErrorCode.CONSENT_REQUIRED
-                : ErrorCode.FORBIDDEN;
-        resolver.resolveException(request, response, null, new BusinessException(code));
+        resolver.resolveException(request, response, null,
+                new BusinessException(denialCode(accessDeniedException)));
     }
 
-    private static boolean isConsentDenial(AccessDeniedException exception) {
-        return exception instanceof AuthorizationDeniedException denied
-                && denied.getAuthorizationResult() instanceof ConsentGate.ConsentDecision;
+    /**
+     * 거부의 이유를 에러 코드로 옮긴다.
+     *
+     * 세 가지가 모두 403 이라 <b>표식이 없으면 FE 가 가를 수 없다</b> — 동의는 동의
+     * 화면으로, 이용 제한은 안내 화면으로, 그 밖에는 그대로 둬야 한다. 판정을 여기서
+     * 다시 하지 않고 게이트가 남긴 표식만 본다.
+     */
+    private static ErrorCode denialCode(AccessDeniedException exception) {
+        if (!(exception instanceof AuthorizationDeniedException denied)) {
+            return ErrorCode.FORBIDDEN;
+        }
+        Object result = denied.getAuthorizationResult();
+        if (result instanceof ConsentGate.ConsentDecision) {
+            return ErrorCode.CONSENT_REQUIRED;
+        }
+        if (result instanceof SuspensionGate.SuspendedDecision) {
+            return ErrorCode.ACCOUNT_SUSPENDED;
+        }
+        return ErrorCode.FORBIDDEN;
     }
 }

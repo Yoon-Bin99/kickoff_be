@@ -187,6 +187,23 @@ public class SupportService {
 
     // ── 공통
 
+    /**
+     * 서버가 넣는 알림 (계약서 §7-1 {@code NOTICE}·§7-2 통지, v1.35.0).
+     *
+     * <b>방을 운영자 모드로 바꾸지 않는다.</b> 바꾸면 알림 한 줄 때문에 AI 응대가 멈추고,
+     * 운영자가 보지 않는 방에서 아무도 답하지 않게 된다. 사용자에게는 "킥오프 고객센터"로
+     * 보이지만 그 뒤의 질문은 평소대로 AI 가 받는다.
+     *
+     * 푸시는 사용자 쪽 {@code SUPPORT_MESSAGE} 와 같은 모양으로 나간다 — 탭하면 자기
+     * 문의방이 열려 통지를 읽고 바로 이의를 적을 수 있다.
+     */
+    @Transactional
+    public void notice(User recipient, String content) {
+        roomOf(recipient);
+        save(recipient, SupportSender.NOTICE, content);
+        eventPublisher.publishEvent(SupportPushEvent.toUser(recipient.getId(), content));
+    }
+
     private SupportRoom roomOf(User user) {
         return roomRepository.findByUser_Id(user.getId())
                 .orElseGet(() -> roomRepository.save(SupportRoom.builder().user(user).build()));

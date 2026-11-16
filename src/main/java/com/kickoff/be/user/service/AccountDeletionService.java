@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountDeletionService {
 
     private final AccountDeletionRepository deletionRepository;
+    private final com.kickoff.be.report.service.ReportAnonymizer reportAnonymizer;
     private final TeamRepository teamRepository;
     private final PhoneVerificationRepository phoneVerificationRepository;
     private final PasswordResetCodeRepository passwordResetCodeRepository;
@@ -172,6 +173,10 @@ public class AccountDeletionService {
         // 차단은 그 사람의 화면 설정이지 분쟁 기록이 아니다 — 남겨 둘 이유가 없다 (§7-2).
         deletionRepository.deleteBlocksBy(userId);
         deletionRepository.deleteBlocksAgainstTeamsOf(userId);
+        // 신고는 건 자체가 남고 사람만 사라진다 (§7-2 「기록의 보관」) — 운영 이력이
+        // 끊기면 안 되지만, 누가 신고했는지는 탈퇴와 함께 지울 값이다. 채팅 문맥
+        // 사본은 통째로 지운다(§3-4 의 "대화는 탈퇴와 함께 지운다"가 사본에도 적용된다).
+        reportAnonymizer.forget(userId);
         // refresh·push token 은 users 행에 있어 계정과 함께 사라진다.
         deletionRepository.deleteUser(userId);
     }

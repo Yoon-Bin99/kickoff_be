@@ -1,6 +1,7 @@
 package com.kickoff.be.report.repository;
 
 import com.kickoff.be.report.entity.Report;
+import com.kickoff.be.report.entity.ReportStatus;
 import com.kickoff.be.report.entity.ReportTargetType;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -51,6 +52,17 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
             """)
     List<Long> findPendingTargetIdsBy(@Param("userId") Long userId,
                                       @Param("targetType") ReportTargetType targetType);
+
+    /** 운영자 목록 (계약서 §7-2). 상태를 주지 않으면 처리 전만 본다. */
+    org.springframework.data.domain.Page<Report> findByStatusIn(
+            java.util.Collection<com.kickoff.be.report.entity.ReportStatus> statuses,
+            org.springframework.data.domain.Pageable pageable);
+
+    org.springframework.data.domain.Page<Report> findByStatus(
+            com.kickoff.be.report.entity.ReportStatus status,
+            org.springframework.data.domain.Pageable pageable);
+
+    List<Report> findByStatus(com.kickoff.be.report.entity.ReportStatus status);
 
     List<Report> findByReporterUserId(Long reporterUserId);
 

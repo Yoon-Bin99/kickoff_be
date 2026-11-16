@@ -44,7 +44,15 @@ public record UserResponse(
          * 어느 항목을 보일지 FE 가 추측하지 않게 하는 값이다 — 팀이 없는 계정에는
          * {@code contactSharing} 이 들어오지 않는다.
          */
-        List<String> pendingConsents
+        List<String> pendingConsents,
+
+        /**
+         * 이용 제한이 끝나는 시각 (계약서 §7-2, v1.35.0). 제한 중이 아니면 null.
+         *
+         * FE 는 이 값이 미래면 이용 제한 안내 화면을 보인다 — 403 {@code ACCOUNT_SUSPENDED}
+         * 를 받기 전에도 알 수 있어야 로그인 직후 바로 안내할 수 있다.
+         */
+        OffsetDateTime suspendedUntil
 ) {
 
     /**
@@ -71,7 +79,8 @@ public record UserResponse(
                 authProviders == null ? List.of() : authProviders,
                 termsAgreedAt,
                 !pending.isEmpty(),
-                pending.stream().map(ConsentType::key).toList()
+                pending.stream().map(ConsentType::key).toList(),
+                user.getSuspendedUntil()
         );
     }
 }
