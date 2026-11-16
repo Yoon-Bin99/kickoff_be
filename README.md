@@ -169,6 +169,30 @@ curl -X POST http://localhost:8080/api/admin/session -H "Authorization: Bearer <
 실제 인증 앱에 등록할 때는 같은 비밀키를 Base32로 넣으면 된다(SHA-1 · 30초 · 6자리 —
 Google Authenticator 기본값 그대로다).
 
+### 백업을 복원한 날 — 재탈퇴
+
+DB를 백업에서 되살리면 **그 시점 이후에 탈퇴했던 계정이 함께 되살아난다.** 손으로 SQL을
+돌려 지우면 채팅 서버로 가는 `PURGE`가 빠지고, 그러면 탈퇴한 사람의 대화가 거기 남는다 —
+방침이 약속한 "지체 없이 파기"가 깨지는 자리다. 그래서 탈퇴와 **같은 경로**를 다시 태우는
+API를 둔다(계약서 §7-2).
+
+```bash
+curl -X POST http://localhost:8080/api/admin/users/deletions \
+  -H "Authorization: Bearer <accessToken>" -H "X-Operator-Token: <operatorToken>" \
+  -H 'Content-Type: application/json' -d '{"userIds":[12,15,31]}'
+```
+
+- **`ADMIN_ACCOUNT_DELETION_ENABLED=true`로 켠 동안에만 열린다.** 꺼져 있으면 404다.
+  복원 작업이 끝나면 **반드시 다시 끈다** — 상시 열려 있으면 운영자 계정이 뚫렸을 때
+  그것이 곧 대량 삭제 수단이 된다
+- 지울 `userIds`는 **서버 로그의 탈퇴 완료 줄**에서 뽑는다(`회원 탈퇴 완료 — userId=…`,
+  시각이 앞에 붙는다). 파일 로그(`LOG_FILE`)를 켜 두면 복원 뒤에도 그 줄이 남아 있다
+- 한 번에 1~200개. 이미 없는 id는 오류가 아니라 `notFound`로 돌아온다(같은 목록을 다시
+  돌려도 안전하다). 운영자 자신의 id가 들어 있으면 400이고 **한 명도 지우지 않는다**
+- 비밀번호는 묻지 않고, 예정된 매칭은 막는 대신 §6-2와 같이 **취소한 뒤** 지운다
+  (상대 팀에 취소 알림이 가고 그 팀의 글은 다시 모집 중이 된다)
+- 운영자 세션이 필요하고, **대상 userId가 전부 접속기록에 남는다**
+
 ## 웹과 앱의 토큰 전달 (v1.32.0)
 
 access token은 둘 다 본문으로 받는다. **갈리는 것은 refresh token 하나다.**
@@ -473,6 +497,7 @@ docker run -p 8080:8080 -e DB_URL=... -e DB_USERNAME=... -e DB_PASSWORD=... -e J
 | `LEGAL_EFFECTIVE_AT` | △ | 현행 약관·방침의 시행일. 기본 `2026-09-08T00:00:00+09:00`. **재동의가 필요한 개정**(제3자 제공의 상대·목적·항목·기간 변경, 받는 항목 추가)일 때만 올린다 — 일반 개정은 공지로 충분하다(계약서 §3). 아직 오지 않은 날짜를 넣어도 되고, 그날부터 그 전에 동의한 계정이 동의 화면을 지난다 |
 | `MATCH_CONTACT_VISIBLE_DAYS` | | 경기 뒤 연락처·계좌가 상대 팀에게 보이는 기간. 기본 14. **바꾸면 FE 안내 문구와 방침의 보유 기간도 함께 고쳐야 한다**(계약서 §5) |
 | `OPERATOR_TOTP_SECRET` | **운영자 쓰면 O** | 운영자 일회용 비밀번호의 Base32 비밀키 (계약서 §7-2). **비밀값이다** — 이 값 하나로 운영자 화면 전체가 열린다. **비우면 운영자 API가 전부 403** (닫힌 쪽으로 실패). dev 기본값은 `KICKOFFDEVSECRET` |
+| `ADMIN_ACCOUNT_DELETION_ENABLED` | | 백업 복원 뒤 재탈퇴 API(`POST /api/admin/users/deletions`)를 연다. **기본 off, 평시에는 켜지 않는다** — 상시 열려 있으면 운영자 계정이 뚫렸을 때 대량 삭제 수단이 된다. 복원 작업 중에만 켜고 끝나면 끈다 |
 | `PUSH_ENABLED` | | `true`면 푸시 발송. **기본 off** — 실기기에 실수로 알림이 나가지 않게 |
 
 > **`OAUTH_ALLOWED_REDIRECTS`에 `exp://*`를 빠뜨리면 증상이 보이지 않는다.**
@@ -651,6 +676,7 @@ openssl rand -base64 32
 | `AI_SUPPORT_MODEL` | | 기본 모델값이 `application.yaml`에 있다 |
 | `SUPPORT_OPERATOR_EMAIL` | △ | **문의함 API가 전부 403이 된다.** 운영자가 아무도 없는 상태를 기본값으로 둔 것이다 — 설정을 빠뜨린 배포가 남의 문의를 열어 주지 않게 |
 | `OPERATOR_TOTP_SECRET` | △ | **운영자 API(문의함·신고함)가 전부 403이 된다** (계약서 §7-2). 운영자 계정이 설정돼 있어도 세션을 열 수 없다 — 둘 다 있어야 운영자 화면이 열린다. 인증 앱에 등록할 Base32 문자열이고, **비밀값이라 로그·문서에 남기지 않는다** |
+| `ADMIN_ACCOUNT_DELETION_ENABLED` | | `false`. 재탈퇴 API가 **404**다(있는 줄도 모르게 둔다). 그게 정상 상태다 — 백업을 복원한 날에만 켠다 |
 | `LEGAL_EFFECTIVE_AT` | △ | `2026-09-08T00:00:00+09:00`(현재 서빙 중인 방침 v2의 시행일). **재동의가 필요한 개정을 하고 이 값을 안 올리면 조용히 틀린다** — 개정된 문서가 나가는데 동의 화면이 아무에게도 뜨지 않고, 그 사실이 화면에 드러나지 않는다 |
 | `MATCH_CONTACT_VISIBLE_DAYS` | | 14일. 0 이나 음수를 주면 수락 직후부터 연락처가 안 보인다 — 설정을 빠뜨린 경우(null)만 기본값으로 떨어진다 |
 | `SEED_DATA` | | `false`. **운영에서는 켜지 않는다 — 켜면 기동이 거부된다**(`SeedDataGuard`). 시드 계정의 이메일과 공통 비밀번호가 이 공개 저장소에 있어서, 운영에 들어가면 누구나 그 계정으로 로그인할 수 있다 |

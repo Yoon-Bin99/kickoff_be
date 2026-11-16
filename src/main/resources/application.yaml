@@ -150,6 +150,14 @@ kickoff:
     # 운영자가 아무도 없는 상태를 기본값으로 둬서, 설정을 빠뜨린 배포가 남의 문의를 열어
     # 주는 일이 없게 한다.
     operator-email: ${SUPPORT_OPERATOR_EMAIL:}
+  admin:
+    account-deletion:
+      # 백업 복원 뒤의 재탈퇴 API 스위치 (계약서 §7-2 B-6, v1.37.3).
+      #
+      # <b>평시에는 꺼 둔다.</b> "운영자가 아무 계정이나 지울 수 있는 API"가 상시 살아
+      # 있으면, 운영자 계정이 뚫렸을 때 그것이 곧 대량 삭제 수단이 된다. 복원 작업
+      # 중에만 켜고 끝나면 끈다 — 꺼져 있으면 그 경로는 404 다.
+      enabled: ${ADMIN_ACCOUNT_DELETION_ENABLED:false}
   operator:
     # 운영자 일회용 비밀번호(TOTP)의 비밀키 (계약서 §7-2 「운영자 인증」, v1.35.1).
     #

@@ -41,6 +41,24 @@ public interface AccountDeletionRepository extends JpaRepository<User, Long> {
     long countUpcomingAcceptedMatches(@Param("teamId") Long teamId,
                                       @Param("now") OffsetDateTime now);
 
+    /**
+     * 같은 조건의 행들 — 운영자 재탈퇴(계약서 §7-2 B-6)가 쓴다.
+     *
+     * 그쪽은 막는 대신 §6-2 처럼 <b>취소하고</b> 지우므로, 몇 건인지가 아니라 무엇인지가
+     * 필요하다. 조건을 두 벌 적지 않으려고 위 count 와 같은 where 를 쓴다.
+     */
+    @Query("""
+            select r from MatchRequest r
+            join fetch r.post p
+            join fetch p.team
+            join fetch r.applicantTeam
+            where r.status = com.kickoff.be.matchrequest.entity.RequestStatus.ACCEPTED
+              and p.matchAt > :now
+              and (p.team.id = :teamId or r.applicantTeam.id = :teamId)
+            """)
+    java.util.List<com.kickoff.be.matchrequest.entity.MatchRequest> findUpcomingAcceptedMatches(
+            @Param("teamId") Long teamId, @Param("now") OffsetDateTime now);
+
     /** 내 팀이 당사자인 모든 신청. 아래 삭제들이 이 목록을 기준으로 돈다. */
     @Query("""
             select r.id from MatchRequest r

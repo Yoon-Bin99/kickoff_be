@@ -9,7 +9,11 @@ import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.verification.repository.PhoneVerificationRepository;
 import com.kickoff.be.user.dto.AccountDeleteRequest;
 import com.kickoff.be.user.entity.User;
+import com.kickoff.be.matchrequest.entity.MatchRequest;
+import com.kickoff.be.push.dto.MatchPushEvent;
+import com.kickoff.be.push.dto.PushEventType;
 import com.kickoff.be.user.repository.AccountDeletionRepository;
+import com.kickoff.be.user.repository.UserRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +47,8 @@ public class AccountDeletionService {
     private final PasswordResetCodeRepository passwordResetCodeRepository;
     private final PasswordEncoder passwordEncoder;
     private final ChatOutboxRecorder chatOutboxRecorder;
+    private final UserRepository userRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void delete(User user, AccountDeleteRequest request) {
@@ -51,6 +57,39 @@ public class AccountDeletionService {
         Team team = teamRepository.findByOwnerId(user.getId()).orElse(null);
         if (team != null) {
             requireNoUpcomingMatch(team);
+        }
+        deleteAccount(user, team);
+    }
+
+    /**
+     * 운영자가 대신 지운다 — 백업 복원 뒤의 재탈퇴 (계약서 §7-2 B-6, v1.37.3).
+     *
+     * <b>지우는 일 자체는 §3-4 와 같은 경로다.</b> 삭제 코드를 따로 만들면 한쪽만 고쳐지는
+     * 날이 오고, 그때 빠지는 것은 보통 채팅 서버로 가는 {@code PURGE} 다 — 탈퇴한 사람의
+     * 대화가 거기 남는다.
+     *
+     * 다른 것은 앞의 두 검사뿐이다. 비밀번호는 본인 확인 수단이라 운영자에게는 의미가
+     * 없고, 예정 매칭은 <b>막는 대신 취소한다</b> — 이 계정은 이미 떠난 사람이고(복원으로
+     * 되살아났을 뿐이다) 막아 봐야 아무도 그 매칭을 치를 수 없다.
+     *
+     * @return 지웠으면 true, 그 id 의 계정이 없으면 false
+     */
+    @Transactional
+    public boolean deleteByOperator(Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return false;
+        }
+        Team team = teamRepository.findByOwnerId(userId).orElse(null);
+        if (team != null) {
+            cancelUpcomingMatches(team, user);
+        }
+        deleteAccount(user, team);
+        return true;
+    }
+
+    private void deleteAccount(User user, Team team) {
+        if (team != null) {
             deleteTeam(team);
         }
         deleteIdentityTraces(user);
@@ -58,6 +97,34 @@ public class AccountDeletionService {
 
         // 전화번호 유니크가 풀려 같은 번호로 재가입할 수 있다 (계약서 §3-4).
         log.info("회원 탈퇴 완료 — userId={}, 팀 삭제={}", user.getId(), team != null);
+    }
+
+    /**
+     * 예정된 수락 매칭을 §6-2 와 같이 취소한다 (계약서 §7-2 B-6).
+     *
+     * <b>상대 팀에게는 이것이 전부다.</b> 글은 다시 모집 중으로 돌아가고 취소 알림이
+     * 간다 — 그러지 않으면 상대는 경기 당일에야 안다.
+     *
+     * 채팅방은 따로 알리지 않는다. 바로 뒤의 {@code deleteTeam} 이 그 방들에 {@code PURGE}
+     * 를 보내고, 그쪽이 더 센 조치라 {@code ROOM_INVALIDATED} 를 겹쳐 보낼 이유가 없다.
+     */
+    private void cancelUpcomingMatches(Team team, User owner) {
+        for (MatchRequest request : deletionRepository.findUpcomingAcceptedMatches(
+                team.getId(), OffsetDateTime.now())) {
+            request.cancelMatch();
+            request.getPost().reopen();
+            eventPublisher.publishEvent(new MatchPushEvent(PushEventType.MATCH_CANCELED,
+                    counterpartOwnerId(request, owner), request.getId(),
+                    request.getPost().getId(), request.getPost().getTitle(),
+                    request.getApplicantTeam().getName()));
+        }
+    }
+
+    /** 알림은 <b>떠나는 사람의 반대편</b>에게 간다 (계약서 §6-2). */
+    private Long counterpartOwnerId(MatchRequest request, User owner) {
+        return request.getPost().isWrittenBy(owner.getId())
+                ? request.getApplicantTeam().getOwner().getId()
+                : request.getPost().getTeam().getOwner().getId();
     }
 
     /**
