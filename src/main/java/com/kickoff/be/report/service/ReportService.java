@@ -58,6 +58,9 @@ public class ReportService {
     private final TeamAuthz teamAuthz;
     private final ReportContextClient reportContextClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.kickoff.be.user.repository.UserRepository userRepository;
+    private final com.kickoff.be.support.service.SupportService supportService;
+    private final ReportNotices notices;
 
     @Transactional
     public ReportCreatedResponse create(User reporter, ReportCreateRequest request) {
@@ -261,6 +264,11 @@ public class ReportService {
         if (distinctReporters(pending) < Report.AUTO_HIDE_REPORTERS) {
             return;
         }
+        // 이미 가려져 있으면 또 걸지 않는다 — 네 번째 신고가 기한을 30일 더 밀면,
+        // 신고를 계속 넣는 것만으로 글을 영영 가릴 수 있다.
+        if (pending.stream().anyMatch(Report::isAutoHidden)) {
+            return;
+        }
         OffsetDateTime now = OffsetDateTime.now();
         if (targetType == ReportTargetType.POST) {
             postRepository.findById(targetId).ifPresent(post -> post.hide(now));
@@ -268,6 +276,26 @@ public class ReportService {
             reviewRepository.findById(targetId).ifPresent(review -> review.hide(now));
         }
         pending.forEach(Report::markAutoHidden);
+        notifyAutoHidden(pending, targetType);
+    }
+
+    /**
+     * 자동으로 가려졌음을 게재자에게 알린다 (계약서 §7-2 — "자동 임시 가림이 걸릴 때도
+     * 게재자에게 같은 양식으로 알린다").
+     *
+     * <b>운영자 판단 전이라 "위반"이라고 단정하지 않는다</b>(법무 초안 3-3절). 알리지
+     * 않으면 게재자는 자기 글이 왜 사라졌는지 알 길이 없고, 이의를 제기할 수도 없다.
+     *
+     * 신고자에게는 이때 알리지 않는다 — 결과가 나온 것이 아니라 보류된 것이다.
+     */
+    private void notifyAutoHidden(List<Report> pending, ReportTargetType targetType) {
+        pending.stream()
+                .map(Report::getReportedUserId)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .flatMap(userRepository::findById)
+                .ifPresent(reported -> supportService.notice(reported,
+                        notices.toReportedAutoHidden(targetType)));
     }
 
     /** 팀이 있으면 팀 하나로, 없으면 계정 하나로 센다. */

@@ -22,6 +22,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * 신고함과 운영자 조치 (계약서 §7-2 「운영자 API」, v1.35.0·v1.35.1).
  *
@@ -63,18 +66,90 @@ class AdminReportTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.content[0].hiddenUntil").doesNotExist());
     }
 
+    /**
+     * <b>목록의 칸이 같은 층에 펼쳐져 나온다</b> (계약서 §7-2, v1.37.2). 묶음에 넣었더니
+     * FE 가 계약 문구대로 읽은 자리가 전부 비었다 — 운영자 상세 화면의 id·사유·상태가
+     * 통째로 안 보였다.
+     */
     @Test
-    @DisplayName("상세에는 신고 시점의 사본과 양쪽 당사자가 담긴다")
+    @DisplayName("상세에는 신고 시점의 사본과 양쪽 당사자가 같은 층에 담긴다")
     void detailCarriesSnapshotAndParties() throws Exception {
         Long reportId = reportRepository.findAll().get(0).getId();
 
         admin(get("/api/admin/reports/{id}", reportId))
                 .andExpect(status().isOk())
+                // ReportSummary 의 칸이 중첩 없이 그대로 온다
+                .andExpect(jsonPath("$.id").value(reportId))
+                .andExpect(jsonPath("$.targetType").value("POST"))
+                .andExpect(jsonPath("$.reason").value("SPAM"))
+                .andExpect(jsonPath("$.status").value("OPEN"))
+                .andExpect(jsonPath("$.reporterCount").value(1))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.summary").doesNotExist())
                 .andExpect(jsonPath("$.target.title").value("토요일 아침 상대 구합니다"))
-                .andExpect(jsonPath("$.target.body").isNotEmpty())
+                .andExpect(jsonPath("$.target.content").isNotEmpty())
                 .andExpect(jsonPath("$.reporter.nickname").value("김신고"))
                 .andExpect(jsonPath("$.reported.nickname").value("박작성"))
                 .andExpect(jsonPath("$.resolution").doesNotExist());
+    }
+
+    /** 대상 종류마다 채워지는 칸이 다르다 (계약서 §7-2 표, v1.37.2). */
+    @Test
+    @DisplayName("팀 신고의 사본은 name·introduction 에 담긴다")
+    void teamTargetUsesItsOwnFields() throws Exception {
+        reportRepository.deleteAll();
+        mockMvc.perform(post("/api/reports")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(reporter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetType":"TEAM","targetId":%d,"reason":"ABUSE"}
+                                """.formatted(authorTeam.getId())))
+                .andExpect(status().isCreated());
+        Long reportId = reportRepository.findAll().get(0).getId();
+
+        admin(get("/api/admin/reports/{id}", reportId))
+                .andExpect(jsonPath("$.target.name").value("FC 노을"))
+                .andExpect(jsonPath("$.target.introduction").isNotEmpty())
+                .andExpect(jsonPath("$.target.title").doesNotExist())
+                .andExpect(jsonPath("$.target.content").doesNotExist())
+                .andExpect(jsonPath("$.target.messages").isEmpty());
+    }
+
+    /** 채팅 사본은 §6-1 ChatMessage 모양 그대로다 — 채팅 화면 컴포넌트를 그대로 쓴다. */
+    @Test
+    @DisplayName("채팅 신고의 사본은 ChatMessage 모양이고 senderUserId 는 없다")
+    void chatTargetUsesChatMessageShape() throws Exception {
+        reportRepository.deleteAll();
+        mockMvc.perform(post("/api/reports")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(reporter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetType":"CHAT_MESSAGE","targetId":45,"requestId":7,
+                                 "reason":"ABUSE","chatDisclosureAgreed":true}
+                                """))
+                .andExpect(status().isCreated());
+        Long reportId = reportRepository.findAll().get(0).getId();
+
+        admin(get("/api/admin/reports/{id}", reportId))
+                .andExpect(jsonPath("$.target.reportedMessageId").value(45))
+                .andExpect(jsonPath("$.target.messages", org.hamcrest.Matchers.hasSize(3)))
+                .andExpect(jsonPath("$.target.messages[0].id").isNumber())
+                .andExpect(jsonPath("$.target.messages[0].type").value("TEXT"))
+                .andExpect(jsonPath("$.target.messages[0].senderTeamId").isNumber())
+                .andExpect(jsonPath("$.target.messages[0].createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.target.messages[0].senderUserId").doesNotExist())
+                .andExpect(jsonPath("$.target.messages[0].reported").doesNotExist());
+    }
+
+    /** 시각은 다른 응답과 같이 밀리초까지만 (계약서 §7-2, v1.37.2). */
+    @Test
+    @DisplayName("기한·조치 시각이 밀리초까지만 나간다")
+    void timestampsAreMilliseconds() throws Exception {
+        String body = bodyOf(resolve("{\"action\":\"HIDE\"}").andExpect(status().isOk()));
+
+        assertThat(fractionDigits(body, "hiddenUntil")).isLessThanOrEqualTo(3);
+        assertThat(fractionDigits(body, "until")).isLessThanOrEqualTo(3);
+        assertThat(fractionDigits(body, "resolvedAt")).isLessThanOrEqualTo(3);
     }
 
     /** 열람 자체가 기록 대상이다 (계약서 §7-2 — 접속기록). */
@@ -120,9 +195,9 @@ class AdminReportTest extends IntegrationTestSupport {
     void hideHidesContentAndKeepsReportOpen() throws Exception {
         resolve("{\"action\":\"HIDE\"}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.summary.status").value("TEMP_HIDDEN"))
+                .andExpect(jsonPath("$.status").value("TEMP_HIDDEN"))
                 .andExpect(jsonPath("$.moderation.status").value("HIDDEN"))
-                .andExpect(jsonPath("$.summary.hiddenUntil").isNotEmpty())
+                .andExpect(jsonPath("$.hiddenUntil").isNotEmpty())
                 .andExpect(jsonPath("$.resolution.action").value("HIDE"));
 
         mockMvc.perform(get("/api/posts/{id}", post.getId()))
@@ -148,7 +223,7 @@ class AdminReportTest extends IntegrationTestSupport {
     void removeClosesTheReport() throws Exception {
         resolve("{\"action\":\"REMOVE\"}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.summary.status").value("CLOSED"))
+                .andExpect(jsonPath("$.status").value("CLOSED"))
                 .andExpect(jsonPath("$.moderation.status").value("REMOVED"));
 
         mockMvc.perform(get("/api/posts/{id}", post.getId()))
@@ -164,7 +239,7 @@ class AdminReportTest extends IntegrationTestSupport {
 
         resolve("{\"action\":\"DISMISS\"}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.summary.status").value("CLOSED"))
+                .andExpect(jsonPath("$.status").value("CLOSED"))
                 .andExpect(jsonPath("$.moderation").doesNotExist());
 
         mockMvc.perform(get("/api/posts/{id}", post.getId())).andExpect(status().isOk());
@@ -191,11 +266,52 @@ class AdminReportTest extends IntegrationTestSupport {
     void suspendOnlyLeavesContent() throws Exception {
         resolve("{\"action\":\"SUSPEND_ONLY\",\"suspendDays\":7}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.summary.status").value("CLOSED"));
+                .andExpect(jsonPath("$.status").value("CLOSED"));
 
         assertThat(userRepository.findById(author.getId()).orElseThrow()
                 .isSuspendedAt(OffsetDateTime.now())).isTrue();
         mockMvc.perform(get("/api/posts/{id}", post.getId())).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("조치에 붙은 제한 날수가 상세에 남는다")
+    void resolutionCarriesSuspendDays() throws Exception {
+        resolve("{\"action\":\"SUSPEND_ONLY\",\"suspendDays\":7}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resolution.suspendDays").value(7));
+
+        Long reportId = reportRepository.findAll().get(0).getId();
+        admin(get("/api/admin/reports/{id}", reportId))
+                .andExpect(jsonPath("$.resolution.suspendDays").value(7));
+    }
+
+    /**
+     * <b>운영자가 제한되면 스스로 풀 수 없다</b> (계약서 §7-2, v1.37.2). 이용 제한은
+     * 운영자 API 까지 막으므로, 자기 팀이 신고된 건을 제한으로 처리하는 순간 신고함도
+     * 해제 API 도 닫힌다 — 실제로 그렇게 잠겼다.
+     */
+    @Test
+    @DisplayName("운영자 계정은 이용을 제한할 수 없다")
+    void operatorCannotBeSuspended() throws Exception {
+        reportRepository.deleteAll();
+        Team operatorTeam = createTeam(operator, "운영자 팀", "서울 중구");
+        mockMvc.perform(post("/api/reports")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(reporter))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetType":"TEAM","targetId":%d,"reason":"NO_SHOW"}
+                                """.formatted(operatorTeam.getId())))
+                .andExpect(status().isCreated());
+
+        resolve("{\"action\":\"SUSPEND_ONLY\",\"suspendDays\":7}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors[?(@.field == 'suspendDays')]").exists());
+
+        // 콘텐츠 조치는 그대로 된다 — 막는 것은 제한뿐이다
+        resolve("{\"action\":\"HIDE\"}").andExpect(status().isOk());
+        assertThat(userRepository.findById(operator.getId()).orElseThrow()
+                .isSuspendedAt(java.time.OffsetDateTime.now())).isFalse();
     }
 
     @Test
@@ -258,6 +374,18 @@ class AdminReportTest extends IntegrationTestSupport {
                         .doesNotContain("reporter@example.com"));
     }
 
+    /** 이용자가 읽는 문장이다 — "모집글이(가)"처럼 나가면 안 된다. */
+    @Test
+    @DisplayName("통지 문구의 조사가 대상에 맞는다")
+    void noticeUsesTheRightParticle() throws Exception {
+        resolve("{\"action\":\"REMOVE\"}").andExpect(status().isOk());
+
+        assertThat(noticesTo(author))
+                .anySatisfy(content -> assertThat(content)
+                        .contains("회원님의 모집글이 운영 정책 위반으로 삭제됐습니다")
+                        .doesNotContain("이(가)"));
+    }
+
     @Test
     @DisplayName("조치하지 않으면 신고자에게만 알린다")
     void dismissNotifiesOnlyTheReporter() throws Exception {
@@ -276,11 +404,46 @@ class AdminReportTest extends IntegrationTestSupport {
     @DisplayName("자동으로 가려졌다가 복원되면 게재자에게도 알린다")
     void restoringAfterAutoHideNotifiesTheAuthor() throws Exception {
         autoHide();
+        // 가려질 때 이미 한 번 알렸다 (아래 autoHideNotifiesTheAuthor)
+        assertThat(noticesTo(author)).hasSize(1);
 
         resolve("{\"action\":\"DISMISS\"}").andExpect(status().isOk());
 
+        assertThat(noticesTo(author)).hasSize(2)
+                .last(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+                .contains("다시 표시됩니다");
+    }
+
+    /**
+     * <b>자동으로 가려질 때도 게재자에게 알린다</b> (계약서 §7-2). 알리지 않으면 글이
+     * 왜 사라졌는지 알 길이 없고, 이의를 제기할 수도 없다 — 운영자 조치 전이라 더 그렇다.
+     *
+     * 신고자에게는 이때 알리지 않는다. 결과가 나온 것이 아니라 보류된 것이다.
+     */
+    @Test
+    @DisplayName("자동 임시 가림이 걸리면 게재자에게 알린다")
+    void autoHideNotifiesTheAuthor() throws Exception {
+        autoHide();
+
         assertThat(noticesTo(author)).hasSize(1)
-                .allSatisfy(content -> assertThat(content).contains("다시 표시됩니다"));
+                .allSatisfy(content -> assertThat(content)
+                        .contains("여러 건의 신고가 접수되어")
+                        // 운영자 판단 전이라 "위반"이라고 단정하지 않는다
+                        .doesNotContain("위반"));
+        assertThat(noticesTo(reporter)).isEmpty();
+    }
+
+    /** 네 번째 신고가 기한을 30일 더 밀면, 신고만으로 글을 영영 가릴 수 있다. */
+    @Test
+    @DisplayName("이미 자동으로 가려진 뒤의 신고는 다시 알리지 않는다")
+    void laterReportsDoNotRenotify() throws Exception {
+        autoHide();
+        User fourth = createUser("fourth@example.com", "네번째", "010-5555-5555");
+        createTeam(fourth, "네번째 팀", "서울 마포구");
+
+        report(fourth);
+
+        assertThat(noticesTo(author)).hasSize(1);
     }
 
     @Test
@@ -341,6 +504,18 @@ class AdminReportTest extends IntegrationTestSupport {
         return mockMvc.perform(builder
                 .header(HttpHeaders.AUTHORIZATION, bearer(operator))
                 .header(OperatorGuard.HEADER, operatorToken(operator)));
+    }
+
+    /**
+     * 응답에서 그 필드의 소수점 자릿수. 없으면 0.
+     *
+     * 윈도우는 100ns 정밀도라 그냥 두면 7자리가 나간다 — 엄격한 파서를 쓰는
+     * 클라이언트가 걸리는 자리다.
+     */
+    private int fractionDigits(String body, String field) {
+        Matcher matcher = Pattern.compile("\"" + field + "\":\"[^\"]*?(?:[.]([0-9]+))?[+Z]")
+                .matcher(body);
+        return matcher.find() && matcher.group(1) != null ? matcher.group(1).length() : 0;
     }
 
     /** 그 사람의 문의방에 쌓인 알림(NOTICE) 본문들. */

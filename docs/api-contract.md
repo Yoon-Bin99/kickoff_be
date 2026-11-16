@@ -1,7 +1,11 @@
-# Kickoff API 계약 v1 (현재 v1.37.2)
+# Kickoff API 계약 v1 (현재 v1.37.3)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE/채팅 서버 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.37.3 (2026-11-16): §7-2 — ① 운영자 계정에 이용 제한을 걸 때의 거절을 **409 `OPERATOR_NOT_SUSPENDABLE`**로 나눈다(v1.37.2의 400을
+> 바꿈 — 범위를 벗어난 `suspendDays`의 400과 FE가 구별할 수 없었다, FE 지적). ② 신고 상세 `target.messages`의 원소는 **다섯 필드만**
+> (`requestId` 없음). ③ **복원 뒤 재탈퇴용 운영자 API** `POST /api/admin/users/deletions` 신설(BE 제안 — 평시에는 꺼 둔다).
 
 > v1.37.2 (2026-11-16): §7-2 — Supervisor의 실서버 점검(BE+FE를 붙여 본 결과)에서 나온 것. ① **`ReportDetail`의 모양을 필드 이름까지
 > 못 박는다** — 지금까지 글로만 적혀 있어 BE(`summary` 안에 중첩, `body`)와 FE(펼친 모양, `content`)가 서로 다르게 만들었다. 펼친
@@ -464,6 +468,7 @@
 | `CONTENT_MODERATED` | 410 | 운영 조치로 가려졌거나 삭제된 콘텐츠 (v1.35.0, §7-2). `message`가 화면에 보일 표시 문구다 |
 | `REPORT_ALREADY_EXISTS` | 409 | 같은 대상을 이미 신고했고 아직 처리 중 (v1.35.0) |
 | `REPORT_RATE_LIMITED` | 429 | 신고가 지난 24시간에 10건을 넘음 (v1.35.0) |
+| `OPERATOR_NOT_SUSPENDABLE` | 409 | 운영자 계정에 이용 제한을 걸려 함 (v1.37.3) |
 | `REPORT_NOT_FOUND` | 404 | (v1.35.0, 운영자 API) |
 | `OPERATOR_SESSION_REQUIRED` | 401 | 운영자 API를 운영자 세션 없이(또는 만료된 세션으로) 호출 (v1.35.1, §7-2 「운영자 인증」). FE는 OTP 입력으로 보낸다 |
 | `OPERATOR_OTP_INVALID` | 401 | OTP가 틀림 (v1.35.1) |
@@ -2354,7 +2359,7 @@ data: `{ "type": "SUPPORT_MESSAGE", "userId": 5 }` (userId는 방 주인 — 운
   | `POST` | `title`(제목), `content`(내용) |
   | `REVIEW` | `rating`(별점), `content`(내용) |
   | `TEAM` | `name`(팀 이름), `introduction`(소개 — 없었으면 `null`) |
-  | `CHAT_MESSAGE` | `reportedMessageId`, `messages` — §6-1 `ChatMessage` 모양(`id`·`type`·`senderTeamId`·`content`·`createdAt`) 그대로, 시간 오름차순 |
+  | `CHAT_MESSAGE` | `reportedMessageId`, `messages` — 원소는 **`id`·`type`·`senderTeamId`·`content`·`createdAt` 다섯 필드만**(§6-1 `ChatMessage`에서 `requestId`를 뺀 것 — 어느 방인지는 신고가 안다, v1.37.3), 시간 오름차순 |
 
   `reporter`·`reported`의 `teamId`·`teamName`은 팀이 없으면 `null`. `resolution.suspendDays`는 그 조치에 이용 제한이 붙었으면 그
   날수, 아니면 `null`. 시각은 다른 응답과 같이 밀리초까지만 적는다.
@@ -2372,8 +2377,9 @@ data: `{ "type": "SUPPORT_MESSAGE", "userId": 5 }` (userId는 방 주인 — 운
   | `SUSPEND_ONLY` | 콘텐츠는 두고 계정만 제한한다(`suspendDays` 필수) | `CLOSED` |
 
   - `suspendDays`(optional, 1~3650): 신고된 쪽 계정(글·리뷰 작성 팀의 감독, 팀의 감독, 메시지를 보낸 계정)의 이용을 그 날수만큼
-    제한한다. **신고된 쪽이 운영자 계정이면 400 `VALIDATION_FAILED`**(`field`는 `suspendDays` — v1.37.2: 운영자가 제한되면
-    운영자 API가 닫혀 스스로 풀 수 없다. 그런 건은 콘텐츠 조치(`HIDE`·`REMOVE`)나 `DISMISS`로만 처리한다). `DISMISS`와 함께 쓸 수 없다. `CHAT_MESSAGE` 신고에는 `HIDE`·`REMOVE`를 쓸 수 없다(400).
+    제한한다. **신고된 쪽이 운영자 계정이면 409 `OPERATOR_NOT_SUSPENDABLE`**(v1.37.3 — 운영자가 제한되면
+    운영자 API가 닫혀 스스로 풀 수 없다. 그런 건은 콘텐츠 조치(`HIDE`·`REMOVE`)나 `DISMISS`로만 처리한다. 검사 순서는
+    요청 값 검증(400) 다음이다). FE는 "운영자 계정에는 이용 제한을 걸 수 없어요"로 보인다. `DISMISS`와 함께 쓸 수 없다. `CHAT_MESSAGE` 신고에는 `HIDE`·`REMOVE`를 쓸 수 없다(400).
   - `note` optional 최대 500자(내부 메모 — 통지에 싣지 않는다).
   - 같은 대상에 걸린 다른 처리 전 신고도 같은 결과로 함께 닫는다.
   - **통지**: 조치와 동시에 신고자 전원과 게재자(신고된 쪽)에게 고객센터 메시지(`sender: "NOTICE"`)와 `SUPPORT_MESSAGE` 푸시를
@@ -2381,6 +2387,20 @@ data: `{ "type": "SUPPORT_MESSAGE", "userId": 5 }` (userId는 방 주인 — 운
     삭제·이용 제한은 14일). **신고자가 누구인지는 어느 통지에도 싣지 않는다.** `DISMISS`는 신고자에게만 알린다(자동으로 가려졌다가
     복원되는 경우에는 게재자에게도 복원을 알린다). 자동 임시 가림이 걸릴 때도 게재자에게 같은 양식으로 알린다.
 - `DELETE /api/admin/users/{userId}/suspension` → 204 (이용 제한 해제. 없는 사용자 404 `USER_NOT_FOUND`).
+- `POST /api/admin/users/deletions` (v1.37.3) — **DB를 백업에서 되살린 뒤, 백업 시점 이후에 탈퇴했던 계정을 다시 탈퇴시키는 용도.**
+  평시에는 꺼 둔다: BE env `ADMIN_ACCOUNT_DELETION_ENABLED`(기본 `false`)가 `true`가 아니면 **404 `NOT_FOUND`**(운영자 계정이
+  뚫렸을 때 대량 삭제 수단이 되지 않게 — 복원 작업 중에만 켜고 끝나면 끈다).
+
+  ```json
+  { "userIds": [12, 15, 31] }
+  ```
+
+  - `userIds` 1~200개(양의 정수, 중복은 한 번으로). 벗어나면 400 `VALIDATION_FAILED`. **운영자 자신의 id가 들어 있으면 400**.
+  - 각 계정을 §3-4의 탈퇴와 **똑같은 경로**로 지운다(소유 팀·글·리뷰 정리, 채팅 서버의 `PURGE`까지 — 따로 만든 삭제 코드를 쓰지
+    않는다). 비밀번호 확인과 `ACTIVE_MATCH_EXISTS` 검사는 하지 않는다 — 예정된 수락 매칭이 있으면 §6-2와 같이 취소한 뒤 지운다.
+  - 200 → `{ "deleted": [12, 31], "notFound": [15] }`. 이미 없는 id는 `notFound`로 돌려준다(다시 돌려도 안전하다).
+  - 운영자 세션(`X-Operator-Token`)이 필요하고 접속기록에 대상 userId가 전부 남는다.
+  - 탈퇴한 userId 목록은 서버 로그의 탈퇴 완료 줄(시각·userId)에서 뽑는다 — 절차는 인프라 운영 문서.
 
 ### 이용 제한
 

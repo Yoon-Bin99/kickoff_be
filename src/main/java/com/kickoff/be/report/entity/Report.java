@@ -113,6 +113,10 @@ public class Report extends BaseTimeEntity {
     @Column(name = "resolution_note", length = 500)
     private String resolutionNote;
 
+    /** 그 조치에 붙은 이용 제한 날수 (계약서 §7-2, v1.37.2). 없으면 null. */
+    @Column(name = "resolution_suspend_days")
+    private Integer resolutionSuspendDays;
+
     @Column(name = "resolved_at")
     private OffsetDateTime resolvedAt;
 
@@ -148,12 +152,15 @@ public class Report extends BaseTimeEntity {
      * 임시 가림이면 {@code TEMP_HIDDEN} 으로 남는다 — 30일 안에 다시 정해야 하는
      * 미완의 건이라, CLOSED 로 묶으면 기한이 다가오는 것을 아무도 보지 않는다.
      */
-    public void resolve(ReportStatus status, String action, String note,
+    public void resolve(ReportStatus status, String action, Integer suspendDays, String note,
                         OffsetDateTime resolvedAt) {
         this.status = status;
         this.resolutionAction = action;
+        this.resolutionSuspendDays = suspendDays;
         this.resolutionNote = note;
-        this.resolvedAt = resolvedAt;
+        // 밀리초까지만 남긴다. 윈도우는 100ns 정밀도라 그대로 내보내면 소수점이 7자리가
+        // 되고, 다른 응답과 모양이 달라진다 (ErrorResponse 와 같은 이유).
+        this.resolvedAt = resolvedAt.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
     }
 
     /** 신고자가 탈퇴했다 — 건 자체는 보관 기간까지 남는다 (계약서 §7-2). */

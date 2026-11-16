@@ -42,9 +42,15 @@ public class Moderation {
         this.until = until;
     }
 
-    /** 지금부터 30일 동안 가린다. */
+    /**
+     * 지금부터 30일 동안 가린다.
+     *
+     * 기한은 밀리초까지만 적는다 — 윈도우는 100ns 정밀도라 그대로 두면 응답의 소수점이
+     * 7자리가 되고, 저장 전(메모리)과 저장 후(DB) 값의 모양이 달라진다.
+     */
     public static Moderation hiddenFrom(OffsetDateTime now) {
-        return new Moderation(ModerationStatus.HIDDEN, now.plus(HIDE_DAYS, ChronoUnit.DAYS));
+        return new Moderation(ModerationStatus.HIDDEN,
+                now.plus(HIDE_DAYS, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS));
     }
 
     public static Moderation removed() {

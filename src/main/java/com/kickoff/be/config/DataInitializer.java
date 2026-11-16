@@ -415,7 +415,7 @@ public class DataInitializer implements ApplicationRunner {
         long withCoordinates = posts.stream().filter(MatchPost::hasCoordinates).count();
         seedTeamPage(saebyeok, goyang, goyang.getOwner());
         seedMembership(saebyeok, incheon.getOwner(), seongnam.getOwner());
-        seedModeration(saebyeok, mapo, songpa, goyang);
+        seedModeration(saebyeok, mapo, songpa, goyang, incheon);
 
         log.info("시드 데이터 생성 완료 — 팀 {}개, 모집글 {}개(OPEN {}개, 좌표 {}개), 신청 {}건, 리뷰 {}건, 명단 {}명, 기록 {}건(매칭연동 {}건), 관리자 {}명, 가입신청 {}건, 신고 {}건, 차단 {}건",
                 teamCount, postCount, openCount, withCoordinates, requestCount,
@@ -432,12 +432,19 @@ public class DataInitializer implements ApplicationRunner {
      * 목록이 빈 화면이고, 가려진 리뷰가 없으면 자리 표시를 그려볼 수 없다. 차단은 한 쌍만
      * 둔다 — 두 팀 사이 효과(신청 409·연락처 null)를 밟는 데 한 쌍이면 충분하다.
      *
+     * <b>신고 대상에 운영자 팀을 두지 않는다.</b> 운영자 계정은 이용 제한 대상이 될 수
+     * 없고(계약서 §7-2, v1.37.2), 그 건을 제한으로 처리해 보려다 운영자 API 가 통째로
+     * 닫히는 일이 실제로 있었다. README 가 "신고 하나를 SUSPEND_ONLY 로 처리해 보라"고
+     * 안내하므로, 그 안내를 따라가도 막히지 않게 대상을 고른다.
+     *
      * @param saebyeok 신고자 쪽(김주장) — 마포 글을 신고하고 고양을 차단해 둔다
      * @param mapo     신고된 글의 작성 팀
      * @param songpa   가려진 리뷰를 쓴 팀
-     * @param goyang   차단당한 팀
+     * @param goyang   차단당한 팀 (운영자 최총무의 팀 — 신고 대상으로는 쓰지 않는다)
+     * @param incheon  신고된 팀 (운영자가 아닌 윤코치의 팀)
      */
-    private void seedModeration(Team saebyeok, Team mapo, Team songpa, Team goyang) {
+    private void seedModeration(Team saebyeok, Team mapo, Team songpa, Team goyang,
+                                Team incheon) {
         // 1) 처리 전 신고 두 건 — 운영자 신고함에 목록이 보인다.
         //    서로 다른 신고자가 하나씩이라 자동 가림(3명)에는 못 미친다.
         postRepository.findByTeamId(mapo.getId(),
@@ -457,13 +464,13 @@ public class DataInitializer implements ApplicationRunner {
         reportRepository.save(Report.builder()
                 .reporterUserId(saebyeok.getOwner().getId())
                 .reporterTeamId(saebyeok.getId())
-                .reportedUserId(goyang.getOwner().getId())
+                .reportedUserId(incheon.getOwner().getId())
                 .targetType(ReportTargetType.TEAM)
-                .targetId(goyang.getId())
+                .targetId(incheon.getId())
                 .reason(ReportReason.NO_SHOW)
                 .detail("약속한 경기에 나오지 않았습니다.")
-                .targetTitle(goyang.getName())
-                .targetBody(goyang.getIntroduction())
+                .targetTitle(incheon.getName())
+                .targetBody(incheon.getIntroduction())
                 .build());
 
         // 2) 임시로 가려진 리뷰 한 건 — 목록에서 자리 표시로 보이고 평점에서는 빠진다.

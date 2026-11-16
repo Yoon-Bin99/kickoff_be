@@ -60,6 +60,7 @@ public class AdminReportService {
     private final UserRepository userRepository;
     private final SupportService supportService;
     private final ReportNotices notices;
+    private final com.kickoff.be.support.service.OperatorAccounts operatorAccounts;
 
     /** 상태를 주지 않으면 처리 전(OPEN·TEMP_HIDDEN)만 (계약서 §7-2). */
     @Transactional(readOnly = true)
@@ -100,7 +101,7 @@ public class AdminReportService {
 
         applyToContent(report, request.action(), now);
         Integer suspendDays = suspend(report, request.suspendDays(), now);
-        closeSameTarget(report, request, now);
+        closeSameTarget(report, request, suspendDays, now);
         notify(report, request, suspendDays, now, reporterIds, wasAutoHidden);
         return toDetail(report);
     }
@@ -127,6 +128,14 @@ public class AdminReportService {
         if (report.getTargetType() == ReportTargetType.CHAT_MESSAGE
                 && (request.action().hidesContent() || request.action().removesContent())) {
             throw invalid("action", "채팅 메시지는 가리거나 삭제할 수 없습니다.");
+        }
+        // 운영자 계정은 제한 대상이 될 수 없다 (계약서 §7-2, v1.37.2).
+        //
+        // <b>제한되면 스스로 풀 수 없다.</b> 이용 제한은 운영자 API 까지 막으므로, 자기
+        // 팀이 신고된 건을 제한으로 처리하는 순간 신고함도 해제 API 도 닫힌다. 실제로
+        // 그렇게 잠겼다. 그런 건은 콘텐츠 조치나 DISMISS 로만 처리한다.
+        if (request.suspendDays() != null && isOperator(report.getReportedUserId())) {
+            throw invalid("suspendDays", "운영자 계정은 이용을 제한할 수 없습니다.");
         }
     }
 
@@ -190,13 +199,14 @@ public class AdminReportService {
         return days;
     }
 
-    private void closeSameTarget(Report report, ResolveRequest request, OffsetDateTime now) {
+    private void closeSameTarget(Report report, ResolveRequest request, Integer suspendDays,
+                                 OffsetDateTime now) {
         ReportStatus status = request.action().hidesContent()
                 ? ReportStatus.TEMP_HIDDEN
                 : ReportStatus.CLOSED;
         for (Report pending : reportRepository.findPendingOf(report.getTargetType(),
                 report.getTargetId())) {
-            pending.resolve(status, request.action().name(), request.note(), now);
+            pending.resolve(status, request.action().name(), suspendDays, request.note(), now);
         }
     }
 
@@ -263,30 +273,52 @@ public class AdminReportService {
 
     private ReportDetail toDetail(Report report) {
         OffsetDateTime now = OffsetDateTime.now();
-        List<ReportChatMessage> copies = report.getTargetType() == ReportTargetType.CHAT_MESSAGE
-                ? chatMessageRepository.findByReportIdOrderBySentAtAsc(report.getId())
-                : List.of();
         return new ReportDetail(
-                ReportSummary.of(report, reporterCountOf(report), hiddenUntilOf(report, now)),
+                report.getId(),
+                report.getTargetType(),
+                report.getTargetId(),
+                report.getReason(),
+                report.getStatus(),
+                reporterCountOf(report),
+                report.isAutoHidden(),
+                hiddenUntilOf(report, now),
+                report.getCreatedAt(),
                 report.getRightsHolder(),
                 report.getDetail(),
                 partyOf(report.getReporterUserId(), report.getReporterTeamId()),
                 partyOf(report.getReportedUserId(), null),
-                new ReportDetail.Target(report.getTargetTitle(), report.getTargetBody(),
-                        report.getTargetRating(),
-                        report.getTargetType() == ReportTargetType.CHAT_MESSAGE
-                                ? report.getTargetId() : null,
-                        copies.stream().map(this::toMessage).toList()),
+                targetOf(report),
                 moderationOf(report, now),
                 report.getResolvedAt() == null ? null
                         : new ReportDetail.Resolution(report.getResolutionAction(),
-                                report.getResolutionNote(), report.getResolvedAt()));
+                                report.getResolutionSuspendDays(), report.getResolutionNote(),
+                                report.getResolvedAt()));
     }
 
+    /**
+     * 대상 종류마다 채워지는 칸이 다르다 (계약서 §7-2 표, v1.37.2).
+     *
+     * 저장은 한 쌍({@code targetTitle}·{@code targetBody})으로 하고 꺼낼 때 가른다 —
+     * 종류마다 컬럼을 따로 두면 대부분이 비는 넓은 표가 된다.
+     */
+    private ReportDetail.Target targetOf(Report report) {
+        return switch (report.getTargetType()) {
+            case POST -> ReportDetail.Target.ofPost(report.getTargetTitle(),
+                    report.getTargetBody());
+            case REVIEW -> ReportDetail.Target.ofReview(report.getTargetRating(),
+                    report.getTargetBody());
+            case TEAM -> ReportDetail.Target.ofTeam(report.getTargetTitle(),
+                    report.getTargetBody());
+            case CHAT_MESSAGE -> ReportDetail.Target.ofChat(report.getTargetId(),
+                    chatMessageRepository.findByReportIdOrderBySentAtAsc(report.getId())
+                            .stream().map(this::toMessage).toList());
+        };
+    }
+
+    /** §6-1 ChatMessage 모양 그대로 (계약서 §7-2, v1.37.2) — 보낸 사람의 userId 는 뺀다. */
     private ReportDetail.Message toMessage(ReportChatMessage copy) {
-        return new ReportDetail.Message(copy.getMessageId(), copy.isReported(),
-                copy.getSenderUserId(), copy.getSenderTeamId(), copy.getMessageType(),
-                copy.getContent(), copy.getSentAt());
+        return new ReportDetail.Message(copy.getMessageId(), copy.getMessageType(),
+                copy.getSenderTeamId(), copy.getContent(), copy.getSentAt());
     }
 
     /** 탈퇴했으면 null 이다 (계약서 §7-2 — 식별값을 비운다). */
@@ -339,6 +371,12 @@ public class AdminReportService {
     private Report find(Long reportId) {
         return reportRepository.findById(reportId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
+    }
+
+    private boolean isOperator(Long userId) {
+        return userId != null && userRepository.findById(userId)
+                .map(operatorAccounts::isOperator)
+                .orElse(false);
     }
 
     private BusinessException invalid(String field, String message) {
