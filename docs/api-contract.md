@@ -1,7 +1,23 @@
-# Kickoff API 계약 v1 (현재 v1.33.1)
+# Kickoff API 계약 v1 (현재 v1.34.1)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE/채팅 서버 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.34.1 (2026-11-16): v1.34.0을 **법무 검토에 맞춰 고침** (구현이 끝나기 전의 정정 — v1.34.0만 구현한 서버·앱은 없다).
+> ① **연락처 제공 동의(`contactSharing`)는 가입할 때가 아니라 팀을 만들 때 받는다** — 전화번호가 상대에게 넘어가는 사람은
+> 감독뿐이라, 팀원으로만 활동할 가입자에게 필수로 요구하지 않는다. 가입·동의 화면의 항목은 셋(`age14`·`terms`·`privacy`),
+> `POST /api/teams`에 `contactSharingConsent: true` 필수. ② `privacy`는 "동의"가 아니라 **"안내 확인"**이다(가입에 꼭 필요한
+> 정보는 동의 없이 수집하고 알린다 — 제15조 제1항 제4호, 제22조 제3항). ③ `UserResponse.pendingConsents` 신설 — 동의 화면이
+> 어느 항목을 받아야 하는지 서버가 알려 준다. ④ **경기 뒤 연락처·계좌 표시 기간**: 상대 팀에게는 경기일 + 14일까지만 보인다
+> (법률 점검 C-2 — 동의 문구의 "보유·이용 기간"이 이 값이다).
+
+> v1.34.0 (2026-11-16): **동의 구조 개편** (사용자 승인 — 법률 점검 A-2). 한 번의 체크로 묶여 있던 동의를 **네 항목으로
+> 나누고**, 서버가 항목별로 기록하며, **동의 전에는 서버가 막는다**. ① 가입 요청의 `termsAgreed`를 폐지하고 `consents`
+> 오브젝트(만 14세 이상·이용약관·개인정보 수집·이용·매칭 성사 시 연락처 제공)로 바꾼다. ② `POST /api/users/me/terms-agreement`를
+> 폐지하고 `PUT /api/users/me/consents`로 바꾼다. ③ `UserResponse.consentRequired` 신설 — 동의 화면을 띄울지는 **서버가
+> 판정**한다(FE 상수 `TERMS_EFFECTIVE_AT` 폐지). ④ 동의가 필요한 계정의 인증 API 호출은 403 **`CONSENT_REQUIRED`**(신설).
+> ⑤ 모집글에 입금 계좌를 적을 때 `paymentShareConfirmed: true` 필수(수락된 상대 팀 감독에게 보인다는 확인). ⑥ 입금 계좌
+> 3필드는 암호화해 저장한다(A-1, BE env `ACCOUNT_ENC_KEY` — API 변화 없음). 화면 문구는 법무 초안이 오면 FE에 따로 전달한다.
 
 > v1.33.1 (2026-11-16): v1.33.0의 **문구만** 구현에 맞춰 바로잡음(채팅 서버 지적, 동작 변화 없음). ① 검사 순서 표기 —
 > 없는 신청 404가 맨 앞이다(신청이 없으면 누가 당사자인지 알 수 없다. v1.12.0부터 같은 동작). ② "지났으면"의 경계 —
@@ -390,6 +406,7 @@
 | `RECORD_ALREADY_EXISTS` | 409 | 같은 매칭에 이미 전적 기록함 |
 | `TEAM_ADMIN_LIMIT` | 400 | 팀 관리자 5명 초과 |
 | `ADMIN_NOT_FOUND` | 404 | |
+| `CONSENT_REQUIRED` | 403 | 필수 동의를 마치지 않은 계정의 호출 (v1.34.0, §3 「동의」). FE는 `GET /api/auth/me`를 다시 읽고 동의 화면으로 보낸다 |
 | `CHAT_CLOSED` | 409 | 매치 일시가 지난 채팅방에 메시지 전송 시도 |
 | `CHAT_EXPIRED` | 410 | 보관 기간(경기일로부터 90일)이 지나 삭제된 채팅방 (v1.33.0, §6-1 「보관 기간」). FE는 "보관 기간이 지나 삭제된 대화예요" |
 | `CHAT_RATE_LIMITED` | 429 | 채팅 전송이 짧은 시간에 몰림 — 사용자당 10초 10건 초과 (v1.31.0). FE는 "잠시 후 다시 보내 주세요" |
@@ -462,10 +479,14 @@ AuthProvider  KAKAO | NAVER | GOOGLE | APPLE
 ```json
 { "id": 1, "email": "kim@example.com", "nickname": "김주장", "phone": "010-1234-5678",
   "hasTeam": true, "teamId": 3, "authProviders": [],
-  "termsAgreedAt": "2026-09-08T10:00:00+09:00" }
+  "termsAgreedAt": "2026-09-08T10:00:00+09:00", "consentRequired": false, "pendingConsents": [] }
 ```
-- `termsAgreedAt` (v1.25.0): 약관·개인정보처리방침 동의 시각. 소셜 가입자 등 아직 동의하지
-  않은 계정은 `null`. FE 동의 게이트 규칙은 §3의 signup 항목 참고.
+- `consentRequired` (v1.34.0): 이 계정이 지금 동의 화면을 거쳐야 하는지 — **서버가 판정한다**(§3 「동의」). FE는
+  이 값이 `false`가 **아니면**(true·없음·해석 실패) 동의 화면을 띄운다.
+- `pendingConsents` (v1.34.1): 지금 받아야 하는 항목의 키 목록(§3 「동의」의 키). 비어 있으면 `consentRequired`는 `false`다.
+  FE 동의 화면은 이 목록의 항목만 보인다. 동의가 필요한데 이 값이 없거나 비어 있으면 가입 화면의 세 항목을 모두 보인다.
+- `termsAgreedAt` (v1.25.0): 가입 화면의 세 항목을 모두 마친 가장 최근 시각. 소셜 가입자 등 아직 동의하지
+  않은 계정은 `null`. 표시용이다 — 동의 화면을 띄울지는 `consentRequired`로만 정한다(v1.34.0).
 
 v1.3.0 추가 필드:
 - `email`: v1.3.2부터 nullable — **소셜 가입 계정은 항상 `null`** (v1.3.4).
@@ -513,35 +534,74 @@ v1.3.0 추가 필드:
 요청
 
 ```json
-{ "email": "kim@example.com", "password": "pass1234", "nickname": "김주장", "phone": "010-1234-5678" }
+{ "email": "kim@example.com", "password": "pass1234", "nickname": "김주장", "phone": "010-1234-5678",
+  "consents": { "age14": true, "terms": true, "privacy": true } }
 ```
 
 - `email` 이메일 형식 필수 / `password` **8~64자 + 영문·숫자·특수문자 각 1개 이상**
   (v1.16.0 — 위반은 400 `VALIDATION_FAILED`, fieldErrors에 규칙 안내. 기존 계정의
   로그인·비밀번호는 소급하지 않는다) / `nickname` 2~20자 필수 / `phone` `010-0000-0000` 형식 필수
 - `activityRegion` optional (v1.6.0, 최대 20자) — FE 가입 화면은 선택을 권하지만 건너뛸 수 있다
-- **약관 동의 (v1.21.0)**: 요청에 `termsAgreed: true` 필수 — 없거나 false면 400
-  `VALIDATION_FAILED` (fieldErrors에 안내). 서버는 동의 시각을 저장한다(응답 비노출).
+- **동의 (v1.34.0, v1.34.1)**: 요청에 `consents` 필수 — 세 항목(`age14`·`terms`·`privacy`)이 모두 `true`여야 한다. 아니면 400 `VALIDATION_FAILED`
+  (fieldErrors의 `field`는 `consents.age14`처럼 항목별). 옛 `termsAgreed`는 폐지 — 보내도 읽지 않는다. 규칙은 아래 「동의」.
   약관 문서는 `GET /terms`, 개인정보처리방침은 `GET /privacy` (인증 불필요, HTML —
   share-card와 같은 정적 서빙, API 표면 밖이지만 FE가 링크하므로 여기 적는다).
-- **동의 게이트 (v1.25.0 — 모든 계정)**: `UserResponse.termsAgreedAt`(nullable, ISO-8601
-  오프셋 포함)이 **null이거나 현행 약관·방침 시행일보다 이전**이면 FE는 앱 화면 진입 전에
-  동의 화면을 띄운다. 동의 화면은 약관·개인정보처리방침을 **각각** 열 수 있는 링크와
-  **"만 14세 이상입니다"** 확인(클라이언트 확인)을 포함하며, 동의 시
-  `POST /api/users/me/terms-agreement`를 호출한다. 이 한 규칙이 소셜 최초 로그인,
-  개정 후 재동의를 모두 덮는다. 현행 시행일은 FE 상수(`TERMS_EFFECTIVE_AT`, 문서 개정
-  시 supervisor가 계약서와 함께 갱신) — 현재 `2026-09-08T00:00:00+09:00`.
-  게이트 전에 허용되는 호출: `GET /api/auth/me`, refresh, 로그아웃, 탈퇴, 그리고 이
-  동의 엔드포인트. 그 외 화면은 동의 후.
-
-  **`POST /api/users/me/terms-agreement`** — 인증 필요. 본문 없음. 로그인된 계정의
-  `termsAgreedAt`을 서버 시각으로 갱신하고 **204**. 멱등(여러 번 호출해도 최신 시각으로
-  갱신될 뿐). 미배포 응답: 404(라우팅 단계, §0). 이메일 signup의 `termsAgreed: true`는
-  그대로 유지되며 그때 기록된 시각이 `termsAgreedAt`이 된다.
 - **유니크 규칙 (v1.16.0)**: `email`(기존), `nickname`, `phone` 모두 중복 불가 —
   409 `EMAIL_ALREADY_EXISTS` / `NICKNAME_ALREADY_EXISTS` / `PHONE_ALREADY_EXISTS`.
   `PATCH /api/users/me`의 nickname·phone 변경에도 같은 규칙(자기 자신의 기존 값은 허용).
   phone은 null(소셜 미등록)을 유니크 대상에서 제외한다
+
+### 동의 (v1.34.0, v1.34.1)
+
+동의는 항목마다 따로 받고(개인정보 보호법 제22조 제1항), 서버가 항목별 시각을 기록하며, 마치기 전에는 서버가 막는다.
+
+| 키 | 뜻 | 성격 | 받는 곳 |
+|---|---|---|---|
+| `age14` | 만 14세 이상입니다 | 필수 확인 | 가입 화면, 동의 화면 |
+| `terms` | 이용약관에 동의합니다 | 필수 동의 | 같음 |
+| `privacy` | 개인정보 수집·이용 안내를 확인했습니다 | 필수 **확인**(동의가 아니다 — 가입에 꼭 필요한 정보는 동의 없이 수집하고 알린다) | 같음 |
+| `contactSharing` | 매칭이 성사되면 상대 팀 감독에게 내 닉네임·휴대전화 번호가 제공되는 것에 동의합니다(제3자 제공, 제17조) | 필수 동의 — **감독만** | **팀을 만들 때** (`POST /api/teams`) |
+
+- **기록**: 서버는 항목별 시각과, 그때 시행 중이던 약관·방침의 시행일을 저장한다(응답에는 내지 않는다). 탈퇴하면 함께 지운다.
+- **`pendingConsents` 판정(서버)**: `age14`·`terms`·`privacy`는 기록이 없거나 **현행 약관·방침 시행일**보다 이르면 받아야 하는
+  항목이다. `contactSharing`은 **팀을 소유한(OWNER) 계정에 한해** 같은 기준으로 본다(팀이 없으면 받을 항목이 아니다).
+  `consentRequired`는 이 목록이 비어 있지 않다는 뜻이다. 현행 시행일은 BE 설정값이다(`kickoff.legal.effective-at`, 현재
+  `2026-09-08T00:00:00+09:00` — 문서를 개정하면 문서와 함께 BE가 올린다). FE는 시행일을 갖지 않는다(옛 상수
+  `TERMS_EFFECTIVE_AT` 폐지). 이 한 규칙이 소셜 최초 로그인, 구조 개편 전 가입자, 개정 후 재동의를 모두 덮는다.
+- **서버가 막는다**: `consentRequired`인 계정이 **인증이 필요한 API**를 부르면 403 `CONSENT_REQUIRED`. 예외(동의 전에도
+  되는 것)는 `GET /api/auth/me`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `PUT /api/users/me/consents`,
+  탈퇴(`DELETE /api/users/me`, `POST /api/users/me/verify-password`)뿐이다. 검사 순서는 인증(401) → 동의(403) → 그 밖의
+  검증. 인증이 선택인 조회 API(모집글 목록·상세, 팀 조회 등)는 막지 않는다. 채팅 서버는 이 검사를 하지 않는다(사용자
+  정보가 없다 — 채팅은 팀을 만들고 매칭이 수락돼야 닿는 기능이라 동의 없이 처음 들어올 길이 없다).
+
+#### PUT /api/users/me/consents — 인증 필요 (v1.34.0)
+
+```json
+{ "age14": true, "terms": true, "privacy": true, "contactSharing": true }
+```
+
+보낸 항목을 **지금 시각**으로 기록하고 **204**. 본문에는 `pendingConsents`의 항목이 **모두 `true`로** 들어 있어야 한다 —
+빠졌거나 `false`면 400 `VALIDATION_FAILED`(`field`는 항목 키). 받을 항목이 아닌 키는 보내지 않아도 되고, `true`로 보내면
+함께 기록한다(`false`는 400). 멱등. 소셜 최초 로그인과 재동의가 이 한 API를 쓴다.
+옛 `POST /api/users/me/terms-agreement`는 폐지한다(404).
+
+#### 팀을 만들 때의 연락처 제공 동의 (v1.34.1)
+
+`POST /api/teams` 요청에 **`contactSharingConsent: true` 필수** — 없거나 `false`면 400 `VALIDATION_FAILED`(`field`는
+`contactSharingConsent`). 서버는 팀을 만들면서 `contactSharing` 동의 시각을 기록한다. 팀을 만들지 않는 가입자에게는 이 동의를
+받지 않는다.
+
+#### FE 규칙
+
+- 가입 화면과 동의 화면 모두 **항목을 따로 보이고 따로 체크**하게 한다. "전체 동의"는 둘 수 있지만 누르기 전에 개별 항목이
+  보여야 하고, 미리 체크돼 있으면 안 되며, 하나씩 풀 수 있어야 한다. 전부 체크돼야 다음으로 간다.
+- `terms`에는 약관 전문 링크. `privacy`에는 체크 아래 펼침 영역으로 수집 항목·목적·보유 기간·법적 근거 요약과 처리방침
+  전문 링크.
+- `contactSharing`(팀 만들기 화면의 완료 버튼 위, 그리고 동의 화면에 이 항목이 올 때)에는 **접지 않고** 다섯 가지를 보인다 —
+  제공받는 사람, 제공 목적, 제공 항목, 보유·이용 기간, 거부할 권리와 거부 시 불이익(제17조 제2항).
+- 문구는 `docs/legal-drafts/consent-and-report-copy.md`(법무 초안)의 1절을 FE 상수로 옮겨 쓴다.
+- 로그인 뒤 `consentRequired`가 `false`가 아니면 앱 화면 진입 전에 동의 화면. 어느 API에서든 403 `CONSENT_REQUIRED`를
+  받으면 `GET /api/auth/me`를 다시 읽고 동의 화면으로 보낸다. 동의 화면에서는 로그아웃과 탈퇴로 가는 길을 열어 둔다.
 
 ### GET /api/auth/availability — 인증 불필요 (v1.16.0)
 
@@ -1030,9 +1090,10 @@ BE 재량, 값은 env로만·커밋 금지). 발신 주소는 운영자 지메�
 ```json
 { "name": "FC 새벽", "region": "서울 강서구", "homeGround": "우장산축구장",
   "skillLevel": "INTERMEDIATE", "ageGroup": "THIRTIES", "memberCount": 18,
-  "introduction": "매주 토요일 오전 7시에 모입니다." }
+  "introduction": "매주 토요일 오전 7시에 모입니다.", "contactSharingConsent": true }
 ```
 
+- `contactSharingConsent` (v1.34.1): `true` 필수 — §3 「동의」의 연락처 제공 동의. 팀 정보에는 저장되지 않고 응답에도 없다
 - `name` 2~30자 필수 / `region` 필수 / `skillLevel`, `ageGroup` 필수 / `memberCount` 1~100 필수 / `introduction` 최대 1000자
 - `memberCount`는 **감독이 신고하는 팀 규모**다 (v1.24.3). 팀원 명단(`TeamMember`, §4-1) 수와 무관하며 가입 수락·강퇴에도 재계산되지 않는다. FE는 이 값을 명단 수와 같은 이름으로 표기하지 않는다 — 예: "팀 규모 15명" vs "등록 팀원 0명".
 - 201 → `TeamResponse`
@@ -1358,12 +1419,18 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
   "locationAddress": "서울 강서구 우장산로 72",
   "region": "서울 강서구", "preferredSkillLevel": "INTERMEDIATE",
   "rentalFee": 100000, "depositAmount": 50000,
-  "bankName": "카카오뱅크", "accountNumber": "3333-01-1234567", "accountHolder": "김주장" }
+  "bankName": "카카오뱅크", "accountNumber": "3333-01-1234567", "accountHolder": "김주장",
+  "paymentShareConfirmed": true }
 ```
 
 - `title` 2~60자 필수 / `content` 최대 2000자 필수 / `matchAt` 미래 시각 필수 / `location`, `region` 필수 / `locationAddress` optional 최대 100자(v1.29.0 — 장소 검색 선택 시 FE가 `roadAddress ?? address`로 자동 채움, 사용자가 고쳐도 그대로 저장) / `preferredSkillLevel` optional(null이면 무관) / `rentalFee`, `depositAmount` 0 이상 optional / `fieldType`은 v1.19.0 폐지 — 와도 무시
 - `bankName`(최대 20자), `accountNumber`(최대 30자), `accountHolder`(최대 20자): **입금받을 계좌** — 전부 optional이지만 `depositAmount`를 넣으면 세 필드 모두 필수 (400 `VALIDATION_FAILED`)
 - 계좌 3필드는 **절대 목록/상세에 공개되지 않는다.** 오직 수락된 신청 팀에게만 `payment` 오브젝트로 내려간다 (아래 참고)
+- **`paymentShareConfirmed` (v1.34.0)**: 요청 본문에 계좌 3필드 중 하나라도 값(null 아님)이 있으면 `true` 필수 — 아니면 400
+  `VALIDATION_FAILED`(`field`는 `paymentShareConfirmed`). "이 계좌 정보는 매칭이 수락된 상대 팀 감독에게 보인다"는 확인이다.
+  POST·PATCH 공통이고 **요청 본문 기준**이다(계좌를 건드리지 않는 PATCH에는 필요 없다). 서버는 확인 시각을 글에 기록한다
+  (응답 비노출). FE는 계좌 입력 칸 옆에 체크 한 줄을 두고, 계좌를 적었는데 체크가 없으면 제출을 막는다.
+- 계좌 3필드는 **암호화해 저장한다 (v1.34.0)** — BE env `ACCOUNT_ENC_KEY`. 요청·응답과 길이 검증(평문 기준)은 그대로다.
 - 팀 없으면 400 `TEAM_REQUIRED`
 - 201 → `PostDetail`
 
@@ -1381,6 +1448,11 @@ data: `{ "type": "...", "teamId": N }`. 탭 시 `JOIN_REQUEST_RECEIVED` → 해�
 - `isAuthor`: 내 팀이 쓴 글인지. 비로그인이면 `false`
 - `myRequestStatus`: 내 팀이 이 글에 보낸 신청 상태(`RequestStatus`). 신청 안 했거나 비로그인이면 `null`
 - `contact`: **매칭 수락된 두 팀에게만** 공개. 그 외 전부 `null`
+- **표시 기간 (v1.34.1)**: 상대 팀에게 보이는 `contact`와 `payment`는 **경기일(`matchAt`) + 14일까지**다. 그 뒤에는 수락된
+  매칭이어도 `null`이다(서버 시계, BE 설정 `kickoff.match.contact-visible-days` 기본 14). 글 작성자 본인이 자기 글에서 보는
+  `payment`(자기 계좌 확인·수정용)는 기간과 무관하다. `RequestResponse`의 `contact`·`payment`도 같은 규칙이다. FE는 값이
+  `null`이면 연락처·계좌 영역을 감추고 "경기 후 14일이 지나 연락처가 더 이상 표시되지 않아요"를 보일 수 있다(숫자는
+  `GET /api/auth/signup-policy`처럼 따로 내려 주지 않는다 — 문구에 14를 적는다. 바뀌면 계약과 함께 고친다).
 
 ```json
 { "nickname": "김주장", "phone": "010-1234-5678" }
