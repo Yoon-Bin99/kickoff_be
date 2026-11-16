@@ -84,10 +84,9 @@ public class UserConsent extends BaseTimeEntity {
      * 판정은 <b>동의 시각</b>으로 한다 — 계약서 §3 이 "기록이 현행 시행일보다 이르면"
      * 이라고 적은 그대로다. v1.25.0 의 옛 게이트도 같은 기준이었다.
      *
-     * <b>저장된 시행일로 보는 쪽과 답이 갈리는 경우가 있다.</b> 설정의 시행일이 아직
-     * 오지 않은 날짜일 때(개정 약관을 미리 공지하는 기간)와, 지난 날짜로 거슬러 올릴 때다.
-     * 전자는 그 사이 아무도 통과하지 못하고 다시 동의해도 풀리지 않는다 — 운영에서는
-     * <b>시행일이 지난 뒤에 이 값을 올린다</b>는 전제로 두고, 바꿀지는 계약 쪽에서 정한다.
+     * <b>아직 오지 않은 시행일은 부르는 쪽에서 걸러진다</b> (v1.35.3 —
+     * {@code ConsentService} 의 판정). 그 걸림이 없으면 개정을 미리 공지하는 기간에
+     * 아무도 통과하지 못하고, 다시 동의해도 풀리지 않는다.
      */
     public boolean coversDocumentEffectiveAt(OffsetDateTime effectiveAt) {
         return !agreedAt.isBefore(effectiveAt);

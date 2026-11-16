@@ -166,7 +166,22 @@ public class ConsentService {
         return byType;
     }
 
+    /**
+     * 이 기록으로 지금 충분한지 (계약서 §3 「동의」 판정, v1.35.3).
+     *
+     * <b>아직 오지 않은 시행일로는 재동의를 요구하지 않는다.</b> 개정 약관은 시행 전에
+     * 공지하므로 설정값을 미리 올려 두는 운영이 자연스러운데, 그때 요구하면 그 기간 동안
+     * 아무도 통과할 수 없다 — 다시 동의해도 동의 시각이 그 날짜보다 이르니 풀리지 않는다.
+     * 그날이 되면 그 전에 동의한 계정이 모두 대상이 되고, 다시 동의하면 풀린다.
+     */
     private boolean isSatisfied(UserConsent consent) {
-        return consent != null && consent.coversDocumentEffectiveAt(legalProperties.effectiveAt());
+        if (consent == null) {
+            return false;
+        }
+        OffsetDateTime effectiveAt = legalProperties.effectiveAt();
+        if (effectiveAt.isAfter(OffsetDateTime.now())) {
+            return true;
+        }
+        return consent.coversDocumentEffectiveAt(effectiveAt);
     }
 }
