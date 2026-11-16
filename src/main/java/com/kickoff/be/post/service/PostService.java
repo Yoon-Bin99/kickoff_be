@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -45,6 +46,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PostService {
@@ -424,6 +426,9 @@ public class PostService {
     private PaymentInfo paymentFor(MatchPost post, MatchRequest accepted, Long viewerId,
                                    Long viewerTeamId) {
         if (!post.hasDepositAccount()) {
+            // 저장된 계좌를 못 읽은 경우도 여기로 떨어진다 — hasDepositAccount() 가 세 칸을
+            // 모두 보고, 복호화 실패는 null 로 온다. 아래에서 그 둘을 가려 로그를 남긴다.
+            logIfAccountUnreadable(post);
             return null;
         }
         boolean acceptedApplicant = accepted != null && viewerTeamId != null
@@ -434,6 +439,34 @@ public class PostService {
         return new PaymentInfo(post.getDepositAmount(), post.getBankName(),
                 post.getAccountNumber(), post.getAccountHolder(),
                 accepted != null && accepted.isDepositPaid());
+    }
+
+    /**
+     * 저장된 계좌를 읽지 못한 글을 알린다 (계약서 §5).
+     *
+     * <b>500 으로 터뜨리지 않는다.</b> 계좌를 못 읽는 것은 그 글의 입금 안내 하나가 빠지는
+     * 일인데, 예외로 올리면 <b>글 상세 자체가 열리지 않는다</b> — 제목·장소·시각처럼 계좌와
+     * 무관한 정보까지 함께 막힌다. 그래서 payment 만 내려주지 않고 글은 그대로 보여 준다.
+     *
+     * 일어나는 경우는 사실상 하나다: 운영 키가 바뀌었거나 잘못된 키로 떴다. 그래서
+     * <b>사람이 반드시 알아야 한다</b> — 조용히 넘기면 입금 안내가 사라진 것을 사용자
+     * 문의로 알게 된다.
+     *
+     * <b>식별값은 postId 뿐이다.</b> 암호문·키·그 글의 다른 값은 남기지 않는다 — 계좌가
+     * 로그로 새면 암호화한 이유 자체가 없어진다.
+     *
+     * {@code depositAmount} 가 있는데 칸이 비어 있을 때만 의심한다. 금액이 없으면 애초에
+     * 계좌를 받지 않는 글이라({@code requireAccountWhenDepositSet}) 정상 상태다.
+     */
+    private void logIfAccountUnreadable(MatchPost post) {
+        if (post.getDepositAmount() == null) {
+            return;
+        }
+        if (post.getBankName() == null || post.getAccountNumber() == null
+                || post.getAccountHolder() == null) {
+            log.error("모집글의 입금 계좌를 읽지 못해 payment 를 내리지 않았다 — postId={}. "
+                    + "ACCOUNT_ENC_KEY 가 저장 당시와 같은지 확인할 것", post.getId());
+        }
     }
 
     private PageResponse<PostSummary> toSummaryPage(Page<MatchPost> posts) {

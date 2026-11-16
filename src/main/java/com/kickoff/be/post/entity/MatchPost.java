@@ -3,7 +3,9 @@ package com.kickoff.be.post.entity;
 import com.kickoff.be.common.BaseTimeEntity;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
+import com.kickoff.be.common.crypto.EncryptedStringConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -82,14 +84,23 @@ public class MatchPost extends BaseTimeEntity {
     /*
      * 입금받을 계좌. 평문 필드로 나가는 응답은 없다. 수락된 신청 팀과 작성자 본인에게만
      * PaymentInfo 로 내려간다. 새 응답 DTO 를 만들 때 이 세 필드를 무심코 넣지 말 것.
+     *
+     * 세 칸 모두 암호화해 저장한다 — DB 만으로는 읽을 수 없다. 의무 대상은 계좌번호지만,
+     * 은행명·예금주도 함께 있으면 그대로 입금할 수 있는 한 벌이 되므로 묶는다.
+     *
+     * 엔티티 쪽 값은 언제나 평문이다. 그래서 계약서 §5 의 길이 제한(20/30/20자)과 검증은
+     * 그대로 평문 기준으로 돈다 — 칸이 varchar(255) 인 것은 암호문이 길어서다(V26).
      */
-    @Column(length = 20)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(length = 255)
     private String bankName;
 
-    @Column(length = 30)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(length = 255)
     private String accountNumber;
 
-    @Column(length = 20)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(length = 255)
     private String accountHolder;
 
     /**

@@ -46,6 +46,10 @@ kickoff:
   support:
     # 운영자 판정 대상. 이 이메일로 만든 계정만 문의함을 연다.
     operator-email: operator@kickoff.test
+  account:
+    # 모집글 계좌 암호화 키 (계약서 §5). 테스트 전용 32바이트 — 운영 키와 무관하고,
+    # 이 값으로 암호화되는 것은 테스트가 만든 데이터뿐이다.
+    encryption-key: dGVzdC1vbmx5LWtleS1mb3ItYWNjb3VudC1lbmMtMzI=
 
 # 채팅 서버 내부 연결 (계약서 §10, v1.31.0).
 #
