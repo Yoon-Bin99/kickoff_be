@@ -93,10 +93,15 @@ public class AdminReportService {
         validate(report, request);
 
         OffsetDateTime now = OffsetDateTime.now();
+        // 신고자 목록을 <b>닫기 전에</b> 모은다. 닫고 나면 "처리 전" 조회로는 아무도
+        // 잡히지 않아 통지가 통째로 비어 버린다 — 에러 없이 조용히 안 가는 쪽이다.
+        List<Long> reporterIds = reporterIdsOf(report);
+        boolean wasAutoHidden = report.isAutoHidden();
+
         applyToContent(report, request.action(), now);
         Integer suspendDays = suspend(report, request.suspendDays(), now);
         closeSameTarget(report, request, now);
-        notify(report, request, suspendDays, now);
+        notify(report, request, suspendDays, now, reporterIds, wasAutoHidden);
         return toDetail(report);
     }
 
@@ -205,12 +210,12 @@ public class AdminReportService {
      * 가려졌다는 통지를 받은 사람에게 끝을 알리지 않으면 영문을 모른 채 남는다.
      */
     private void notify(Report report, ResolveRequest request, Integer suspendDays,
-                        OffsetDateTime now) {
+                        OffsetDateTime now, List<Long> reporterIds, boolean wasAutoHidden) {
         boolean acted = request.action() != ResolutionAction.DISMISS || suspendDays != null;
         String reporterMessage = acted
                 ? notices.toReporterActed(actionName(request.action(), suspendDays))
                 : notices.toReporterDismissed();
-        for (Long reporterId : reporterIdsOf(report)) {
+        for (Long reporterId : reporterIds) {
             userRepository.findById(reporterId)
                     .ifPresent(reporter -> supportService.notice(reporter, reporterMessage));
         }
@@ -226,7 +231,7 @@ public class AdminReportService {
         } else if (request.action().removesContent()) {
             supportService.notice(reported, notices.toReportedRemoved(report.getTargetType(),
                     report.getReason().displayName()));
-        } else if (report.isAutoHidden()) {
+        } else if (wasAutoHidden) {
             // 자동으로 가려져 있다가 풀린 경우다.
             supportService.notice(reported, notices.toReportedRestored(report.getTargetType()));
         }

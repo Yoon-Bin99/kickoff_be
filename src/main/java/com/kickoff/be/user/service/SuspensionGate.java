@@ -69,10 +69,17 @@ public class SuspensionGate implements AuthorizationManager<RequestAuthorization
         return new SuspendedDecision(false);
     }
 
+    /**
+     * 제한 중에도 되는 것 = <b>동의의 예외 목록 + 고객센터</b> (계약서 §7-2).
+     *
+     * 앞의 목록을 여기서 다시 적지 않고 {@link ConsentGate#exempts} 를 그대로 부른다 —
+     * 두 벌이면 한쪽만 고쳐지는 날이 오고, 그때 제한된 사람이 탈퇴하지 못하게 된다.
+     */
     private boolean isExempt(RequestAuthorizationContext context) {
         String path = context.getRequest().getRequestURI();
         String method = context.getRequest().getMethod();
-        return EXEMPTIONS.stream().anyMatch(exemption -> exemption.matches(method, path));
+        return ConsentGate.exempts(method, path)
+                || EXEMPTIONS.stream().anyMatch(exemption -> exemption.matches(method, path));
     }
 
     /**

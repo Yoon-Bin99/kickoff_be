@@ -6,6 +6,16 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
+    hikari:
+      # 테스트 컨텍스트마다 커넥션 풀이 따로 뜬다. 설정이 다른 클래스
+      # (@TestPropertySource)는 각자 컨텍스트를 갖고, 스프링이 그것들을 캐시해 두므로
+      # 풀이 열 개 넘게 동시에 살아 있다.
+      #
+      # 기본값(10)을 그대로 두면 postgresTest 에서 컨테이너의 max_connections(기본 100)를
+      # 넘겨 "sorry, too many clients already" 로 기동이 깨진다 — 테스트가 는 날 갑자기
+      # 무관한 클래스들이 무더기로 실패한다. H2 에는 영향이 없다.
+      maximum-pool-size: 4
+      minimum-idle: 1
   # 스키마를 운영과 같은 마이그레이션으로 만들고 validate 로 대조한다.
   # V1 이 엔티티와 어긋나면 통합 테스트 전체가 기동 단계에서 실패한다.
   flyway:

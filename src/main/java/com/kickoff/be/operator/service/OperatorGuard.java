@@ -3,15 +3,11 @@ package com.kickoff.be.operator.service;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ClientIp;
 import com.kickoff.be.common.ErrorCode;
-import com.kickoff.be.operator.entity.OperatorAuditLog;
-import com.kickoff.be.operator.repository.OperatorAuditLogRepository;
 import com.kickoff.be.support.service.OperatorAccounts;
 import com.kickoff.be.user.entity.User;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -36,7 +32,7 @@ public class OperatorGuard {
     private final OperatorAccounts operatorAccounts;
     private final OperatorTotpProperties totpProperties;
     private final OperatorSessionService sessionService;
-    private final OperatorAuditLogRepository auditLogRepository;
+    private final OperatorAuditRecorder auditRecorder;
 
     /**
      * 운영자 세션을 확인하고 접속기록을 남긴다.
@@ -85,18 +81,12 @@ public class OperatorGuard {
     /**
      * 접속기록 한 줄.
      *
-     * <b>REQUIRES_NEW 다.</b> 조치가 롤백돼도 "누가 무엇을 시도했는지"는 남아야 한다 —
-     * 접속기록은 성공한 일의 기록이 아니라 접근의 기록이다.
+     * 실제 저장은 {@link OperatorAuditRecorder} 가 한다 — 같은 빈 안에서 부르면 프록시를
+     * 타지 않아 트랜잭션 설정이 통째로 무시되기 때문이다(그 클래스 주석 참고).
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(User user, String action, Long targetUserId, Long targetId) {
-        auditLogRepository.save(OperatorAuditLog.builder()
-                .operatorUserId(user == null ? null : user.getId())
-                .action(action)
-                .targetUserId(targetUserId)
-                .targetId(targetId)
-                .ip(currentIp())
-                .build());
+        auditRecorder.record(user == null ? null : user.getId(), action, targetUserId,
+                targetId, currentIp());
     }
 
     private String currentIp() {

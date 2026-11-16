@@ -91,8 +91,18 @@ public class ConsentGate implements AuthorizationManager<RequestAuthorizationCon
     }
 
     private boolean isExempt(RequestAuthorizationContext context) {
-        String path = context.getRequest().getRequestURI();
-        String method = context.getRequest().getMethod();
+        return exempts(context.getRequest().getMethod(),
+                context.getRequest().getRequestURI());
+    }
+
+    /**
+     * 동의 전에도 되는 경로인지.
+     *
+     * <b>이용 제한 게이트가 이 목록을 그대로 쓴다</b> (계약서 §7-2 — 제한의 예외는
+     * "동의의 예외 목록 + 고객센터"다). 목록을 두 벌 적으면 한쪽만 고쳐지는 날이 오고,
+     * 그러면 동의하지 않고 떠날 길이나 제한 중 이의 제기 창구 중 하나가 조용히 막힌다.
+     */
+    public static boolean exempts(String method, String path) {
         return EXEMPTIONS.stream().anyMatch(exemption -> exemption.matches(method, path));
     }
 

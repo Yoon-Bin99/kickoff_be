@@ -88,7 +88,7 @@ class ModeratedContentTest extends IntegrationTestSupport {
                 .andExpect(status().isGone())
                 .andExpect(jsonPath("$.code").value("CONTENT_MODERATED"))
                 .andExpect(jsonPath("$.message")
-                        .value("권리침해 신고로 임시로 가려진 게시물입니다"));
+                        .value("권리침해 신고로 임시로 가려진 게시물입니다."));
     }
 
     @Test
@@ -114,7 +114,7 @@ class ModeratedContentTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/posts/{id}", post.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(other)))
                 .andExpect(status().isGone())
-                .andExpect(jsonPath("$.message").value("운영 정책에 따라 삭제된 게시물입니다"));
+                .andExpect(jsonPath("$.message").value("운영 정책에 따라 삭제된 게시물입니다."));
         mockMvc.perform(get("/api/posts/{id}", post.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(author)))
                 .andExpect(jsonPath("$.moderation.status").value("REMOVED"))
