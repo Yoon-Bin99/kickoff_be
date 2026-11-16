@@ -35,9 +35,11 @@ public class ReviewController {
     /** 팀이 받은 리뷰. 인증 불필요. */
     @GetMapping("/api/teams/{teamId}/reviews")
     public ResponseEntity<PageResponse<ReviewResponse>> getByTeam(
+            // 인증이 선택인 조회다 — 토큰이 있으면 그 사람이 신고한 리뷰를 뺀다 (§7-2).
+            @com.kickoff.be.auth.jwt.LoginUser com.kickoff.be.user.entity.User viewer,
             @PathVariable Long teamId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(reviewService.getByTeam(teamId, page, size));
+        return ResponseEntity.ok(reviewService.getByTeam(viewer, teamId, page, size));
     }
 }

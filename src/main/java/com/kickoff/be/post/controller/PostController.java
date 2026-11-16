@@ -34,6 +34,9 @@ public class PostController {
     /** 인증 불필요. 필터는 전부 optional, status 기본값 OPEN, 정렬은 matchAt ASC 고정. */
     @GetMapping
     public ResponseEntity<PageResponse<PostSummary>> search(
+            // 인증이 선택인 조회다 — 토큰이 있으면 그 사람이 신고한 글을 빼기 위해 받는다
+            // (계약서 §7-2). 비로그인은 null 이고 아무것도 빠지지 않는다.
+            @LoginUser User viewer,
             @RequestParam(required = false) String region,
             @RequestParam(required = false) SkillLevel skillLevel,
             @RequestParam(required = false, defaultValue = "OPEN") PostStatus status,
@@ -46,8 +49,8 @@ public class PostController {
             @RequestParam(required = false) String times,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(
-                postService.search(region, skillLevel, status, keyword, dates, times, page, size));
+        return ResponseEntity.ok(postService.search(
+                viewer, region, skillLevel, status, keyword, dates, times, page, size));
     }
 
     /** "/me" 는 "/{postId}" 보다 먼저 선언해야 경로가 겹치지 않는다. */

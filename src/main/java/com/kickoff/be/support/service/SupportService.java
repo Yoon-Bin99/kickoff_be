@@ -47,6 +47,7 @@ public class SupportService {
     private final UserRepository userRepository;
     private final SupportKnowledge knowledge;
     private final SupportProperties properties;
+    private final OperatorAccounts operatorAccounts;
     private final ApplicationEventPublisher eventPublisher;
 
     // ── FAQ (계약서 §7-1 1단계)
@@ -171,7 +172,7 @@ public class SupportService {
 
     /** FE 가 "문의함이 403 인지"로 운영자 여부를 판정한다 (계약서 §7-1 강등 패턴). */
     private void requireOperator(User user) {
-        if (!properties.isOperator(user.getEmail())) {
+        if (!operatorAccounts.isOperator(user)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
     }
@@ -237,13 +238,7 @@ public class SupportService {
      * 알림만 안 갈 뿐 문의 저장은 정상이다. 운영자가 없다고 사용자가 글을 못 남기면 안 된다.
      */
     private java.util.Optional<Long> operatorUserId() {
-        String email = properties.operatorEmail();
-        if (email == null || email.isBlank()) {
-            return java.util.Optional.empty();
-        }
-        return userRepository.findAllByEmailIgnoreCase(email).stream()
-                .findFirst()
-                .map(User::getId);
+        return operatorAccounts.operatorUserId();
     }
 
     private void requireUserExists(Long userId) {

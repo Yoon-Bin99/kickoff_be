@@ -54,7 +54,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import({StubOAuthConfig.class, StubPushConfig.class, StubPlaceConfig.class,
-        StubSmsConfig.class, StubAiSupportConfig.class, StubEmailConfig.class})
+        StubSmsConfig.class, StubAiSupportConfig.class, StubEmailConfig.class,
+        StubReportContextConfig.class})
 public abstract class IntegrationTestSupport {
 
     /**
@@ -182,6 +183,15 @@ public abstract class IntegrationTestSupport {
     protected com.kickoff.be.consent.repository.UserConsentRepository consentRepository;
     @Autowired
     protected com.kickoff.be.consent.service.LegalProperties legalProperties;
+
+    /** 신고 (계약서 §7-2, v1.35.0). */
+    @Autowired
+    protected com.kickoff.be.report.repository.ReportRepository reportRepository;
+    @Autowired
+    protected com.kickoff.be.report.repository.ReportChatMessageRepository
+            reportChatMessageRepository;
+    @Autowired
+    protected StubReportContextClient reportContextClient;
     @Autowired
     protected PasswordEncoder passwordEncoder;
     @Autowired
@@ -225,6 +235,9 @@ public abstract class IntegrationTestSupport {
         // 소셜 연동은 사용자를 참조하므로 사용자보다 먼저 지운다
         // 동의 기록은 사용자를 참조하므로 사용자보다 먼저 지운다 (v1.34.1).
         consentRepository.deleteAll();
+        reportChatMessageRepository.deleteAll();
+        reportRepository.deleteAll();
+        reportContextClient.reset();
         socialAccountRepository.deleteAll();
         userRepository.deleteAll();
         kakaoStub.reset();

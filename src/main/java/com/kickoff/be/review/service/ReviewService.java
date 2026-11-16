@@ -33,6 +33,7 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final MatchRequestRepository requestRepository;
     private final TeamRepository teamRepository;
+    private final com.kickoff.be.report.service.HiddenForViewer hiddenForViewer;
 
     /**
      * 매칭 당사자가 상대 팀을 평가한다 (계약서 §7).
@@ -81,7 +82,8 @@ public class ReviewService {
      * id 를 2차 키로 넣어 페이징을 결정적으로 만든다 (계약서 §7, v1.2.2).
      */
     @Transactional(readOnly = true)
-    public PageResponse<ReviewResponse> getByTeam(Long teamId, int page, int size) {
+    public PageResponse<ReviewResponse> getByTeam(com.kickoff.be.user.entity.User viewer,
+                                                  Long teamId, int page, int size) {
         if (!teamRepository.existsById(teamId)) {
             throw new BusinessException(ErrorCode.TEAM_NOT_FOUND);
         }
@@ -89,7 +91,13 @@ public class ReviewService {
                 Math.max(page, 0),
                 clampSize(size),
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        Page<Review> reviews = reviewRepository.findByTargetTeamId(teamId, pageable);
+        // 신고한 사람 화면에서는 그 리뷰가 바로 빠진다 (계약서 §7-2). 운영 조치로 가려진
+        // 리뷰는 자리 표시로 남지만, 내가 신고한 것은 아예 보이지 않는다 — 전자는
+        // 모두에게 일어난 일이고 후자는 내 화면의 일이다.
+        java.util.List<Long> reported = hiddenForViewer.reviewIdsFor(viewer);
+        Page<Review> reviews = reported.isEmpty()
+                ? reviewRepository.findByTargetTeamId(teamId, pageable)
+                : reviewRepository.findByTargetTeamIdAndIdNotIn(teamId, reported, pageable);
         // 리뷰마다 작성 팀 평점을 조회하면 페이지 크기만큼 쿼리가 는다 (계약서 §2, v1.10.0)
         Map<Long, ReviewStats> reviewerStats = reviewRepository.statsMapOf(
                 reviews.getContent().stream()

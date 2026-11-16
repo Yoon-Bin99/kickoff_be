@@ -20,6 +20,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @EntityGraph(attributePaths = {"request", "request.post", "reviewerTeam", "targetTeam"})
     Page<Review> findByTargetTeamId(Long targetTeamId, Pageable pageable);
 
+    /** 신고한 사람 화면에서 그 리뷰를 뺀 목록 (계약서 §7-2). */
+    @EntityGraph(attributePaths = {"request", "request.post", "reviewerTeam", "targetTeam"})
+    Page<Review> findByTargetTeamIdAndIdNotIn(Long targetTeamId, Collection<Long> excludedIds,
+                                              Pageable pageable);
+
     boolean existsByRequestIdAndReviewerTeamId(Long requestId, Long reviewerTeamId);
 
     /**

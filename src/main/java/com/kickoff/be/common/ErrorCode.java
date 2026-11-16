@@ -144,6 +144,25 @@ public enum ErrorCode {
     VERIFICATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요."),
     SMS_SEND_FAILED(HttpStatus.BAD_GATEWAY, "인증번호 발송에 실패했습니다."),
 
+    // ── 신고 (계약서 §7-2, v1.35.0)
+
+    REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 신고한 내용입니다."),
+    REPORT_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS,
+            "신고를 너무 많이 하셨습니다. 내일 다시 시도해 주세요."),
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신고입니다."),
+
+    /**
+     * 보관 기간이 지나 삭제된 채팅방 (계약서 §6-1·§10).
+     *
+     * 채팅 서버가 내리던 코드인데, 채팅 메시지 신고가 그 서버에 물어보면서 BE 로도
+     * 나오게 됐다 — 같은 상황에 같은 코드를 쓴다.
+     */
+    CHAT_EXPIRED(HttpStatus.GONE, "보관 기간이 지나 삭제된 대화입니다."),
+
+    /** 채팅 서버가 답하지 않음 (계약서 §10). 채팅 메시지 신고에서만 나온다. */
+    CHAT_UPSTREAM_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE,
+            "잠시 후 다시 시도해 주세요."),
+
     /** 아래 둘은 계약서 표에는 없지만, 모든 4xx/5xx 가 같은 형식으로 나가야 해서 둔다. */
     /**
      * 경로는 있는데 메서드가 틀린 경우 (계약서 §0, v1.12.1).

@@ -63,13 +63,14 @@ public class PostService {
     private final ReviewRepository reviewRepository;
     private final ChatOutboxRecorder chatOutboxRecorder;
     private final MatchContactProperties matchContactProperties;
+    private final com.kickoff.be.report.service.HiddenForViewer hiddenForViewer;
 
     /**
      * 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5).
      * 지난 경기는 status 필터와 무관하게 빠진다.
      */
     @Transactional(readOnly = true)
-    public PageResponse<PostSummary> search(String region, SkillLevel skillLevel,
+    public PageResponse<PostSummary> search(User viewer, String region, SkillLevel skillLevel,
                                             PostStatus status, String keyword,
                                             String dates, String times, int page, int size) {
         Pageable pageable = PageRequest.of(
@@ -83,7 +84,10 @@ public class PostService {
         Page<MatchPost> posts = postRepository.search(OffsetDateTime.now(),
                 LikeEscape.escape(blankToNull(region)), skillLevel, status,
                 LikeEscape.escape(blankToNull(keyword)),
-                DateFilter.parse(dates), TimeSlotFilter.parseToStoredHours(times), pageable);
+                DateFilter.parse(dates), TimeSlotFilter.parseToStoredHours(times),
+                // 신고한 사람 화면에서는 그 글이 바로 빠진다 (계약서 §7-2). 신고까지 한
+                // 글이 계속 눈앞에 있으면 신고가 아무 일도 하지 않은 것처럼 보인다.
+                hiddenForViewer.postIdsFor(viewer), pageable);
         return toSummaryPage(posts);
     }
 

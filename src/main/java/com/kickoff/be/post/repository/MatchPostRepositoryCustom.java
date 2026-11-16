@@ -5,6 +5,7 @@ import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.post.service.DateFilter;
 import com.kickoff.be.team.entity.SkillLevel;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import org.springframework.data.domain.Page;
@@ -20,8 +21,14 @@ import org.springframework.data.domain.Pageable;
  */
 public interface MatchPostRepositoryCustom {
 
+    /**
+     * @param excludedPostIds 이 조회에서 빼야 할 글. 보는 사람이 신고한 글이 여기 온다
+     *                        (계약서 §7-2 — 신고한 사람 화면에서는 바로 빠진다).
+     *                        <b>조건을 서비스가 만들어 넘긴다</b>: 신고 쪽 표를 글 조회가
+     *                        직접 조인하면 두 도메인이 쿼리 하나에 엉킨다.
+     */
     Page<MatchPost> search(OffsetDateTime now, String region, SkillLevel skillLevel,
                            PostStatus status, String keyword,
                            List<DateFilter.Range> dates, Set<Integer> storedHours,
-                           Pageable pageable);
+                           Collection<Long> excludedPostIds, Pageable pageable);
 }

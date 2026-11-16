@@ -28,6 +28,7 @@ public class MatchPostRepositoryImpl implements MatchPostRepositoryCustom {
     public Page<MatchPost> search(OffsetDateTime now, String region, SkillLevel skillLevel,
                                   PostStatus status, String keyword,
                                   List<DateFilter.Range> dates, Set<Integer> storedHours,
+                                  java.util.Collection<Long> excludedPostIds,
                                   Pageable pageable) {
         List<String> where = new ArrayList<>();
         Map<String, Object> params = new LinkedHashMap<>();
@@ -84,6 +85,12 @@ public class MatchPostRepositoryImpl implements MatchPostRepositoryCustom {
         if (!storedHours.isEmpty()) {
             where.add("extract(hour from p.matchAt) in :storedHours");
             params.put("storedHours", storedHours);
+        }
+
+        // 보는 사람이 신고한 글은 그 사람 화면에서만 빠진다 (계약서 §7-2).
+        if (excludedPostIds != null && !excludedPostIds.isEmpty()) {
+            where.add("p.id not in :excludedPostIds");
+            params.put("excludedPostIds", excludedPostIds);
         }
 
         String predicate = String.join("\n  and ", where);
