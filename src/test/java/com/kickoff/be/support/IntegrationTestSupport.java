@@ -193,6 +193,19 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected StubReportContextClient reportContextClient;
 
+    /** 운영자 (계약서 §7-2, v1.35.1). */
+    @Autowired
+    protected com.kickoff.be.operator.repository.OperatorAuditLogRepository auditLogRepository;
+    @Autowired
+    protected com.kickoff.be.operator.service.TotpVerifier totpVerifier;
+    @Autowired
+    protected com.kickoff.be.operator.service.OperatorTotpProperties operatorTotpProperties;
+    @Autowired
+    protected com.kickoff.be.operator.service.OperatorSessionService operatorSessionService;
+
+    /** 한 테스트 안에서는 세션을 한 번만 연다 — 같은 OTP 는 30초 안에 재사용할 수 없다. */
+    private String cachedOperatorToken;
+
     /** 차단 (계약서 §7-2, v1.35.0). */
     @Autowired
     protected com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
@@ -241,6 +254,8 @@ public abstract class IntegrationTestSupport {
         // 소셜 연동은 사용자를 참조하므로 사용자보다 먼저 지운다
         // 동의 기록은 사용자를 참조하므로 사용자보다 먼저 지운다 (v1.34.1).
         consentRepository.deleteAll();
+        auditLogRepository.deleteAll();
+        cachedOperatorToken = null;
         reportChatMessageRepository.deleteAll();
         reportRepository.deleteAll();
         reportContextClient.reset();
@@ -386,6 +401,21 @@ public abstract class IntegrationTestSupport {
                 .applicantTeam(applicantTeam)
                 .message(applicantTeam.getName() + " 신청합니다")
                 .build());
+    }
+
+    /**
+     * 운영자 세션 토큰 (계약서 §7-2, v1.35.1).
+     *
+     * 운영자 API 는 로그인에 더해 이 헤더({@code X-Operator-Token})를 받는다. 테스트가
+     * 인증 앱 노릇을 해야 해서, 설정된 비밀키로 지금 코드를 만들어 세션을 연다.
+     */
+    protected String operatorToken(User operator) {
+        if (cachedOperatorToken == null) {
+            cachedOperatorToken = operatorSessionService.open(operator,
+                    totpVerifier.currentCode(operatorTotpProperties.secret(),
+                            java.time.Instant.now())).operatorToken();
+        }
+        return cachedOperatorToken;
     }
 
     protected String bearer(User user) {

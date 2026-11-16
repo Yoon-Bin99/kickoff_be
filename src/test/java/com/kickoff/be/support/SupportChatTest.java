@@ -229,7 +229,8 @@ class SupportChatTest extends IntegrationTestSupport {
         // 운영자가 문의함을 열었을 때 "AI 가 어디까지 답했는지"가 먼저 보이는 게 맞다.
         awaitSenders(user, SupportSender.USER, SupportSender.AI);
         mockMvc.perform(get("/api/support/rooms")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(operator)))
+                        .header(HttpHeaders.AUTHORIZATION, bearer(operator))
+                        .header(com.kickoff.be.operator.service.OperatorGuard.HEADER, operatorToken(operator)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].userId").value(user.getId()))
@@ -248,6 +249,7 @@ class SupportChatTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/support/rooms/" + user.getId() + "/chat")
                         .header(HttpHeaders.AUTHORIZATION, bearer(operator))
+                        .header(com.kickoff.be.operator.service.OperatorGuard.HEADER, operatorToken(operator))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"확인 후 안내드리겠습니다.\"}"))
                 .andExpect(status().isCreated())
@@ -266,7 +268,8 @@ class SupportChatTest extends IntegrationTestSupport {
     @DisplayName("없는 사용자의 방은 404")
     void unknownRoomIs404() throws Exception {
         mockMvc.perform(get("/api/support/rooms/999999/chat")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(operator)))
+                        .header(HttpHeaders.AUTHORIZATION, bearer(operator))
+                        .header(com.kickoff.be.operator.service.OperatorGuard.HEADER, operatorToken(operator)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
     }
@@ -326,6 +329,7 @@ class SupportChatTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/support/rooms/" + user.getId() + "/chat")
                         .header(HttpHeaders.AUTHORIZATION, bearer(operator))
+                        .header(com.kickoff.be.operator.service.OperatorGuard.HEADER, operatorToken(operator))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"확인했습니다.\"}"))
                 .andExpect(status().isCreated());
@@ -342,7 +346,8 @@ class SupportChatTest extends IntegrationTestSupport {
         escalate(user).andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/support/rooms/" + user.getId() + "/chat")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(operator)))
+                        .header(HttpHeaders.AUTHORIZATION, bearer(operator))
+                        .header(com.kickoff.be.operator.service.OperatorGuard.HEADER, operatorToken(operator)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.operatorMode").value(true));
     }
@@ -351,7 +356,8 @@ class SupportChatTest extends IntegrationTestSupport {
     @DisplayName("운영자가 남의 방을 열어 봐도 빈 방이 생기지 않는다")
     void operatorViewDoesNotCreateRoom() throws Exception {
         mockMvc.perform(get("/api/support/rooms/" + other.getId() + "/chat")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(operator)))
+                        .header(HttpHeaders.AUTHORIZATION, bearer(operator))
+                        .header(com.kickoff.be.operator.service.OperatorGuard.HEADER, operatorToken(operator)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.operatorMode").value(false));
 

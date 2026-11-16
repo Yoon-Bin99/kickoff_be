@@ -144,6 +144,19 @@ public enum ErrorCode {
     VERIFICATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요."),
     SMS_SEND_FAILED(HttpStatus.BAD_GATEWAY, "인증번호 발송에 실패했습니다."),
 
+    // ── 운영자 인증 (계약서 §7-2 「운영자 인증」, v1.35.1)
+
+    /**
+     * 운영자 API 를 운영자 세션 없이(또는 만료된 세션으로) 불렀다.
+     *
+     * <b>403 이 아니라 401 이다.</b> FE 는 이 코드를 보고 OTP 입력 화면을 띄운다 —
+     * 403 이면 "권한이 없다"로 읽혀 운영자 메뉴 자체가 사라진다.
+     */
+    OPERATOR_SESSION_REQUIRED(HttpStatus.UNAUTHORIZED, "운영자 인증이 필요합니다."),
+    OPERATOR_OTP_INVALID(HttpStatus.UNAUTHORIZED, "일회용 비밀번호가 올바르지 않습니다."),
+    OPERATOR_OTP_LOCKED(HttpStatus.TOO_MANY_REQUESTS,
+            "여러 번 틀렸습니다. 15분 뒤에 다시 시도해 주세요."),
+
     // ── 차단 (계약서 §7-2, v1.35.0)
 
     /**

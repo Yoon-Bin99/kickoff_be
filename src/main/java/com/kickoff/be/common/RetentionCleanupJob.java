@@ -40,8 +40,16 @@ public class RetentionCleanupJob {
     /** 본인 계정에만 일어나는 일이라 추적 목적이 없다. */
     private static final Duration PASSWORD_RESET_RETENTION = Duration.ofDays(7);
 
+    /**
+     * 운영자 접속기록 (계약서 §7-2 — 1년 보관).
+     *
+     * 다른 기록과 달리 <b>대상 이용자가 탈퇴해도</b> 이 기간까지 남는다(법령상 보관).
+     */
+    private static final Duration OPERATOR_AUDIT_RETENTION = Duration.ofDays(365);
+
     private final PhoneVerificationRepository phoneVerificationRepository;
     private final PasswordResetCodeRepository passwordResetCodeRepository;
+    private final com.kickoff.be.operator.repository.OperatorAuditLogRepository auditLogRepository;
 
     /**
      * 매일 새벽 4시 30분(KST). 사용자가 가장 적은 시간대다.
@@ -57,10 +65,12 @@ public class RetentionCleanupJob {
                 .deleteByCreatedAtBefore(now.minus(PHONE_VERIFICATION_RETENTION));
         long resets = passwordResetCodeRepository
                 .deleteByCreatedAtBefore(now.minus(PASSWORD_RESET_RETENTION));
+        long auditLogs = auditLogRepository
+                .deleteByCreatedAtBefore(now.minus(OPERATOR_AUDIT_RETENTION));
 
         // 건수만 남긴다. 무엇을 지웠는지 적으면 파기 목적으로 도는 작업이 그 값을
         // 로그에 다시 심는 꼴이 된다.
-        log.info("보관 기간 경과 이력 파기 — 전화 인증 {}건, 비밀번호 재설정 {}건",
-                verifications, resets);
+        log.info("보관 기간 경과 이력 파기 — 전화 인증 {}건, 비밀번호 재설정 {}건, "
+                + "운영자 접속기록 {}건", verifications, resets, auditLogs);
     }
 }

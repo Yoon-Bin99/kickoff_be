@@ -48,6 +48,7 @@ public class SupportService {
     private final SupportKnowledge knowledge;
     private final SupportProperties properties;
     private final OperatorAccounts operatorAccounts;
+    private final com.kickoff.be.operator.service.OperatorGuard operatorGuard;
     private final ApplicationEventPublisher eventPublisher;
 
     // ── FAQ (계약서 §7-1 1단계)
@@ -120,7 +121,7 @@ public class SupportService {
      */
     @Transactional(readOnly = true)
     public List<SupportRoomResponse> rooms(User operator) {
-        requireOperator(operator);
+        requireOperator(operator, "문의방 목록", null);
 
         List<Long> lastIds = messageRepository.findLastIdPerUser().stream()
                 .map(row -> (Long) row[1])
@@ -145,7 +146,7 @@ public class SupportService {
     @Transactional(readOnly = true)
     public SupportChatResponse roomMessages(User operator, Long userId, Long after,
                                             Integer limit) {
-        requireOperator(operator);
+        requireOperator(operator, "문의방 열람", userId);
         requireUserExists(userId);
         boolean operatorMode = roomRepository.findByUser_Id(userId)
                 .map(SupportRoom::isOperatorMode)
@@ -156,7 +157,7 @@ public class SupportService {
     @Transactional
     public SupportMessageResponse replyAsOperator(User operator, Long userId,
                                                   SupportSendRequest request) {
-        requireOperator(operator);
+        requireOperator(operator, "문의 답장", userId);
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -171,10 +172,17 @@ public class SupportService {
     }
 
     /** FE 가 "문의함이 403 인지"로 운영자 여부를 판정한다 (계약서 §7-1 강등 패턴). */
-    private void requireOperator(User user) {
-        if (!operatorAccounts.isOperator(user)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
-        }
+    /**
+     * 운영자 쪽 API 의 문지기 (계약서 §7-1 머리말, v1.35.1).
+     *
+     * 운영자 계정인지에 더해 <b>운영자 세션</b>(OTP 로 연)까지 본다. 문의함은 이용자의
+     * 문의를 보는 곳이라 신고함과 같은 기준이 필요하다 — 한쪽만 OTP 를 받으면 열쇠가
+     * 두 종류가 된다.
+     *
+     * 호출마다 접속기록이 남는다(§7-2 「감사 기록」).
+     */
+    private void requireOperator(User user, String action, Long targetUserId) {
+        operatorGuard.require(user, action, targetUserId, null);
     }
 
     // ── 공통
