@@ -194,6 +194,10 @@ class AccountDeletionWithModerationTest extends IntegrationTestSupport {
         transactionTemplate.executeWithoutResult(status -> postRepository
                 .findById(post.getId()).orElseThrow().hide(OffsetDateTime.now()));
         operatorGuard.record(operator, "신고 열람", owner.getId(), 1L);
+        // 이용 제한 중에도 떠날 수 있어야 한다 (계약서 §7-2) — 막으면 제한이 추방이 된다
+        transactionTemplate.executeWithoutResult(status -> userRepository
+                .findById(owner.getId()).orElseThrow()
+                .suspendUntil(OffsetDateTime.now().plusDays(7)));
 
         withdraw(owner).andExpect(status().isNoContent());
 

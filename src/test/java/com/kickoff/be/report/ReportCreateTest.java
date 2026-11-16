@@ -1,6 +1,7 @@
 package com.kickoff.be.report;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -353,6 +354,43 @@ class ReportCreateTest extends IntegrationTestSupport {
                 """)
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    // ── 신고가 걸린 글을 지울 때 (탈퇴 말고 글만 지워지는 경로)
+
+    /**
+     * <b>신고 표는 글을 외래키로 참조하지 않는다</b> — 참조했다면 여기서 탈퇴와 같은
+     * 종류의 500 이 났을 것이다(그쪽은 실제로 났다). 대상이 사라져도 신고 건은 남아야
+     * 하고, 운영자는 신고 시점의 사본으로 본다.
+     */
+    @Test
+    @DisplayName("신고가 걸린 글을 작성자가 지워도 신고 건은 남는다")
+    void deletingReportedPostKeepsTheReport() throws Exception {
+        report(reporter, spamPost()).andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/api/posts/{id}", post.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(author)))
+                .andExpect(status().isNoContent());
+
+        assertThat(postRepository.findById(post.getId())).isEmpty();
+        assertThat(reportRepository.findAll()).singleElement().satisfies(saved -> {
+            assertThat(saved.getTargetId()).isEqualTo(post.getId());
+            assertThat(saved.getTargetTitle()).as("사본이 증거다").isNotBlank();
+        });
+    }
+
+    /** 조치 중인 글은 작성자도 지울 수 없다 (계약서 §7-2) — 자동 가림도 마찬가지다. */
+    @Test
+    @DisplayName("자동으로 가려진 글은 작성자가 지울 수 없다")
+    void autoHiddenPostCannotBeDeleted() throws Exception {
+        report(reporter, spamPost()).andExpect(status().isCreated());
+        report(secondReporter(), spamPost()).andExpect(status().isCreated());
+        report(thirdReporter(), spamPost()).andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/api/posts/{id}", post.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(author)))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("CONTENT_MODERATED"));
     }
 
     @Test
