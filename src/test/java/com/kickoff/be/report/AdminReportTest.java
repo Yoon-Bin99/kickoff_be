@@ -138,7 +138,10 @@ class AdminReportTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.target.messages[0].senderTeamId").isNumber())
                 .andExpect(jsonPath("$.target.messages[0].createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.target.messages[0].senderUserId").doesNotExist())
-                .andExpect(jsonPath("$.target.messages[0].reported").doesNotExist());
+                .andExpect(jsonPath("$.target.messages[0].reported").doesNotExist())
+                // 다섯 칸만이다 (v1.37.3) — requestId 는 신고 건이 이미 들고 있다
+                .andExpect(jsonPath("$.target.messages[0].requestId").doesNotExist())
+                .andExpect(jsonPath("$.target.messages[0].length()").value(5));
     }
 
     /** 시각은 다른 응답과 같이 밀리초까지만 (계약서 §7-2, v1.37.2). */
@@ -303,9 +306,15 @@ class AdminReportTest extends IntegrationTestSupport {
                                 """.formatted(operatorTeam.getId())))
                 .andExpect(status().isCreated());
 
+        // 400 이 아니라 409 다 (v1.37.3) — 요청 값이 틀린 것이 아니라 대상의 상태 때문에
+        // 할 수 없는 일이고, FE 가 범위를 벗어난 기간(400)과 구별해야 안내가 갈린다.
         resolve("{\"action\":\"SUSPEND_ONLY\",\"suspendDays\":7}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("OPERATOR_NOT_SUSPENDABLE"));
+
+        // 요청 값 검증이 먼저다 — 같은 잘못된 요청이 대상에 따라 다른 코드를 받으면 안 된다
+        resolve("{\"action\":\"SUSPEND_ONLY\",\"suspendDays\":99999}")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors[?(@.field == 'suspendDays')]").exists());
 
         // 콘텐츠 조치는 그대로 된다 — 막는 것은 제한뿐이다

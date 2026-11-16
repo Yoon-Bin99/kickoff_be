@@ -202,6 +202,8 @@ public abstract class IntegrationTestSupport {
     protected com.kickoff.be.operator.service.OperatorTotpProperties operatorTotpProperties;
     @Autowired
     protected com.kickoff.be.operator.service.OperatorSessionService operatorSessionService;
+    @Autowired
+    protected com.kickoff.be.operator.service.OperatorGuard operatorGuard;
 
     /** 한 테스트 안에서는 세션을 한 번만 연다 — 같은 OTP 는 30초 안에 재사용할 수 없다. */
     private String cachedOperatorToken;

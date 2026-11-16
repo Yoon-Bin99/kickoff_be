@@ -129,13 +129,17 @@ public class AdminReportService {
                 && (request.action().hidesContent() || request.action().removesContent())) {
             throw invalid("action", "채팅 메시지는 가리거나 삭제할 수 없습니다.");
         }
-        // 운영자 계정은 제한 대상이 될 수 없다 (계약서 §7-2, v1.37.2).
+        // 운영자 계정은 제한 대상이 될 수 없다 (계약서 §7-2, v1.37.3).
         //
         // <b>제한되면 스스로 풀 수 없다.</b> 이용 제한은 운영자 API 까지 막으므로, 자기
         // 팀이 신고된 건을 제한으로 처리하는 순간 신고함도 해제 API 도 닫힌다. 실제로
         // 그렇게 잠겼다. 그런 건은 콘텐츠 조치나 DISMISS 로만 처리한다.
+        //
+        // <b>요청 값 검증 다음이다</b>(계약서 §7-2). 기간이 범위를 벗어난 요청은 대상이
+        // 누구든 400 이어야 한다 — 순서가 뒤집히면 같은 잘못된 요청이 대상에 따라 다른
+        // 코드를 받는다.
         if (request.suspendDays() != null && isOperator(report.getReportedUserId())) {
-            throw invalid("suspendDays", "운영자 계정은 이용을 제한할 수 없습니다.");
+            throw new BusinessException(ErrorCode.OPERATOR_NOT_SUSPENDABLE);
         }
     }
 

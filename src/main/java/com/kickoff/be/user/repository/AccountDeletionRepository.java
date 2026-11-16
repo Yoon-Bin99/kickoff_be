@@ -159,19 +159,28 @@ public interface AccountDeletionRepository extends JpaRepository<User, Long> {
     int deleteConsentsOf(@Param("userId") Long userId);
 
     /**
-     * 차단 (계약서 §7-2 — "탈퇴하면 그 계정이 건 차단과 그 계정의 팀을 대상으로 한 차단이
-     * 함께 지워진다").
+     * 그 계정이 <b>건</b> 차단 (계약서 §7-2 「차단」).
      *
-     * 두 방향을 모두 지운다. 한쪽만 지우면 사라진 팀을 가리키는 차단이 남아, 그 사람의
-     * 차단 목록에 빈 줄이 서거나 조회가 터진다.
+     * 차단은 그 사람의 화면 설정이지 분쟁 기록이 아니다 — 계정이 사라지면 함께 사라진다.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from TeamBlock b where b.blocker.id = :userId")
     int deleteBlocksBy(@Param("userId") Long userId);
 
+    /**
+     * 그 팀을 <b>대상으로 한</b> 차단 (계약서 §7-2 — "그 계정의 팀을 대상으로 한 차단도
+     * 함께 지워진다").
+     *
+     * <b>팀을 지우기 전에 불러야 한다.</b> {@code team_blocks.blocked_team_id} 가 팀을
+     * 외래키로 참조하므로, 남겨 둔 채 팀을 지우면 참조 무결성 위반으로 <b>탈퇴 전체가
+     * 500 으로 실패한다</b> — 이용자가 탈퇴하지 못하는 상태가 된다. 실제로 그랬다.
+     *
+     * 소유자 id 가 아니라 팀 id 로 받는 것도 그래서다. 호출 자리가 팀을 지우는 메서드
+     * 안이고, 거기서는 팀 id 가 이미 손에 있다.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("delete from TeamBlock b where b.blockedTeam.owner.id = :userId")
-    int deleteBlocksAgainstTeamsOf(@Param("userId") Long userId);
+    @Query("delete from TeamBlock b where b.blockedTeam.id = :teamId")
+    int deleteBlocksAgainstTeam(@Param("teamId") Long teamId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from User u where u.id = :userId")

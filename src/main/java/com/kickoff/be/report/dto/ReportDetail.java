@@ -72,11 +72,11 @@ public record ReportDetail(
     }
 
     /**
-     * §6-1 {@code ChatMessage} 모양 그대로다 (계약서 §7-2, v1.37.2).
+     * §6-1 {@code ChatMessage} 에서 <b>다섯 칸만</b> (계약서 §7-2, v1.37.3).
      *
-     * <b>보낸 사람의 userId 는 내보내지 않는다.</b> 사본에는 들고 있지만(탈퇴 때 비우려면
-     * 필요하다) 운영자 화면이 쓰는 것은 "어느 팀이 보냈는가"뿐이고, 채팅 화면이 쓰는
-     * 모양과 같아야 그쪽 컴포넌트를 그대로 재사용할 수 있다.
+     * <b>보낸 사람의 userId 도 requestId 도 내보내지 않는다.</b> userId 는 사본에 들고
+     * 있지만(탈퇴 때 비우려면 필요하다) 운영자 화면이 쓰는 것은 "어느 팀이 보냈는가"뿐이고,
+     * requestId 는 이미 신고 건이 들고 있다 — 같은 값을 두 자리에 두면 어긋날 자리가 된다.
      */
     public record Message(Long id, String type, Long senderTeamId, String content,
                           OffsetDateTime createdAt) {

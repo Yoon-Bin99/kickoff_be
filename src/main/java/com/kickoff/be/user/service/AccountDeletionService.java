@@ -133,6 +133,10 @@ public class AccountDeletionService {
         deletionRepository.deleteMembersOfTeam(teamId);
         deletionRepository.deleteAdminsOfTeam(teamId);
         deletionRepository.deleteJoinRequestsOfTeam(teamId);
+        // 이 팀을 차단해 둔 사람들의 차단도 함께 지운다 (계약서 §7-2). team_blocks 가
+        // 팀을 외래키로 참조하므로 <b>팀보다 먼저</b>여야 한다 — 남겨 두면 참조 무결성
+        // 위반으로 탈퇴 전체가 500 이 되고, 이용자가 탈퇴하지 못한다.
+        deletionRepository.deleteBlocksAgainstTeam(teamId);
         deletionRepository.deleteTeam(teamId);
     }
 
@@ -171,8 +175,8 @@ public class AccountDeletionService {
         deletionRepository.deleteSocialAccountsOf(userId);
         deletionRepository.deleteConsentsOf(userId);
         // 차단은 그 사람의 화면 설정이지 분쟁 기록이 아니다 — 남겨 둘 이유가 없다 (§7-2).
+        // 그 계정을 <b>대상으로 한</b> 차단은 위 deleteTeam 에서 팀보다 먼저 지운다.
         deletionRepository.deleteBlocksBy(userId);
-        deletionRepository.deleteBlocksAgainstTeamsOf(userId);
         // 신고는 건 자체가 남고 사람만 사라진다 (§7-2 「기록의 보관」) — 운영 이력이
         // 끊기면 안 되지만, 누가 신고했는지는 탈퇴와 함께 지울 값이다. 채팅 문맥
         // 사본은 통째로 지운다(§3-4 의 "대화는 탈퇴와 함께 지운다"가 사본에도 적용된다).
