@@ -1,7 +1,31 @@
-# Kickoff API 계약 v1 (현재 v1.34.1)
+# Kickoff API 계약 v1 (현재 v1.35.3)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE/채팅 서버 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.35.3 (2026-11-16): §3 「동의」의 재동의 판정을 고침 (BE 지적). 시행일 설정값에 **아직 오지 않은 날짜**를 넣으면 전원이 막히고
+> 다시 동의해도 풀리지 않는 구멍이 있었다(새 동의 시각도 그 날짜보다 이르므로). 이제 **시행일이 이미 지났을 때만** 그보다 이른
+> 기록을 "다시 받아야 함"으로 본다 — 개정을 미리 공지하면서 값을 올려 둘 수 있다. 그리고 이 값은 **재동의가 필요한 개정일 때만**
+> 올린다(위탁 업체 변경 같은 일반 개정은 공지로 충분하고 값을 올리지 않는다).
+
+> v1.35.2 (2026-11-16): §7-2 보완 (FE 구현 보고의 지적 — BE 구현 전이라 동작이 바뀌는 서버는 없다). ① 409
+> `BLOCK_HAS_UPCOMING_MATCH` 응답에 `matchAt`(가장 가까운 예정 경기)을 싣는다 — 확인창이 날짜를 말할 수 있게. ② `ReportSummary`에
+> `hiddenUntil` — 임시 가림의 기한이 임박한 건을 운영자 목록에서 알아볼 수 있게. ③ 감독이 아닌 계정의 차단 확인 문구를 나눈다.
+
+> v1.35.1 (2026-11-16): **운영자 기능에 2단계 인증과 감사 기록** (법무 — 안전성 확보조치 기준 제6조 제2항·제8조) + v1.35.0 문구
+> 정정. ① 운영자 API(§7-1 문의함, §7-2 신고함)는 로그인에 더해 **일회용 비밀번호(OTP)로 연 운영자 세션**이 있어야 한다 —
+> `POST /api/admin/session`, 헤더 `X-Operator-Token`, 30분 뒤 만료. ② 운영자 API의 모든 호출을 **감사 기록**으로 남긴다(누가·언제·
+> 어디서·누구의 정보를·무엇을, 1년 보관). ③ 채팅 서버 지적 반영(동작은 구현된 그대로): report-context 검사 순서, 나가기 전
+> 메시지는 404, 차단의 `ROOM_STATE`는 `chatOpen`이 바뀔 때만, `CHAT_CLOSED` 문구를 중립으로. ④ 채팅 서버 공개 상태 확인
+> `GET /health`.
+
+> v1.35.0 (2026-11-16): **신고·차단·운영 조치 신설** (사용자 결정 — 2026-09-01의 "신고 기능은 만들지 않음"을 뒤집음. 법률 점검
+> A-4, 스토어 심사 요건). §7-2 신설. ① **신고** `POST /api/reports` — 모집글·리뷰·팀·채팅 메시지, 사유 7종. 신고한 사람 화면에서는
+> 바로 가려지고, 서로 다른 신고자 3명이면 운영자 확인 전까지 자동으로 임시 가림(최대 30일). ② **차단** `/api/blocks` — 팀 단위.
+> 차단한 쪽 화면에서 그 팀의 글·리뷰가 사라지고, 두 팀은 서로 신청·채팅 전송을 못 한다. 예정된 매칭이 있으면 취소와 함께만 차단된다.
+> ③ **운영 조치** `/api/admin/reports` — 임시 가림·삭제·이용 제한, 신고자·게재자 양쪽 통지(고객센터 메시지 `NOTICE`). ④ 가려진
+> 콘텐츠의 응답 형태(`moderation`, 410 `CONTENT_MODERATED`), 이용 제한 계정(403 `ACCOUNT_SUSPENDED`). ⑤ 금칙어 검사. ⑥ §10 —
+> `RoomContext.blocked`, 채팅 서버의 신고 문맥 내부 API. §9에서 "신고"를 뺀다.
 
 > v1.34.1 (2026-11-16): v1.34.0을 **법무 검토에 맞춰 고침** (구현이 끝나기 전의 정정 — v1.34.0만 구현한 서버·앱은 없다).
 > ① **연락처 제공 동의(`contactSharing`)는 가입할 때가 아니라 팀을 만들 때 받는다** — 전화번호가 상대에게 넘어가는 사람은
@@ -407,7 +431,17 @@
 | `TEAM_ADMIN_LIMIT` | 400 | 팀 관리자 5명 초과 |
 | `ADMIN_NOT_FOUND` | 404 | |
 | `CONSENT_REQUIRED` | 403 | 필수 동의를 마치지 않은 계정의 호출 (v1.34.0, §3 「동의」). FE는 `GET /api/auth/me`를 다시 읽고 동의 화면으로 보낸다 |
-| `CHAT_CLOSED` | 409 | 매치 일시가 지난 채팅방에 메시지 전송 시도 |
+| `ACCOUNT_SUSPENDED` | 403 | 이용 제한 중인 계정의 호출 (v1.35.0, §7-2). FE는 이용 제한 안내 화면으로 보낸다 |
+| `CONTENT_MODERATED` | 410 | 운영 조치로 가려졌거나 삭제된 콘텐츠 (v1.35.0, §7-2). `message`가 화면에 보일 표시 문구다 |
+| `REPORT_ALREADY_EXISTS` | 409 | 같은 대상을 이미 신고했고 아직 처리 중 (v1.35.0) |
+| `REPORT_RATE_LIMITED` | 429 | 신고가 하루 10건을 넘음 (v1.35.0) |
+| `REPORT_NOT_FOUND` | 404 | (v1.35.0, 운영자 API) |
+| `OPERATOR_SESSION_REQUIRED` | 401 | 운영자 API를 운영자 세션 없이(또는 만료된 세션으로) 호출 (v1.35.1, §7-2 「운영자 인증」). FE는 OTP 입력으로 보낸다 |
+| `OPERATOR_OTP_INVALID` | 401 | OTP가 틀림 (v1.35.1) |
+| `OPERATOR_OTP_LOCKED` | 429 | OTP를 연속 5번 틀려 15분 잠김 (v1.35.1) |
+| `BLOCK_HAS_UPCOMING_MATCH` | 409 | 차단하려는 팀과 예정된 매칭이 있음 — `cancelUpcomingMatch: true`로 다시 보내야 한다 (v1.35.0) |
+| `REQUEST_NOT_ALLOWED` | 409 | 차단 관계라 신청할 수 없음 (v1.35.0). 문구는 차단 사실을 드러내지 않는다 — "지금은 이 팀에 신청할 수 없습니다" |
+| `CHAT_CLOSED` | 409 | 매치 일시가 지난 채팅방에 메시지 전송 시도 (v1.35.0: 차단 관계인 방의 전송도 이 코드. v1.35.1: `message`는 사유를 드러내지 않는 "지금은 이 채팅방에 메시지를 보낼 수 없습니다") |
 | `CHAT_EXPIRED` | 410 | 보관 기간(경기일로부터 90일)이 지나 삭제된 채팅방 (v1.33.0, §6-1 「보관 기간」). FE는 "보관 기간이 지나 삭제된 대화예요" |
 | `CHAT_RATE_LIMITED` | 429 | 채팅 전송이 짧은 시간에 몰림 — 사용자당 10초 10건 초과 (v1.31.0). FE는 "잠시 후 다시 보내 주세요" |
 | `CHAT_UPSTREAM_UNAVAILABLE` | 503 | 채팅 서버가 매칭 정보를 확인하지 못함 — BE 무응답·오류 (v1.31.0). FE는 `INTERNAL_ERROR`와 같은 문구로 표시 |
@@ -473,14 +507,24 @@ AuthProvider  KAKAO | NAVER | GOOGLE | APPLE
                비활성 제공자 요청은 400 UNSUPPORTED_PROVIDER)
 ```
 
+**v1.35.0 추가 (§7-2)**
+
+- `ReportTargetType`: `POST` | `REVIEW` | `TEAM` | `CHAT_MESSAGE`
+- `ReportReason`: `ABUSE`(욕설·비방·괴롭힘) | `DEFAMATION`(명예훼손·사생활 침해) | `PERSONAL_INFO`(개인정보 노출) |
+  `FALSE_INFO`(허위 정보·사칭) | `FRAUD`(사기·금전 피해) | `NO_SHOW`(경기 불참·약속 불이행) | `SPAM`(스팸·광고·부적절한 내용)
+- `ModerationStatus`: `HIDDEN`(임시 가림 — 기한이 있다) | `REMOVED`(운영자 삭제)
+- `ReportStatus`: `OPEN` | `TEMP_HIDDEN`(임시 가림 중 — 최종 결정 대기) | `CLOSED`
+
 ## 2. 공통 응답 오브젝트
 
 ### UserResponse
 ```json
 { "id": 1, "email": "kim@example.com", "nickname": "김주장", "phone": "010-1234-5678",
   "hasTeam": true, "teamId": 3, "authProviders": [],
-  "termsAgreedAt": "2026-09-08T10:00:00+09:00", "consentRequired": false, "pendingConsents": [] }
+  "termsAgreedAt": "2026-09-08T10:00:00+09:00", "consentRequired": false, "pendingConsents": [],
+  "suspendedUntil": null }
 ```
+- `suspendedUntil` (v1.35.0): 이용 제한이 끝나는 시각. 제한 중이 아니면 `null`(§7-2 「이용 제한」).
 - `consentRequired` (v1.34.0): 이 계정이 지금 동의 화면을 거쳐야 하는지 — **서버가 판정한다**(§3 「동의」). FE는
   이 값이 `false`가 **아니면**(true·없음·해석 실패) 동의 화면을 띄운다.
 - `pendingConsents` (v1.34.1): 지금 받아야 하는 항목의 키 목록(§3 「동의」의 키). 비어 있으면 `consentRequired`는 `false`다.
@@ -514,8 +558,12 @@ v1.3.0 추가 필드:
   "skillLevel": "INTERMEDIATE", "ageGroup": "THIRTIES", "memberCount": 18,
   "introduction": "매주 토요일 오전 7시에 모입니다.", "logoUrl": null,
   "ownerNickname": "김주장", "isMine": false, "createdAt": "2026-08-01T10:00:00+09:00",
-  "reviewCount": 4, "averageRating": 4.5 }
+  "reviewCount": 4, "averageRating": 4.5,
+  "blockedByMe": false, "introductionModeration": null }
 ```
+
+`blockedByMe`(v1.35.0): 내가 이 팀을 차단했는지(비로그인은 `false`). `introductionModeration`(v1.35.0): 팀 소개가 운영 조치로
+가려졌으면 `{ "status", "until" }`이고 그때 `introduction`은 `null`이다(§7-2).
 
 `reviewCount`(받은 리뷰 수), `averageRating`(1~5 평균, **소수 첫째 자리 반올림**. 리뷰 없으면
 `null` — FE는 "평가 없음" 표시). v1.2.0 추가. **v1.10.0부터 `TeamSummary`에도 들어간다**
@@ -563,8 +611,11 @@ v1.3.0 추가 필드:
 | `contactSharing` | 매칭이 성사되면 상대 팀 감독에게 내 닉네임·휴대전화 번호가 제공되는 것에 동의합니다(제3자 제공, 제17조) | 필수 동의 — **감독만** | **팀을 만들 때** (`POST /api/teams`) |
 
 - **기록**: 서버는 항목별 시각과, 그때 시행 중이던 약관·방침의 시행일을 저장한다(응답에는 내지 않는다). 탈퇴하면 함께 지운다.
-- **`pendingConsents` 판정(서버)**: `age14`·`terms`·`privacy`는 기록이 없거나 **현행 약관·방침 시행일**보다 이르면 받아야 하는
-  항목이다. `contactSharing`은 **팀을 소유한(OWNER) 계정에 한해** 같은 기준으로 본다(팀이 없으면 받을 항목이 아니다).
+- **`pendingConsents` 판정(서버)**: `age14`·`terms`·`privacy`는 기록이 없으면 받아야 하는 항목이다. 기록이 있어도 **시행일
+  설정값이 이미 지난 시각이고(서버 시계) 기록의 동의 시각이 그 시행일보다 이르면** 다시 받아야 한다(v1.35.3 — 설정값이 아직
+  오지 않은 날짜면 그날이 될 때까지 아무에게도 재동의를 요구하지 않는다. 그날이 되면 그 전에 동의한 계정이 모두 대상이 되고,
+  다시 동의하면 풀린다). 이 설정값은 **재동의가 필요한 개정**(제3자 제공의 상대·목적·항목·기간 변경, 동의받는 항목의 추가 등)
+  때만 올린다. `age14`도 같은 기준으로 함께 다시 받는다(한 번 더 묻는 쪽이 안전하다). `contactSharing`은 **팀을 소유한(OWNER) 계정에 한해** 같은 기준으로 본다(팀이 없으면 받을 항목이 아니다).
   `consentRequired`는 이 목록이 비어 있지 않다는 뜻이다. 현행 시행일은 BE 설정값이다(`kickoff.legal.effective-at`, 현재
   `2026-09-08T00:00:00+09:00` — 문서를 개정하면 문서와 함께 BE가 올린다). FE는 시행일을 갖지 않는다(옛 상수
   `TERMS_EFFECTIVE_AT` 폐지). 이 한 규칙이 소셜 최초 로그인, 구조 개편 전 가입자, 개정 후 재동의를 모두 덮는다.
@@ -1996,7 +2047,8 @@ data: `{ "type": "MATCH_CANCELED", "requestId": 7, "postId": 12 }`. 탭 시 매�
   "createdAt": "2026-09-01T12:00:00+09:00" }
 ```
 
-`sender`: `"USER" | "AI" | "OPERATOR"`. FE 표시 — AI는 "AI 상담사", OPERATOR는
+`sender`: `"USER" | "AI" | "OPERATOR" | "NOTICE"`. `NOTICE`(v1.35.0)는 서버가 넣는 알림(신고 처리 결과 등, §7-2) —
+"킥오프 고객센터"로 표시하고, 방을 운영자 모드로 바꾸지 않는다. FE 표시 — AI는 "AI 상담사", OPERATOR는
 "킥오프 고객센터". `id`는 방 안에서 단조 증가 — 폴링 커서.
 
 ### 3단 응대 구조 (v1.22.0)
@@ -2035,6 +2087,8 @@ data: `{ "type": "MATCH_CANCELED", "requestId": 7, "postId": 12 }`. 탭 시 매�
 
 ### 운영자 쪽 API — 인증 필요, 운영자만 (아니면 403 `FORBIDDEN`)
 
+v1.35.1: 아래 API는 **운영자 세션**(`X-Operator-Token`)도 필요하고 호출마다 감사 기록이 남는다 — §7-2 「운영자 인증」.
+
 - `GET /api/support/rooms` — 문의방 목록. 200 →
   `[{ "userId": 5, "nickname": "김감독", "lastMessage": "<SupportMessage>" }]`
   (lastMessage.createdAt DESC). 메시지 없는 방은 목록에 없다 (문의가 시작돼야 방이
@@ -2057,8 +2111,213 @@ data: `{ "type": "SUPPORT_MESSAGE", "userId": 5 }` (userId는 방 주인 — 운
 - 진입: 마이 탭에 "고객센터 문의" (모든 사용자). 채팅 화면은 §6-1 컴포넌트 재사용,
   입력창 상시 활성, 헤더 "킥오프 고객센터"
 - **운영자 계정으로 로그인하면** 마이 탭에 "문의함"이 추가로 보인다 — 방 목록 →
-  각 방 진입·답장. 운영자 여부는 문의함 API가 403이 아닌지로 판정 (강등 패턴)
+  각 방 진입·답장. 운영자 여부는 문의함 API가 403이 아닌지로 판정 (강등 패턴. v1.35.1: 운영자는
+  403 대신 401 `OPERATOR_SESSION_REQUIRED`를 받는다 — 그것도 "운영자다"로 본다)
 - 빈 방 안내: "궁금한 점, 건의, 신고할 일을 남겨 주세요. 운영자가 확인 후 답변드립니다."
+
+## 7-2. 신고·차단·운영 조치 (v1.35.0)
+
+이용자가 올리는 것(모집글·리뷰·팀 소개·채팅)에 대한 신고 수단, 상대를 피하는 차단, 운영자의 조치와 통지를 정한다.
+근거: 정보통신망법 제44조의2(공개 게시물의 삭제 요청·임시조치·통지 — 모집글·리뷰·팀 소개가 대상), 스토어 심사 요건(신고 수단,
+이용자 차단, 악성 이용자 제재). 화면 문구는 `docs/legal-drafts/consent-and-report-copy.md` 3·4절을 쓴다.
+
+### 신고
+
+#### POST /api/reports — 인증 필요
+
+```json
+{ "targetType": "REVIEW", "targetId": 3, "reason": "DEFAMATION", "rightsHolder": "MY_TEAM",
+  "detail": "사실과 다른 내용입니다." }
+{ "targetType": "CHAT_MESSAGE", "targetId": 45, "requestId": 7, "reason": "ABUSE",
+  "chatDisclosureAgreed": true }
+```
+
+- `targetType`·`targetId` 필수: `POST`(글 id) / `REVIEW`(리뷰 id) / `TEAM`(팀 id — 팀 소개·팀 이름, 그리고 그 팀의 행동 전반) /
+  `CHAT_MESSAGE`(메시지 id, `requestId` 함께 필수).
+- `reason` 필수. 대상별로 고를 수 있는 사유:
+
+  | 사유 | POST | REVIEW | TEAM | CHAT_MESSAGE |
+  |---|---|---|---|---|
+  | `ABUSE` `DEFAMATION` `PERSONAL_INFO` `FALSE_INFO` `SPAM` | ○ | ○ | ○ | ○ |
+  | `FRAUD` | ○ | – | ○ | ○ |
+  | `NO_SHOW` | – | – | ○ | ○ |
+
+- `rightsHolder`: `reason`이 `DEFAMATION`일 때만 필수 — `"ME" | "MY_TEAM" | "OTHER"`(누구의 권리가 침해됐는지. 본인·자기 팀이면
+  법정 삭제 요청으로 다룬다). `detail` optional 최대 500자.
+- `chatDisclosureAgreed`: `CHAT_MESSAGE`일 때 `true` 필수 — "신고한 메시지와 그 앞뒤 대화가 운영자에게 전달된다"는 동의.
+- 거절: 위 규칙 위반 400 `VALIDATION_FAILED` / 자기 것(내 팀의 글, 내 팀이 쓴 리뷰, 내 팀, 내 팀이 보낸 메시지)을 신고 400 /
+  없는 대상 404(`POST_NOT_FOUND`·`TEAM_NOT_FOUND`·`NOT_FOUND`) / 채팅 메시지는 그 방의 당사자 팀 감독만(아니면 403 `FORBIDDEN`) /
+  같은 계정이 같은 대상을 이미 신고했고 처리 전이면 409 `REPORT_ALREADY_EXISTS` / 한 계정 하루 10건 초과 429 `REPORT_RATE_LIMITED`.
+- 201 → `{ "id": 31 }`. 처리 결과는 고객센터 메시지(`NOTICE`)와 푸시로 간다. 신고 내역을 조회하는 사용자 API는 없다.
+- 채팅 메시지 신고는 BE가 채팅 서버에서 신고된 메시지와 앞뒤 20개씩을 받아 신고 기록에 사본으로 저장한다(§10). 채팅 서버가
+  응답하지 않으면 503 `CHAT_UPSTREAM_UNAVAILABLE`.
+
+**신고의 즉시 효과**
+
+1. **신고한 사람 화면에서는 바로 가려진다** (`POST`·`REVIEW`): 그 계정의 `GET /api/posts` 목록과 `GET /api/teams/{teamId}/reviews`에서
+   빠진다. 다른 사람에게는 그대로 보인다. 신고 기록이 지워지면(「기록의 보관」) 다시 보인다.
+2. **자동 임시 가림** (`POST`·`REVIEW`): 처리 전 신고가 **서로 다른 신고자 3명** 이상 쌓이면 운영자 확인 전까지 모두에게 가린다
+   (최대 30일, 아래 「가려진 콘텐츠」). 같은 팀에 속한 계정들의 신고는 1명으로 센다. 게재자에게 통지한다. `TEAM`·`CHAT_MESSAGE`는
+   자동으로 가리지 않는다.
+3. 운영자에게 푸시: `REPORT_RECEIVED` — "신고 접수" / "{사유 표시명} · {대상 종류}", data `{ "type": "REPORT", "reportId": 31 }`.
+
+### 가려진 콘텐츠
+
+운영 조치 상태는 `moderation` 오브젝트로 내려간다: `{ "status": "HIDDEN", "until": "2026-12-16T10:00:00+09:00" }`
+(`REMOVED`면 `until`은 `null`). `HIDDEN`은 `until`이 지나면 자동으로 풀린다(운영자가 30일 안에 삭제·복원을 정하지 못하면 다시 보인다).
+
+| 대상 | 가려졌을 때 |
+|---|---|
+| 모집글 | `GET /api/posts` 목록에서 빠진다. `GET /api/posts/{id}`는 작성자에게만 200(+`moderation`), 그 밖에는 410 `CONTENT_MODERATED`. 새 신청은 409 `POST_NOT_OPEN`. 작성자의 `PATCH`·`DELETE`는 410 `CONTENT_MODERATED`(조치 중인 글은 고칠 수 없다). `GET /api/posts/me`에는 `moderation`과 함께 나온다. 이미 수락된 매칭(연락처·채팅)은 그대로다 |
+| 리뷰 | 목록에서 빼지 않고 자리 표시로 남긴다 — `rating: null`, `comment: null`, `moderation` 채움. 평점·리뷰 수 집계에서는 뺀다 |
+| 팀 소개 | `TeamResponse.introduction: null` + `introductionModeration` 채움. `HIDDEN` 동안 소개 수정은 410 `CONTENT_MODERATED`. `REMOVED`는 소개를 지우고, 감독이 새 소개를 쓰면 표시가 사라진다 |
+| 채팅 메시지 | 가리지 않는다(1:1 대화 — 차단과 이용 제한으로 다룬다) |
+
+- 410 `CONTENT_MODERATED`의 `message`와 자리 표시 문구: `HIDDEN` "권리침해 신고로 임시로 가려진 게시물입니다", `REMOVED` "운영 정책에
+  따라 삭제된 게시물입니다"(리뷰는 "…삭제된 리뷰입니다"). 조치 사실을 이용자가 알 수 있게 그 자리에 남기는 표시다(제44조의2 제2항).
+- `PostSummary`·`PostDetail`·`ReviewResponse`에 `moderation`(nullable) 필드가 생긴다. 조치가 없으면 `null`.
+
+### 차단
+
+차단의 단위는 **팀**이다(계정이 다른 팀을 차단한다). 상대에게 차단 사실을 알리지 않는다.
+
+#### POST /api/blocks — 인증 필요
+
+```json
+{ "teamId": 5, "cancelUpcomingMatch": false }
+```
+
+- 201 → `BlockResponse` `{ "team": "<TeamSummary>", "createdAt": "2026-11-16T10:00:00+09:00" }`. 이미 차단한 팀이면 200으로 같은 응답(멱등).
+- 내 팀(소유·소속)을 차단 400 `VALIDATION_FAILED` / 없는 팀 404 `TEAM_NOT_FOUND`.
+- **예정된 매칭이 있으면 취소와 묶는다**: 내가 감독인 팀과 그 팀 사이에 `ACCEPTED`이고 `matchAt`이 미래인 매칭이 있는데
+  `cancelUpcomingMatch`가 `true`가 아니면 409 `BLOCK_HAS_UPCOMING_MATCH`(v1.35.2: 이 응답에는 공통 에러 형식에 더해
+  `"matchAt"` — 그 팀과의 예정 매칭 중 가장 가까운 경기 시각 — 이 실린다). `true`면 그 매칭들을 §6-2와 똑같이 취소하고(상대 팀에
+  `MATCH_CANCELED` 푸시, 글은 `OPEN` 복구) 차단한다. 조율 수단 없이 경기만 남는 것을 막기 위해서다.
+- 두 팀 사이에 대기 중(`PENDING`)인 신청은 정리한다 — 내 팀이 보낸 것은 `CANCELED`, 내 글에 온 것은 `REJECTED`(기존 거절 푸시가 간다).
+
+#### DELETE /api/blocks/{teamId} — 인증 필요 → 204 (차단한 적 없어도 204)
+
+#### GET /api/blocks — 인증 필요 → `BlockResponse[]` (`createdAt` DESC)
+
+**차단의 효과**
+
+| 범위 | 내용 |
+|---|---|
+| 차단한 계정의 화면 | `GET /api/posts`에서 그 팀의 글이 빠진다. `GET /api/teams`(팀 찾기)에서 빠진다. `GET /api/teams/{id}/reviews`에서 **그 팀이 쓴** 리뷰가 빠진다. `GET /api/teams/{id}`는 `blockedByMe: true`로 열린다(FE는 가림막과 "차단 해제"를 보인다) |
+| 두 팀 사이(차단한 계정이 **감독**일 때만) | 어느 방향이든 신청 409 `REQUEST_NOT_ALLOWED`. 서로의 `contact`·`payment`는 `null`. 채팅은 읽기 전용(§10 `RoomContext.blocked` — 전송 409 `CHAT_CLOSED`, 푸시 없음). 지난 경기의 리뷰 작성은 그대로 된다 |
+| 하지 않는 것 | 상대 화면에서 내 글을 숨기지 않는다. 상대가 이미 쓴 리뷰는 제3자에게 계속 보인다(문제가 있으면 신고로 다룬다) |
+
+- 감독이 아닌 계정(관리자·팀원·팀 없음)의 차단은 "화면" 효과만 있다. FE는 그런 계정의 차단 확인창에서 "서로 매칭을 신청할 수
+  없고, 채팅을 주고받을 수 없습니다" 줄을 빼고 보인다(v1.35.2 — 일어나지 않는 일을 말하지 않는다).
+- 해제하면 위 효과가 풀린다. 취소된 매칭과 정리된 신청은 되살아나지 않는다.
+- 탈퇴하면 그 계정이 건 차단과 그 계정의 팀을 대상으로 한 차단이 함께 지워진다.
+- 차단·해제 때 BE는 두 팀 사이의 수락된 매칭 방에 `ROOM_INVALIDATED`를 보낸다(§10).
+
+### 운영자 인증 (v1.35.1)
+
+운영자 화면은 이용자의 문의와 신고된 대화를 보는 곳이라, 계정 비밀번호만으로 열리지 않게 한다(안전성 확보조치 기준 제6조
+제2항 — 외부에서 접속할 때 일회용 비밀번호 등 안전한 인증수단).
+
+#### POST /api/admin/session — 인증 필요, 운영자 계정만 (아니면 403 `FORBIDDEN`)
+
+```json
+{ "otp": "123456" }
+```
+
+- `otp`: 인증 앱이 보여 주는 6자리(TOTP — RFC 6238, 30초, SHA-1, 앞뒤 한 칸 허용). 비밀키는 BE env **`OPERATOR_TOTP_SECRET`**
+  (Base32). dev 프로파일에만 개발용 기본값이 있다. **운영에서 비어 있으면 운영자 API 전체가 403**이다(닫힌 쪽으로 실패).
+- 200 → `{ "operatorToken": "...", "expiresAt": "2026-11-16T10:30:00+09:00" }`. 토큰은 **발급 후 30분** 유효하고 연장되지
+  않는다(일정 시간 뒤 자동 차단 — 제6조 제4항). 만료되면 OTP를 다시 넣는다. 서버 메모리에만 둔다(재시작하면 사라진다).
+  한 번 쓴 OTP는 같은 30초 안에 다시 받지 않는다.
+- 틀리면 401 `OPERATOR_OTP_INVALID`. 연속 5번 틀리면 15분 동안 429 `OPERATOR_OTP_LOCKED`.
+- **운영자 API 호출**: 헤더 `X-Operator-Token: <operatorToken>`. 검사 순서는 인증(401) → 동의·이용 제한(403) → 운영자 계정인지
+  (403 `FORBIDDEN`) → 운영자 세션(401 `OPERATOR_SESSION_REQUIRED`). 대상은 §7-1 「운영자 쪽 API」와 이 절의 `/api/admin/**`
+  전부다(`POST /api/admin/session` 자신은 제외).
+- FE: 운영자 메뉴(문의함·신고함)에 들어갈 때 `OPERATOR_SESSION_REQUIRED`를 받으면 OTP 입력 화면을 띄우고, 성공하면 토큰을
+  **메모리에만** 두고 하던 요청을 다시 보낸다. 토큰을 저장소에 남기지 않는다.
+
+**감사 기록 (v1.35.1)**: 운영자 API의 모든 호출과 운영자 세션 발급 시도(성공·실패)를 DB에 남긴다 — 운영자 계정, 시각, 접속 IP,
+수행한 일(예: 문의방 목록·문의방 열람·답장·신고 목록·신고 열람·신고 조치·이용 제한 해제·OTP 성공/실패), 대상이 된 이용자
+(userId — 목록 조회는 생략), 대상 식별값(신고 id 등). 내용(문의 본문·대화)은 적지 않는다. **1년 뒤 지운다**(하루 한 번).
+대상 이용자가 탈퇴해도 이 기록은 기간까지 남는다(법령상 보관 — 처리방침에 적는다). 조회 API는 없다(운영자가 DB에서 본다).
+
+### 운영자 API — 인증 필요, 운영자만 (§7-1의 운영자. 아니면 403 `FORBIDDEN`)
+
+- `GET /api/admin/reports?status=OPEN&page=0&size=20` → `PageResponse<ReportSummary>`(`createdAt` DESC). `status` 생략 시 `OPEN`과
+  `TEMP_HIDDEN`.
+
+  ```json
+  { "id": 31, "targetType": "REVIEW", "targetId": 3, "reason": "DEFAMATION", "status": "OPEN",
+    "reporterCount": 1, "autoHidden": false, "hiddenUntil": null,
+    "createdAt": "2026-11-16T10:00:00+09:00" }
+  ```
+
+  `reporterCount`: 같은 대상에 걸린 처리 전 신고의 서로 다른 신고자 수. `hiddenUntil`(v1.35.2): 대상이 지금 임시 가림 중이면
+  그 기한(자동 가림 포함), 아니면 `null` — FE는 기한이 7일 안으로 남은 건을 눈에 띄게 표시한다.
+- `GET /api/admin/reports/{id}` → `ReportDetail` — `ReportSummary` + `rightsHolder`, `detail`, `reporter`·`reported`
+  (`{ userId, nickname, teamId, teamName }` — 탈퇴했으면 `null`), `target`(신고 시점의 사본: 글은 제목·내용, 리뷰는 별점·내용,
+  팀은 이름·소개, 채팅은 `{ reportedMessageId, messages: [...] }`), `moderation`(현재 조치 상태), `resolution`(조치 내용·시각·메모,
+  없으면 `null`). **서버는 이 조회를 열람 기록으로 남긴다**(누가·언제·어느 신고 — 접속기록).
+- `POST /api/admin/reports/{id}/resolve` → 200 `ReportDetail`
+
+  ```json
+  { "action": "HIDE", "suspendDays": null, "note": "양쪽 의견 확인 중" }
+  ```
+
+  | `action` | 뜻 | 신고 상태 |
+  |---|---|---|
+  | `DISMISS` | 조치하지 않는다. 가려져 있었다면 복원한다 | `CLOSED` |
+  | `HIDE` | 임시 가림 30일(`POST`·`REVIEW`·`TEAM`의 소개) | `TEMP_HIDDEN` — 30일 안에 `REMOVE`나 `DISMISS`로 다시 정한다 |
+  | `REMOVE` | 삭제(같은 대상 범위) | `CLOSED` |
+  | `SUSPEND_ONLY` | 콘텐츠는 두고 계정만 제한한다(`suspendDays` 필수) | `CLOSED` |
+
+  - `suspendDays`(optional, 1~3650): 신고된 쪽 계정(글·리뷰 작성 팀의 감독, 팀의 감독, 메시지를 보낸 계정)의 이용을 그 날수만큼
+    제한한다. `DISMISS`와 함께 쓸 수 없다. `CHAT_MESSAGE` 신고에는 `HIDE`·`REMOVE`를 쓸 수 없다(400).
+  - `note` optional 최대 500자(내부 메모 — 통지에 싣지 않는다).
+  - 같은 대상에 걸린 다른 처리 전 신고도 같은 결과로 함께 닫는다.
+  - **통지**: 조치와 동시에 신고자 전원과 게재자(신고된 쪽)에게 고객센터 메시지(`sender: "NOTICE"`)와 `SUPPORT_MESSAGE` 푸시를
+    보낸다. 내용은 대상, 조치 종류, 사유 범주, 조치 일시, 임시 가림이면 기한, 이의 제기 방법과 기한(임시 가림은 그 기간 안,
+    삭제·이용 제한은 14일). **신고자가 누구인지는 어느 통지에도 싣지 않는다.** `DISMISS`는 신고자에게만 알린다(자동으로 가려졌다가
+    복원되는 경우에는 게재자에게도 복원을 알린다). 자동 임시 가림이 걸릴 때도 게재자에게 같은 양식으로 알린다.
+- `DELETE /api/admin/users/{userId}/suspension` → 204 (이용 제한 해제. 없는 사용자 404 `USER_NOT_FOUND`).
+
+### 이용 제한
+
+- `UserResponse.suspendedUntil`이 미래인 계정이 **인증이 필요한 API**를 부르면 403 `ACCOUNT_SUSPENDED`. 예외: §3 「동의」의 예외
+  목록 + 고객센터(`/api/support/**`의 사용자 쪽 API — 이의 제기 창구). 검사 순서는 인증(401) → 동의(403 `CONSENT_REQUIRED`) →
+  이용 제한(403 `ACCOUNT_SUSPENDED`) → 그 밖의 검증.
+- 기한이 지나면 자동으로 풀린다. 제한 중에도 탈퇴할 수 있다.
+- 채팅 서버는 이용 제한을 보지 않는다(사용자 정보가 없다) — 제한된 감독도 이미 수락된 매칭의 채팅은 쓸 수 있다. 잡힌 경기의
+  조율은 상대 팀에게도 필요하기 때문이다. 문제가 채팅에서 나면 상대가 차단한다.
+
+### 금칙어
+
+모집글의 제목·내용, 리뷰 내용, 팀 이름·소개, 닉네임을 저장할 때 BE가 금칙어 목록(BE 리소스 파일)으로 검사한다. 걸리면 400
+`VALIDATION_FAILED`(`fieldErrors`의 `message`는 "사용할 수 없는 표현이 포함되어 있습니다"). 채팅 메시지는 검사하지 않는다.
+이미 저장된 것에는 소급하지 않는다.
+
+### 기록의 보관
+
+- 조치가 있었던 신고는 종료 후 **1년**, 조치 없이 끝난 신고는 종료 후 **90일** 뒤 지운다(하루 한 번).
+- 신고자나 신고된 쪽이 탈퇴하면 그 신고 기록의 사용자 식별값을 비우고, **채팅 문맥 사본은 지운다**(대화는 탈퇴와 함께 지운다는
+  약속 — §3-4). 신고 건 자체(대상 종류·사유·조치)는 위 기간까지 남는다.
+- 운영자의 조회·조치 기록(접속기록)은 1년 이상 남긴다.
+
+### FE 규칙
+
+- **신고 진입**: 모집글 상세(내 글 제외), 리뷰 항목(내 팀이 쓴 것 제외), 팀 페이지(내 팀 제외), 채팅방의 상대 메시지. 위치·모양은
+  재량(더보기 메뉴 등). 신고 화면은 대상에 맞는 사유만 보이고, `DEFAMATION`이면 "누구의 권리인지"를 한 번 더 묻고, 채팅 메시지면
+  전달 동의 체크를 받는다. 안내·완료 문구는 법무 초안 3-2절.
+- 신고 성공 뒤 목록 캐시를 버린다(내 화면에서 사라져야 한다). 409 `REPORT_ALREADY_EXISTS`는 "이미 신고한 내용이에요".
+- **차단 진입**: 팀 페이지, 채팅방, 모집글 상세의 더보기 메뉴. 확인창은 법무 초안 4절 — 409 `BLOCK_HAS_UPCOMING_MATCH`를 받으면
+  "차단하면 예정된 매칭이 취소됩니다" 확인창을 띄우고 `cancelUpcomingMatch: true`로 다시 보낸다. 차단·해제 뒤 목록 캐시를 버린다.
+  마이 탭에 "차단 목록"(해제 가능).
+- 가려진 리뷰는 자리 표시 문구로, 410 `CONTENT_MODERATED`는 `message`를 화면 안내로 그린다. 내 글·내 팀 소개가 가려졌으면
+  `moderation`의 상태와 기한을 보이고 "고객센터에서 이의를 제기할 수 있어요"로 잇는다.
+- 403 `ACCOUNT_SUSPENDED` 또는 `suspendedUntil`이 미래면 이용 제한 안내 화면(기한, 고객센터로 가는 길, 로그아웃·탈퇴).
+- 채팅방에 처음 들어갈 때 한 번(기기에 기억): "신고가 접수되면 확인을 위해 운영자가 대화를 볼 수 있습니다."
+- **운영자 화면**: 운영자 계정이면 마이 탭에 "신고함"(문의함과 같은 판정 방식 — 운영자 API가 403이 아닌지). 목록 → 상세(대상 사본,
+  채팅 문맥) → 조치(가림·삭제·제한·조치 없음, 메모). 꾸밈보다 정확한 표시가 먼저다.
 
 ## 8. 푸시 알림 (v1.4.0)
 
@@ -2219,11 +2478,11 @@ LIKE 이스케이프 규칙), `page`/`size`(기본 0/20, 최대 50).
 구장 시간대별 빈자리 조회·예약 대행(공공·사설 모두 슬롯 데이터를 공개하지 않음 — §8-1은 링크 연결만),
 구장 관리자용 등록 API(v1은 수동 시드만 — §8-1),
 WebSocket으로 메시지 보내기(v1.31.0은 받기만 — 보내기는 REST), 채팅 서버 다중화, 고객센터 문의의 실시간 전송, 채팅 읽음 표시·안읽음 배지,
-채팅 메시지 수정·삭제·신고, 채팅 이미지 첨부, 채팅 푸시 묶음·스로틀,
+채팅 메시지 수정·삭제, 채팅 이미지 첨부, 채팅 푸시 묶음·스로틀,
 이미지 업로드(팀 로고 포함), 스쿼드의 서버 이미지 렌더링·링크 공유·경기(매칭) 연결(v1은 제목만 — §4-4),
 기록 수정, 소유권 이전·소유자 탈퇴, 가입 초대(팀→사용자 방향),
 경기 종료 리마인드 푸시(기록·리뷰 유도 알림),
-리뷰 수정·삭제·신고, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),
+리뷰 수정·삭제(작성자가 직접 고치는 기능 — 운영자 삭제는 §7-2), 제재 계정의 재가입 방지, 소셜 계정 연동 해제, GOOGLE·APPLE 로그인 활성화(값만 예약),
 다중 기기 push token, 알림 히스토리 화면, 알림 설정(끄기/켜기),
 홈 목록 지도 뷰, 좌표 반경 검색, 정적 지도 이미지
 
@@ -2257,13 +2516,18 @@ BE(`kickoff_be`)와 채팅 서버(`kickoff_chat`) 사이의 약속. FE는 이 �
 
 ```json
 { "requestId": 7, "status": "ACCEPTED", "postId": 12, "postTitle": "토요일 아침 상대 구합니다",
-  "matchAt": "2026-08-30T07:00:00+09:00", "updatedAt": "2026-08-28T10:00:00+09:00",
+  "matchAt": "2026-08-30T07:00:00+09:00", "updatedAt": "2026-08-28T10:00:00+09:00", "blocked": false,
   "postTeam":      { "ownerUserId": 1, "team": "<TeamSummary>" },
   "applicantTeam": { "ownerUserId": 2, "team": "<TeamSummary>" } }
 ```
 
 - `status`: §1 `RequestStatus`. `updatedAt`: 신청의 마지막 상태 변경(§6-1 방 목록 정렬의 보조값).
 - `team`: §2 `TeamSummary`(평점 포함 — 방 목록의 `otherTeam`으로 그대로 나간다).
+- `blocked` (v1.35.0): 두 팀의 감독 중 누구라도 상대 팀을 차단했으면 `true`(§7-2). 채팅 서버는 이 값이 `true`면 그 방을
+  **보낼 수 없는 방**으로 다룬다 — `chatOpen: false`, `POST /chat`은 409 `CHAT_CLOSED`, 푸시 요청 없음. 읽기·나가기·방 목록은
+  그대로다. 차단·해제로 `chatOpen`이 **실제로 바뀐 방에 한해**(v1.35.1 — 이미 닫힌 지난 경기 방에는 보내지 않는다) 구독 중이던
+  연결에 `ROOM_STATE`를 보내되, 사유를 드러내지 않도록 `reason: "SCHEDULE_CHANGED"`로 보낸다(차단 사실을 상대에게 알리지
+  않는다). 값이 없으면(옛 BE) `false`로 본다.
 - 채팅 서버는 이 응답을 `requestId` 기준 **최대 15초** 캐시한다. 호출 타임아웃 2초, 무응답·5xx면 사용자에게 503
   `CHAT_UPSTREAM_UNAVAILABLE`.
 
@@ -2287,6 +2551,11 @@ BE(`kickoff_be`)와 채팅 서버(`kickoff_chat`) 사이의 약속. FE는 이 �
 
 ### 채팅 서버가 제공하는 것
 
+#### GET /health (v1.35.1)
+
+공개 상태 확인 — 인증 없이 200 `{ "status": "UP" }`. 프로세스가 요청을 받는지만 알린다(버전·DB 상태·내부 정보를 싣지 않는다).
+배포 스크립트와 외부 감시가 쓴다. BE의 같은 용도는 `GET /api/auth/signup-policy`다(§0).
+
 #### POST /internal/events
 
 ```json
@@ -2298,13 +2567,34 @@ BE(`kickoff_be`)와 채팅 서버(`kickoff_chat`) 사이의 약속. FE는 이 �
 
 | type | BE에서 일어난 일 | 채팅 서버가 할 일 |
 |---|---|---|
-| `ROOM_INVALIDATED` | 매칭 취소(§6-2), 수락된 신청이 있는 글의 `matchAt` 수정 | 그 방들의 `RoomContext` 캐시를 버리고, 구독 중인 연결에 `ROOM_STATE`를 보낸다(바뀐 것이 있을 때만). 메시지는 지우지 않는다 |
+| `ROOM_INVALIDATED` | 매칭 취소(§6-2), 수락된 신청이 있는 글의 `matchAt` 수정, 두 팀 사이의 차단·차단 해제(v1.35.0) | 그 방들의 `RoomContext` 캐시를 버리고, 구독 중인 연결에 `ROOM_STATE`를 보낸다(바뀐 것이 있을 때만). 메시지는 지우지 않는다 |
 | `PURGE` | 회원 탈퇴로 팀이 삭제됨(§3-4), 그 밖에 신청 행이 지워지는 모든 경우 | `requestIds`의 메시지·나가기 기록 전부 삭제, `teamIds`의 나가기 기록 삭제, 그 방을 구독 중인 연결의 구독 해제 |
 
 - 매칭 수락은 이벤트가 없다 — 방은 암묵적으로 존재하고 첫 접근 때 `RoomContext`로 확인한다.
 - 팀 이름·평점 변화도 이벤트가 없다 — 방 목록은 매번 BE에서 읽는다.
 - 수락된 글의 `matchAt` 수정은 현재 막지 않는다(v1.30.1까지의 동작 그대로 — 허용 여부는 별도 제품 결정). 그래서 채팅
   서버는 `matchAt`을 15초 넘게 믿지 않는다.
+
+#### GET /internal/chat/rooms/{requestId}/report-context (v1.35.0 — 채팅 서버가 제공, BE가 부른다)
+
+쿼리: `messageId`(필수), `reporterUserId`(필수), `before`·`after`(기본 20, 최대 50).
+
+```json
+{ "reportedMessage": "<InternalChatMessage>",
+  "messages": [ "<InternalChatMessage>", "..." ] }
+```
+
+- `InternalChatMessage` = §6-1 `ChatMessage` + `senderUserId`(nullable). `messages`는 신고된 메시지와 그 앞 `before`개·뒤 `after`개,
+  오름차순.
+- **신고자에게 보이던 것만** 준다 — 신고자 팀이 방을 나간 적이 있으면 그 시점 이전은 빼고 준다(§6-1 나가기 규칙).
+- 검사(채팅 서버, 이 순서 — v1.35.1): BE에 신청이 없으면 404 `REQUEST_NOT_FOUND` → 그 방의 `RoomContext`로 신고자가 당사자 팀의
+  감독인지, 아니면 403 `FORBIDDEN` → 메시지가 없거나 그 방의 것이 아니거나 **신고자가 방을 나가기 전의 것이면**(신고자에게
+  보이지 않던 메시지) 404 `NOT_FOUND` → `SYSTEM` 메시지이거나 신고자 팀이 보낸 메시지면 400 `VALIDATION_FAILED` → 보관 기간이
+  지난 방은 410 `CHAT_EXPIRED`. 신청 상태(수락 여부)는 따지지 않는다 — 취소된 매칭의 대화도 지워지기 전에는 신고할 수 있다.
+- BE는 호출 타임아웃 2초, 무응답·5xx면 신고 API가 503 `CHAT_UPSTREAM_UNAVAILABLE`로 답한다(채팅 메시지 신고에 한해 채팅 서버에
+  기댄다 — 다른 대상의 신고는 채팅 서버와 무관하다).
+- BE는 받은 문맥을 신고 기록에 **사본으로** 저장한다(운영자가 채팅 서버에 다시 묻지 않는다). 사본의 보관·삭제는 §7-2 「기록의 보관」.
+  채팅 서버의 삭제 보류 표는 이 흐름에서 쓰지 않는다(사본이 증거다).
 
 ### 이벤트 전달 (BE 내부 규약)
 
