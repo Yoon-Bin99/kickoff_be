@@ -6,6 +6,7 @@ import com.kickoff.be.common.ContactInfo;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.common.ModerationResponse;
+import com.kickoff.be.common.ProfanityFilter;
 import com.kickoff.be.common.PageResponse;
 import com.kickoff.be.common.Patchable;
 import com.kickoff.be.common.LikeEscape;
@@ -65,6 +66,7 @@ public class PostService {
     private final MatchContactProperties matchContactProperties;
     private final com.kickoff.be.report.service.HiddenForViewer hiddenForViewer;
     private final com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
+    private final ProfanityFilter profanityFilter;
 
     /**
      * 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5).
@@ -113,6 +115,9 @@ public class PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_REQUIRED));
         requireAccountWhenDepositSet(request.depositAmount(), request.bankName(),
                 request.accountNumber(), request.accountHolder());
+        // 금칙어 (계약서 §7-2). 저장할 때만 본다 — 이미 저장된 것에는 소급하지 않는다.
+        profanityFilter.check("title", request.title());
+        profanityFilter.check("content", request.content());
         requirePaymentShareConfirmed(request.paymentShareConfirmed(), request.bankName(),
                 request.accountNumber(), request.accountHolder());
         requireCoordinatePair(request.latitude(), request.longitude());
@@ -157,6 +162,8 @@ public class PostService {
         requireAuthor(post, user);
         requireNotModerated(post);
         requireNotCleared(request);
+        profanityFilter.check("title", Patchable.valueOf(request.title()));
+        profanityFilter.check("content", Patchable.valueOf(request.content()));
         // 계좌 공개 확인은 <b>요청 본문</b>으로 본다 (계약서 §5, v1.34.0) — 계좌를 건드리지
         // 않는 PATCH 에는 필요 없다. 병합 결과로 보면 계좌가 이미 있는 글의 제목만 고치는
         // 요청까지 확인을 요구하게 된다. 아래 requireAccountWhenDepositSet 이 병합 결과를

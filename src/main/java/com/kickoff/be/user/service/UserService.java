@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final com.kickoff.be.common.ProfanityFilter profanityFilter;
     private final ConsentService consentService;
     private final TeamMemberRepository teamMemberRepository;
     private final TeamRepository teamRepository;
@@ -45,6 +46,8 @@ public class UserService {
         User user = userRepository.findById(loginUser.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Patchable.rejectClear(request.nickname(), "nickname");
+        // 금칙어 (계약서 §7-2). 닉네임은 리뷰·문의 어디에나 따라다니는 값이다.
+        profanityFilter.check("nickname", Patchable.valueOf(request.nickname()));
         Patchable.rejectClear(request.phone(), "phone");
         // 유니크 규칙 (계약서 §3, v1.16.0). 자기 자신의 기존 값은 중복이 아니다 —
         // 안 그러면 닉네임을 그대로 두고 전화번호만 고치는 요청이 자기 닉네임에 걸린다.

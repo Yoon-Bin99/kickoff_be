@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final com.kickoff.be.common.ProfanityFilter profanityFilter;
     private final TeamRepository teamRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final PasswordEncoder passwordEncoder;
@@ -55,6 +56,9 @@ public class AuthService {
         if (userRepository.existsByNicknameIgnoreCase(request.nickname())) {
             throw new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS);
         }
+        // 금칙어 (계약서 §7-2). 중복 검사 뒤에 둔 이유는 없다 — 둘 다 400 대이고
+        // 먼저 걸리는 쪽이 답하면 된다.
+        profanityFilter.check("nickname", request.nickname());
         if (userRepository.existsByPhone(request.phone())) {
             throw new BusinessException(ErrorCode.PHONE_ALREADY_EXISTS);
         }

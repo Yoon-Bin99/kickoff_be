@@ -34,6 +34,7 @@ public class ReviewService {
     private final MatchRequestRepository requestRepository;
     private final TeamRepository teamRepository;
     private final com.kickoff.be.report.service.HiddenForViewer hiddenForViewer;
+    private final com.kickoff.be.common.ProfanityFilter profanityFilter;
 
     /**
      * 매칭 당사자가 상대 팀을 평가한다 (계약서 §7).
@@ -44,6 +45,8 @@ public class ReviewService {
      */
     @Transactional
     public ReviewResponse create(Long requestId, User user, ReviewCreateRequest request) {
+        // 금칙어 (계약서 §7-2).
+        profanityFilter.check("comment", request.comment());
         MatchRequest matchRequest = requestRepository.findDetailById(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_NOT_FOUND));
 

@@ -49,6 +49,7 @@ public class TeamService {
     private final TeamAuthz teamAuthz;
     private final TeamJoinService teamJoinService;
     private final com.kickoff.be.report.service.HiddenForViewer hiddenForViewer;
+    private final com.kickoff.be.common.ProfanityFilter profanityFilter;
 
     @Transactional
     public TeamResponse create(User owner, TeamCreateRequest request) {
@@ -77,6 +78,10 @@ public class TeamService {
         // 연락처 제공 동의를 기록한다 (계약서 §3 「동의」, v1.34.1). 요청이 여기까지 왔다는
         // 건 contactSharingConsent 가 true 라는 뜻이다 — false·누락은 검증에서 400 이다.
         //
+        // 금칙어 (계약서 §7-2). 팀 이름은 모든 목록에 박히는 값이라 특히 중요하다.
+        profanityFilter.check("name", request.name());
+        profanityFilter.check("introduction", request.introduction());
+
         // 팀 생성과 같은 트랜잭션이다. 갈라 두면 팀은 있는데 동의 기록이 없는 계정이
         // 생기고, 그 계정은 pendingConsents 에 contactSharing 이 떠서 동의 화면에 갇힌다.
         consentService.recordContactSharing(owner);
@@ -212,6 +217,7 @@ public class TeamService {
             // 조치가 아니다. 삭제(REMOVED)는 막지 않는다: 그쪽은 소개가 이미 지워졌고,
             // 새 소개를 쓰면 표시가 사라지는 것이 계약이 정한 복구 경로다.
             requireIntroductionEditable(team);
+            profanityFilter.check("introduction", Patchable.valueOf(request.introduction()));
             team.updateIntroduction(Patchable.valueOf(request.introduction()));
         }
         applyProfilePatch(team, request);
