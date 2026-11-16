@@ -36,6 +36,15 @@ public class MatchPostRepositoryImpl implements MatchPostRepositoryCustom {
         where.add("p.matchAt >= :now");
         params.put("now", now);
 
+        // 운영 조치로 가려진 글은 목록에서 빠진다 (계약서 §7-2, v1.35.0).
+        //
+        // <b>기한은 여기서 본다.</b> 임시 가림은 기한이 지나면 자동으로 풀려야 하는데,
+        // 배치로 칸을 비우면 배치가 도는 시각까지 안 보인다. 같은 :now 를 쓰므로
+        // 파라미터가 늘지 않는다.
+        where.add("(p.moderation.status is null"
+                + " or (p.moderation.status = com.kickoff.be.common.ModerationStatus.HIDDEN"
+                + "     and p.moderation.until < :now))");
+
         // 파라미터를 <b>있을 때만</b> 바인딩한다. 예전 정적 쿼리는 null 을 넘기고
         // ":x is null or ..." 로 걸렀는데, 그때 PostgreSQL 이 타입 없는 null 을 bytea 로
         // 추론해 lower(bytea) 를 찾다 실패하는 함정이 있어 cast 로 막아야 했다.

@@ -5,6 +5,7 @@ import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ContactInfo;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.common.ErrorResponse;
+import com.kickoff.be.common.ModerationResponse;
 import com.kickoff.be.common.PageResponse;
 import com.kickoff.be.common.Patchable;
 import com.kickoff.be.common.LikeEscape;
@@ -137,6 +138,9 @@ public class PostService {
     @Transactional
     public PostDetail get(Long postId, User viewer) {
         MatchPost post = findPost(postId);
+        // 가려진 글은 작성자에게만 열린다 (계약서 §7-2). 조회수도 올리지 않는다 —
+        // 열리지 않은 글이다.
+        requireVisible(post, viewer);
         post.increaseViewCount();
         return toDetail(post, viewer);
     }
@@ -145,6 +149,7 @@ public class PostService {
     public PostDetail update(Long postId, User user, PostUpdateRequest request) {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
+        requireNotModerated(post);
         requireNotCleared(request);
         // 계좌 공개 확인은 <b>요청 본문</b>으로 본다 (계약서 §5, v1.34.0) — 계좌를 건드리지
         // 않는 PATCH 에는 필요 없다. 병합 결과로 보면 계좌가 이미 있는 글의 제목만 고치는
@@ -242,6 +247,7 @@ public class PostService {
     public void delete(Long postId, User user) {
         MatchPost post = findPost(postId);
         requireAuthor(post, user);
+        requireNotModerated(post);
         if (requestRepository.existsByPostId(postId)) {
             throw new BusinessException(ErrorCode.POST_HAS_REQUESTS);
         }
@@ -414,6 +420,39 @@ public class PostService {
     private MatchPost findPost(Long postId) {
         return postRepository.findWithTeamAndOwnerById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+    }
+
+    /**
+     * 가려진 글은 작성자에게만 열린다 (계약서 §7-2, v1.35.0).
+     *
+     * <b>404 가 아니라 410 이다.</b> 조치가 있었다는 사실을 그 자리에 남겨야 하고
+     * (정보통신망법 제44조의2 제2항), 404 로 답하면 "없는 글"과 구별되지 않는다.
+     */
+    private void requireVisible(MatchPost post, User viewer) {
+        if (!post.isModeratedAt(OffsetDateTime.now())) {
+            return;
+        }
+        if (viewer != null && post.isWrittenBy(viewer.getId())) {
+            return;
+        }
+        throw moderated(post);
+    }
+
+    /**
+     * 조치 중인 글은 작성자도 고치거나 지울 수 없다 (계약서 §7-2).
+     *
+     * 고칠 수 있으면 조치가 아니다 — 가려진 내용을 지우고 다시 올리는 길이 열린다.
+     * 삭제도 막는 이유는 같다: 신고가 처리되기 전에 증거가 사라지면 운영자가 볼 것이 없다.
+     */
+    private void requireNotModerated(MatchPost post) {
+        if (post.isModeratedAt(OffsetDateTime.now())) {
+            throw moderated(post);
+        }
+    }
+
+    private BusinessException moderated(MatchPost post) {
+        return new BusinessException(ErrorCode.CONTENT_MODERATED,
+                ModerationResponse.messageFor(post.getModeration().getStatus(), false));
     }
 
     private void requireAuthor(MatchPost post, User user) {

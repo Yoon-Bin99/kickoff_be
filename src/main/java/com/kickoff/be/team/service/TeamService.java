@@ -2,6 +2,7 @@ package com.kickoff.be.team.service;
 
 import com.kickoff.be.consent.service.ConsentService;
 import com.kickoff.be.common.BusinessException;
+import com.kickoff.be.common.ModerationResponse;
 import com.kickoff.be.common.Patchable;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.common.LikeEscape;
@@ -22,6 +23,7 @@ import com.kickoff.be.team.repository.TeamRecordRepository;
 import com.kickoff.be.team.repository.TeamRepository;
 import com.kickoff.be.common.ErrorResponse;
 import com.kickoff.be.user.entity.User;
+import java.time.OffsetDateTime;
 import java.time.Year;
 import java.util.List;
 import java.util.Locale;
@@ -196,6 +198,10 @@ public class TeamService {
             team.updateHomeGround(Patchable.valueOf(request.homeGround()));
         }
         if (Patchable.isPresent(request.introduction())) {
+            // 임시로 가려진 소개는 고칠 수 없다 (계약서 §7-2, v1.35.0) — 고칠 수 있으면
+            // 조치가 아니다. 삭제(REMOVED)는 막지 않는다: 그쪽은 소개가 이미 지워졌고,
+            // 새 소개를 쓰면 표시가 사라지는 것이 계약이 정한 복구 경로다.
+            requireIntroductionEditable(team);
             team.updateIntroduction(Patchable.valueOf(request.introduction()));
         }
         applyProfilePatch(team, request);
@@ -224,6 +230,23 @@ public class TeamService {
      * 상한도 같이 올라가야 하는데 @Max 는 컴파일 시점에 굳는다. 하한 1900 만 어노테이션이
      * 맡고 상한은 여기서 본다.
      */
+    /**
+     * 임시 가림 중인 소개는 고칠 수 없다 (계약서 §7-2).
+     *
+     * {@code REMOVED} 는 통과시킨다 — 운영자가 지운 것은 그 소개이지 소개를 쓸 자격이
+     * 아니고, 새 소개를 쓰면 표시가 사라지는 것이 계약이 정한 복구 경로다.
+     */
+    private void requireIntroductionEditable(Team team) {
+        if (!team.isIntroductionModeratedAt(OffsetDateTime.now())) {
+            return;
+        }
+        if (team.getIntroductionModeration().isRemoved()) {
+            return;
+        }
+        throw new BusinessException(ErrorCode.CONTENT_MODERATED, ModerationResponse.messageFor(
+                team.getIntroductionModeration().getStatus(), false));
+    }
+
     private void requireFoundedYearNotInFuture(Integer foundedYear) {
         if (foundedYear != null && foundedYear > Year.now().getValue()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, List.of(

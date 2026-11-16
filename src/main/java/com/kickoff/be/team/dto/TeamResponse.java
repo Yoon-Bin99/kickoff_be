@@ -1,6 +1,7 @@
 package com.kickoff.be.team.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.kickoff.be.common.ModerationResponse;
 import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.entity.AgeGroup;
 import com.kickoff.be.team.entity.SkillLevel;
@@ -44,7 +45,15 @@ public record TeamResponse(
         String teamColor,
         String formation,
         /** 수동 입력 기록에서 집계한 전적. 기록이 0건이면 전부 0 이다 (계약서 §4-1). */
-        RecordSummary recordSummary
+        RecordSummary recordSummary,
+
+        /**
+         * 팀 소개에 걸린 운영 조치 (계약서 §7-2, v1.35.0). 조치가 없으면 null 이고,
+         * 있으면 그때 {@code introduction} 은 null 이다.
+         *
+         * <b>팀 전체가 아니라 소개만</b> 가려진다 — 팀 페이지 자체는 열린다.
+         */
+        ModerationResponse introductionModeration
 ) {
 
     /**
@@ -63,6 +72,11 @@ public record TeamResponse(
     public static TeamResponse of(Team team, Long viewerId, ReviewStats reviewStats,
                                   TeamRole myRole, RecordSummary recordSummary,
                                   JoinStatus myJoinStatus) {
+        // 가려진 소개는 감독 본인에게도 보이지 않는다 (계약서 §7-2) — 글과 다른 점이다.
+        // 글 상세는 작성자가 자기 글을 확인·이의 제기해야 해서 열어 두지만, 소개는 그
+        // 자리에 조치 표시가 서고 원문은 팀 수정 화면에서도 쓰지 못한다(410).
+        ModerationResponse introductionModeration =
+                ModerationResponse.of(team.getIntroductionModeration());
         return new TeamResponse(
                 team.getId(),
                 team.getName(),
@@ -71,7 +85,7 @@ public record TeamResponse(
                 team.getSkillLevel(),
                 team.getAgeGroup(),
                 team.getMemberCount(),
-                team.getIntroduction(),
+                introductionModeration == null ? team.getIntroduction() : null,
                 team.getLogoUrl(),
                 team.getOwner().getNickname(),
                 team.isOwnedBy(viewerId),
@@ -83,7 +97,8 @@ public record TeamResponse(
                 team.getFoundedYear(),
                 team.getTeamColor(),
                 team.getFormation(),
-                recordSummary
+                recordSummary,
+                introductionModeration
         );
     }
 }

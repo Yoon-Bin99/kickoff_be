@@ -1,5 +1,6 @@
 package com.kickoff.be.post.dto;
 
+import com.kickoff.be.common.ModerationResponse;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.review.dto.ReviewStats;
@@ -24,6 +25,13 @@ public record PostSummary(
         Double latitude,
         Double longitude,
         PostStatus status,
+        /**
+         * 운영 조치 (계약서 §7-2, v1.35.0). 조치가 없으면 null.
+         *
+         * 가려진 글은 목록에서 빠지므로 이 칸이 채워져 나가는 곳은 <b>내 글 목록</b>뿐이다
+         * (작성자는 자기 글이 왜 안 보이는지 알아야 한다).
+         */
+        ModerationResponse moderation,
         long requestCount,
         TeamSummary team,
         OffsetDateTime createdAt
@@ -44,6 +52,7 @@ public record PostSummary(
                 post.getLatitude(),
                 post.getLongitude(),
                 post.getStatus(),
+                ModerationResponse.of(post.getModeration()),
                 requestCount,
                 TeamSummary.of(post.getTeam(), teamStats),
                 post.getCreatedAt()

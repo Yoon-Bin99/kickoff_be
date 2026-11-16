@@ -2,6 +2,7 @@ package com.kickoff.be.post.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kickoff.be.common.ContactInfo;
+import com.kickoff.be.common.ModerationResponse;
 import com.kickoff.be.common.PaymentInfo;
 import com.kickoff.be.matchrequest.entity.RequestStatus;
 import com.kickoff.be.post.entity.MatchPost;
@@ -32,6 +33,13 @@ public record PostDetail(
         Double latitude,
         Double longitude,
         PostStatus status,
+        /**
+         * 운영 조치 (계약서 §7-2, v1.35.0). 조치가 없으면 null.
+         *
+         * 가려진 글의 상세는 <b>작성자에게만</b> 열리므로(그 밖에는 410), 이 칸이 채워진
+         * 응답을 받는 사람은 작성자뿐이다.
+         */
+        ModerationResponse moderation,
         int viewCount,
         long requestCount,
         TeamResponse team,
@@ -60,6 +68,7 @@ public record PostDetail(
                 post.getLatitude(),
                 post.getLongitude(),
                 post.getStatus(),
+                ModerationResponse.of(post.getModeration()),
                 post.getViewCount(),
                 requestCount,
                 // 글 상세의 팀 카드에는 가입 신청 상태를 싣지 않는다. 그 화면에서 가입

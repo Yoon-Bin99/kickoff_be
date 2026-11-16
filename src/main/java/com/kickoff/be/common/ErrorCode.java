@@ -68,6 +68,15 @@ public enum ErrorCode {
     TEAM_REQUIRED(HttpStatus.BAD_REQUEST, "팀을 먼저 등록해야 합니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 모집글입니다."),
     POST_NOT_OPEN(HttpStatus.CONFLICT, "모집 중인 글이 아닙니다."),
+
+    /**
+     * 운영 조치로 가려졌거나 삭제된 콘텐츠 (계약서 §7-2, v1.35.0).
+     *
+     * <b>404 가 아니라 410 이다.</b> 404 로 답하면 "없는 글"과 구별되지 않는데, 여기서는
+     * 조치가 있었다는 사실을 그 자리에 남겨야 한다(정보통신망법 제44조의2 제2항).
+     * 던지는 쪽이 message 를 상태에 맞는 표시 문구로 덮어쓴다 (ModerationResponse#messageFor).
+     */
+    CONTENT_MODERATED(HttpStatus.GONE, "운영 정책에 따라 조치된 게시물입니다"),
     /**
      * 신청이 달린 글을 지우려 했다 (계약서 §5, v1.31.3 / 문구 v1.31.4).
      *

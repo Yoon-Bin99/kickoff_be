@@ -1,9 +1,11 @@
 package com.kickoff.be.review.entity;
 
 import com.kickoff.be.common.BaseTimeEntity;
+import com.kickoff.be.common.Moderation;
 import com.kickoff.be.matchrequest.entity.MatchRequest;
 import com.kickoff.be.team.entity.Team;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -14,6 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.OffsetDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -60,6 +63,17 @@ public class Review extends BaseTimeEntity {
     @Column(length = 500)
     private String comment;
 
+    /**
+     * 운영 조치 (계약서 §7-2, v1.35.0).
+     *
+     * <b>리뷰는 목록에서 빼지 않고 자리 표시로 남긴다</b> — 별점과 내용만 가리고 행은
+     * 그대로 둔다. 조치가 있었다는 사실을 그 자리에 남겨야 하고(정보통신망법 제44조의2
+     * 제2항), 통째로 사라지면 받은 쪽이 "내 리뷰가 왜 없어졌지"를 알 길이 없다.
+     * 다만 평점·리뷰 수 집계에서는 뺀다.
+     */
+    @Embedded
+    private Moderation moderation = Moderation.none();
+
     @Builder
     private Review(MatchRequest request, Team reviewerTeam, Team targetTeam, int rating,
                    String comment) {
@@ -68,5 +82,23 @@ public class Review extends BaseTimeEntity {
         this.targetTeam = targetTeam;
         this.rating = rating;
         this.comment = comment;
+    }
+
+    /** 임시 가림 30일 (계약서 §7-2). */
+    public void hide(OffsetDateTime now) {
+        this.moderation = Moderation.hiddenFrom(now);
+    }
+
+    /** 운영자 삭제 (계약서 §7-2). 행은 남는다 — 자리 표시가 남아야 한다. */
+    public void removeByOperator() {
+        this.moderation = Moderation.removed();
+    }
+
+    public void clearModeration() {
+        this.moderation = Moderation.none();
+    }
+
+    public boolean isModeratedAt(OffsetDateTime now) {
+        return moderation != null && moderation.isActiveAt(now);
     }
 }

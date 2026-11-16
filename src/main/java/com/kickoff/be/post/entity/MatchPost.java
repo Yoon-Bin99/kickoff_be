@@ -1,11 +1,13 @@
 package com.kickoff.be.post.entity;
 
 import com.kickoff.be.common.BaseTimeEntity;
+import com.kickoff.be.common.Moderation;
 import com.kickoff.be.team.entity.SkillLevel;
 import com.kickoff.be.team.entity.Team;
 import com.kickoff.be.common.crypto.EncryptedStringConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -128,6 +130,15 @@ public class MatchPost extends BaseTimeEntity {
     @Column(name = "payment_share_confirmed_at")
     private OffsetDateTime paymentShareConfirmedAt;
 
+    /**
+     * 운영 조치 (계약서 §7-2, v1.35.0). 걸린 적이 없으면 두 칸 모두 null 이다.
+     *
+     * 가려진 글은 목록에서 빠지고, 상세는 <b>작성자에게만</b> 열린다. 작성자의 수정·삭제도
+     * 막는다 — 조치 중인 글을 고쳐서 빠져나갈 수 있으면 조치가 아니다.
+     */
+    @Embedded
+    private Moderation moderation = Moderation.none();
+
     @Builder
     private MatchPost(Team team, String title, String content, OffsetDateTime matchAt, String location,
                       String locationAddress, String region, SkillLevel preferredSkillLevel,
@@ -240,6 +251,26 @@ public class MatchPost extends BaseTimeEntity {
      * 금액만 지우고 계좌를 남기면 "무료 경기인데 입금 안내가 붙은" 글이 된다. 좌표 버그와
      * 같은 종류 — 글에 쓰인 내용과 실제가 어긋나고, 그게 사용자에게 그대로 보인다.
      */
+    /** 임시 가림 30일 (계약서 §7-2). */
+    public void hide(OffsetDateTime now) {
+        this.moderation = Moderation.hiddenFrom(now);
+    }
+
+    /** 운영자 삭제 (계약서 §7-2). 행은 남는다 — 그 자리에 조치 사실을 표시해야 한다. */
+    public void removeByOperator() {
+        this.moderation = Moderation.removed();
+    }
+
+    /** 조치를 푼다 (DISMISS·복원). */
+    public void clearModeration() {
+        this.moderation = Moderation.none();
+    }
+
+    /** 지금 조치가 살아 있는지. 기한이 지난 임시 가림은 풀린 것으로 본다. */
+    public boolean isModeratedAt(OffsetDateTime now) {
+        return moderation != null && moderation.isActiveAt(now);
+    }
+
     public void clearDeposit() {
         this.depositAmount = null;
         this.bankName = null;
@@ -302,8 +333,12 @@ public class MatchPost extends BaseTimeEntity {
 
     /** 지금 신청을 받을 수 있는 글인지 (계약서 §5 지난 경기 규칙). */
     public boolean acceptsRequests() {
-        return isOpen() && !hasPassed();
+        // 운영 조치로 가려진 글은 새 신청을 받지 않는다 (계약서 §7-2 — 409 POST_NOT_OPEN).
+        // 이미 수락된 매칭은 그대로다: 잡힌 경기를 조치가 깨면 아무 잘못 없는 상대 팀이
+        // 경기를 잃는다.
+        return isOpen() && !hasPassed() && !isModeratedAt(OffsetDateTime.now());
     }
+
 
     /** 작성 팀의 소유자인지. */
     public boolean isWrittenBy(Long userId) {
