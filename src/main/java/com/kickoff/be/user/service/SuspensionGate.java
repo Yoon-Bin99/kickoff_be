@@ -31,12 +31,30 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SuspensionGate implements AuthorizationManager<RequestAuthorizationContext> {
 
-    /** 제한 중에도 되는 것 — 고객센터 사용자 쪽 (계약서 §7-2). */
+    /**
+     * 제한 중에도 되는 것 (계약서 §7-2).
+     *
+     * 두 묶음이다.
+     * <ol>
+     *   <li><b>고객센터 사용자 쪽</b> — 이의 제기 창구다. 막으면 제한이 통보 없는
+     *       추방이 되고, 제한이 부당해도 말할 곳이 없다.</li>
+     *   <li><b>이미 잡힌 경기</b> (v1.39.0) — 매칭 목록 조회와 취소다. 막아 두면
+     *       제한된 감독이 예정된 경기를 취소하지도, 상대 연락처를 보지도 못한다.
+     *       <b>그 피해를 상대 팀이 본다</b>(아무도 나오지 않는 경기). 제한은 그
+     *       사람의 활동을 멈추는 것이지 남에게 손해를 입히는 수단이 아니다.</li>
+     * </ol>
+     *
+     * 새 신청·수락·거절·철회·입금 확인은 <b>열지 않는다</b> — 그건 새 약속을 만드는
+     * 일이라 제한의 뜻과 정면으로 어긋난다.
+     */
     private static final List<Exemption> EXEMPTIONS = List.of(
             new Exemption(HttpMethod.GET, "/api/support/faq"),
             new Exemption(HttpMethod.GET, "/api/support/chat"),
             new Exemption(HttpMethod.POST, "/api/support/chat"),
-            new Exemption(HttpMethod.POST, "/api/support/chat/escalate"));
+            new Exemption(HttpMethod.POST, "/api/support/chat/escalate"),
+            new Exemption(HttpMethod.GET, "/api/requests/received"),
+            new Exemption(HttpMethod.GET, "/api/requests/sent"),
+            new Exemption(HttpMethod.POST, "/api/requests/*/cancel-match"));
 
     private final ConsentGate consentGate;
     private final UserRepository userRepository;
@@ -93,10 +111,31 @@ public class SuspensionGate implements AuthorizationManager<RequestAuthorization
         }
     }
 
-    /** 경로는 완전 일치다 — 접두어로 두면 운영자 쪽 문의함까지 함께 열린다. */
+    /**
+     * 경로는 완전 일치다 — 접두어로 두면 운영자 쪽 문의함까지 함께 열린다.
+     *
+     * 별표 한 글자만 예외로 <b>한 토막</b>을 받는다 — "/api/requests/{id}/cancel-match"
+     * 꼴이다. 슬래시가 들어오면 맞지 않게 한 것이 핵심이다 — 안 그러면 그 아래 다른 경로가
+     * 함께 열린다.
+     */
     private record Exemption(HttpMethod method, String path) {
         boolean matches(String requestMethod, String requestPath) {
-            return method.matches(requestMethod) && path.equals(requestPath);
+            if (!method.matches(requestMethod)) {
+                return false;
+            }
+            int star = path.indexOf('*');
+            if (star < 0) {
+                return path.equals(requestPath);
+            }
+            String prefix = path.substring(0, star);
+            String suffix = path.substring(star + 1);
+            if (requestPath.length() < prefix.length() + suffix.length()
+                    || !requestPath.startsWith(prefix) || !requestPath.endsWith(suffix)) {
+                return false;
+            }
+            String middle = requestPath.substring(prefix.length(),
+                    requestPath.length() - suffix.length());
+            return !middle.isEmpty() && !middle.contains("/");
         }
     }
 }
