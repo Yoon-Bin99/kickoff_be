@@ -230,7 +230,9 @@ class AccountDeletionTest extends IntegrationTestSupport {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/teams/" + opponentTeam.getId() + "/reviews"))
                 .andExpect(status().isOk());
-        mockMvc.perform(get("/api/teams/" + opponentTeam.getId() + "/members"))
+        // 명단만 인증이 필요하다 (계약서 §4-1, v1.38.0) — 위 셋은 그대로 공개다.
+        mockMvc.perform(get("/api/teams/" + opponentTeam.getId() + "/members")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(opponent)))
                 .andExpect(status().isOk());
     }
 

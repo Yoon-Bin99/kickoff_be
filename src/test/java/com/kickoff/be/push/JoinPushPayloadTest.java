@@ -107,7 +107,8 @@ class JoinPushPayloadTest extends IntegrationTestSupport {
         long memberId = com.jayway.jsonpath.JsonPath.parse(bodyOf(
                         mockMvc.perform(
                                 org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                                        .get("/api/teams/{id}/members", team.getId()))))
+                                        .get("/api/teams/{id}/members", team.getId())
+                                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))))
                 .read("$[0].id", Integer.class).longValue();
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .delete("/api/teams/{id}/members/{memberId}", team.getId(), memberId)

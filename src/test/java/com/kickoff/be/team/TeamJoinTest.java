@@ -106,7 +106,8 @@ class TeamJoinTest extends IntegrationTestSupport {
         acceptFirstPending(apply(applicant, null));
 
         // 명단에 닉네임으로 올라오고 계정이 연결된다. 포지션·등번호는 비어 있다
-        mockMvc.perform(get("/api/teams/{id}/members", team.getId()))
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].name").value("박멤버"))
                 .andExpect(jsonPath("$[0].userId").value(applicant.getId()))

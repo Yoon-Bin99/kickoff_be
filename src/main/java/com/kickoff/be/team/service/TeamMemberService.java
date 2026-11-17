@@ -32,7 +32,12 @@ public class TeamMemberService {
     private final TeamMemberRepository teamMemberRepository;
     private final TeamAuthz teamAuthz;
 
-    /** 인증 불필요. 등번호 오름차순, 등번호 없는 팀원은 뒤에 이름순. */
+    /**
+     * 등번호 오름차순, 등번호 없는 팀원은 뒤에 이름순.
+     *
+     * 인증은 시큐리티가 본다 (계약서 §4-1, v1.38.0) — 여기서 다시 보지 않는다.
+     * 로그인한 사람이면 소속과 무관하게 전부 돌려준다.
+     */
     @Transactional(readOnly = true)
     public List<TeamMemberResponse> list(Long teamId) {
         teamAuthz.requireTeam(teamId);

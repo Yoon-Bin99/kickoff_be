@@ -41,7 +41,7 @@ class TeamMemberTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("팀원을 추가하면 목록에 나온다 — 조회는 비로그인도 된다")
+    @DisplayName("팀원을 추가하면 목록에 나온다")
     void addAndList() throws Exception {
         addMember("{\"name\": \"김철수\", \"position\": \"MF\", \"backNumber\": 8}")
                 .andExpect(status().isCreated())
@@ -50,10 +50,94 @@ class TeamMemberTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.position").value("MF"))
                 .andExpect(jsonPath("$.backNumber").value(8));
 
-        mockMvc.perform(get("/api/teams/{id}/members", team.getId()))
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].name").value("김철수"));
+    }
+
+    // ── 누가 볼 수 있는가 (계약서 §4-1, v1.38.0)
+
+    /**
+     * <b>명단은 계정이 아니라 감독이 적은 다른 사람의 이름이다.</b> 그 사람들은 가입한
+     * 적도 공개에 동의한 적도 없다 — 로그인하지 않은 방문자와 검색 수집기에 드러낼 값이
+     * 아니다(법무 권고 C-1). v1.38.0 전까지는 누구나 볼 수 있었다.
+     */
+    @Test
+    @DisplayName("비로그인은 401 이다")
+    void anonymousCannotSeeTheRoster() throws Exception {
+        addMember("{\"name\": \"김철수\"}").andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    /** 상대 팀을 보고 신청할지 정하는 화면이라 소속까지 요구하지 않는다 (계약서 §4-1). */
+    @Test
+    @DisplayName("로그인했으면 남의 팀 명단도 보인다")
+    void anyLoggedInUserCanSeeTheRoster() throws Exception {
+        addMember("{\"name\": \"김철수\"}").andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(stranger)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("김철수"));
+    }
+
+    /** 팀 정보·전적은 그대로 공개다 — 명단만 닫았다 (계약서 §4-1). */
+    @Test
+    @DisplayName("팀 정보와 전적은 비로그인도 그대로 본다")
+    void teamAndRecordsStayPublic() throws Exception {
+        mockMvc.perform(get("/api/teams/{id}", team.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("FC 새벽"))
+                // 인원 수는 숫자라 그대로 나간다 — 이름이 아니다
+                .andExpect(jsonPath("$.memberCount").isNumber());
+        mockMvc.perform(get("/api/teams/{id}/records", team.getId()))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * 다른 인증 API 와 같은 검사를 받는다 (계약서 §4-1) — 인증(401) → 동의(403) →
+     * 이용 제한(403) 순이다. 명단만 예외로 두면 그 자리가 조용히 어긋난다.
+     */
+    @Test
+    @DisplayName("동의 대기 계정은 403 CONSENT_REQUIRED 다")
+    void consentIsRequired() throws Exception {
+        User pending = createUserWithoutConsents("동의안함", "010-3333-3333");
+
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(pending)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CONSENT_REQUIRED"));
+    }
+
+    @Test
+    @DisplayName("이용 제한 중인 계정은 403 ACCOUNT_SUSPENDED 다")
+    void suspendedIsBlocked() throws Exception {
+        transactionTemplate.executeWithoutResult(status -> userRepository
+                .findById(stranger.getId()).orElseThrow()
+                .suspendUntil(java.time.OffsetDateTime.now().plusDays(7)));
+
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(stranger)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_SUSPENDED"));
+    }
+
+    /** 없는 팀의 404 는 인증 검사 다음이다 — 토큰이 없으면 팀이 있는지도 알려 주지 않는다. */
+    @Test
+    @DisplayName("없는 팀은 로그인 뒤에야 404 다")
+    void missingTeamIs404AfterAuth() throws Exception {
+        mockMvc.perform(get("/api/teams/{id}/members", 999999L))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/teams/{id}/members", 999999L)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(stranger)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("TEAM_NOT_FOUND"));
     }
 
     @Test
@@ -74,7 +158,8 @@ class TeamMemberTest extends IntegrationTestSupport {
         addMember("{\"name\": \"가나다\"}").andExpect(status().isCreated());
         addMember("{\"name\": \"이강인\", \"backNumber\": 18}").andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/teams/{id}/members", team.getId()))
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(jsonPath("$[*].name",
                         contains("손흥민", "박지성", "이강인", "가나다", "하차순")));
     }
@@ -90,7 +175,8 @@ class TeamMemberTest extends IntegrationTestSupport {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("TEAM_MEMBER_LIMIT"));
 
-        mockMvc.perform(get("/api/teams/{id}/members", team.getId()))
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(jsonPath("$", hasSize(30)));
     }
 
@@ -148,7 +234,8 @@ class TeamMemberTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/teams/{id}/members", team.getId()))
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(jsonPath("$", hasSize(0)));
     }
 

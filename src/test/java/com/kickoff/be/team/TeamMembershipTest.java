@@ -52,7 +52,8 @@ class TeamMembershipTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, bearer(member)))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/teams/{id}/members", team.getId()))
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(jsonPath("$", hasSize(0)));
         mockMvc.perform(get("/api/teams/{id}", team.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(member)))
@@ -133,7 +134,8 @@ class TeamMembershipTest extends IntegrationTestSupport {
                         .content("{\"nickname\": \"박멤버2\"}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/teams/{id}/members", team.getId()))
+        mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(jsonPath("$[0].name").value("박멤버2"))
                 .andExpect(jsonPath("$[0].userId").value(member.getId()));
     }
@@ -287,7 +289,8 @@ class TeamMembershipTest extends IntegrationTestSupport {
 
     private long firstMemberId() throws Exception {
         return com.jayway.jsonpath.JsonPath.parse(bodyOf(
-                mockMvc.perform(get("/api/teams/{id}/members", team.getId()))))
+                mockMvc.perform(get("/api/teams/{id}/members", team.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))))
                 .read("$[0].id", Integer.class).longValue();
     }
 

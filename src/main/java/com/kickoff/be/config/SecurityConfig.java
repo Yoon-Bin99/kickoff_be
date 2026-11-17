@@ -173,10 +173,17 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/teams/*").permitAll()
                         // 팀 평판은 누구나 본다 (계약서 §7)
                         .requestMatchers(HttpMethod.GET, "/api/teams/*/reviews").permitAll()
-                        // 팀 페이지 조회는 공개다 — 상대 팀을 보고 신청할지 정하는 정보라
-                        // 로그인 전에도 보여야 한다 (계약서 §4-1). 쓰기는 아래 authenticated
-                        .requestMatchers(HttpMethod.GET, "/api/teams/*/members",
-                                "/api/teams/*/records").permitAll()
+                        // 전적은 공개다 — 상대 팀을 보고 신청할지 정하는 정보라 로그인
+                        // 전에도 보여야 한다 (계약서 §4-1). 쓰기는 아래 authenticated.
+                        .requestMatchers(HttpMethod.GET, "/api/teams/*/records").permitAll()
+
+                        // <b>팀원 명단은 여기 없다</b> (계약서 §4-1, v1.38.0). 아래
+                        // anyRequest 로 떨어져 토큰이 없으면 401 이다.
+                        //
+                        // 명단은 계정이 아니라 <b>감독이 적은 다른 사람의 이름</b>이다.
+                        // 그 사람들은 가입한 적도, 공개에 동의한 적도 없다 — 로그인하지
+                        // 않은 방문자와 검색 수집기에까지 드러낼 값이 아니다(법무 권고).
+                        // 팀 정보·모집글·리뷰는 그대로 공개다.
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*").permitAll()
 
                         // 스쿼드(§4-4, v1.28.0)는 여기에 아무 줄도 없다. 읽기도 쓰기도
