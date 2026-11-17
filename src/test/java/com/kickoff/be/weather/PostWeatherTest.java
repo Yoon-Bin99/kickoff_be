@@ -103,6 +103,24 @@ class PostWeatherTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$[0].weather.temperature").value(-2));
     }
 
+    /**
+     * 글이 "경기 성남시"처럼 구 없이 적혀 있으면 <b>area 도 거기까지</b>다 (v1.38.3).
+     *
+     * 화면이 "기상청 예보(경기 성남시 분당구 기준)"으로 그리면, 글에 적힌 곳과 다른
+     * 구의 예보처럼 읽힌다. 격자는 그 시의 한 줄을 쓰더라도 이름은 글 수준으로 내린다.
+     */
+    @Test
+    @DisplayName("구 없이 적은 글은 area 도 시까지만 나간다")
+    void cityWithoutDistrictKeepsItsName() throws Exception {
+        OffsetDateTime matchAt = OffsetDateTime.now().plusDays(1).withHour(7).withMinute(0);
+        MatchPost post = createPostIn(team, "성남 경기", matchAt, "경기 성남시");
+        hold("경기 성남시", matchAt, new HourSlot(1, 0, 5, 10));
+
+        mockMvc.perform(get("/api/posts/{id}", post.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.weather.area").value("경기 성남시"));
+    }
+
     /** 날씨가 없다고 글이 안 보이면 안 된다 (계약서 §8-3). */
     @Test
     @DisplayName("보관된 예보가 없으면 weather 는 null 이고 나머지는 정상이다")

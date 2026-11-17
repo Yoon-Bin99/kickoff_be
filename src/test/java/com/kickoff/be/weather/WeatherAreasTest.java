@@ -49,13 +49,21 @@ class WeatherAreasTest {
         assertThat(area.sigungu()).isEqualTo("수원시 장안구");
     }
 
-    /** 구까지 적지 않은 글이 있다. 같은 시의 구들은 격자가 사실상 같은 자리다. */
+    /**
+     * 구까지 적지 않은 글이 있다. 같은 시의 구들은 격자가 사실상 같은 자리다.
+     *
+     * <b>그래도 이름은 글에 적힌 수준으로 돌려준다</b> (v1.38.3) — 화면에
+     * "성남시 분당구 기준"으로 뜨면 글과 다른 구의 예보처럼 읽힌다.
+     */
     @Test
-    @DisplayName("구 없이 시만 적어도 그 시의 줄을 찾는다")
-    void fallsBackToCityPrefix() {
-        WeatherArea area = areas.find("경기 수원시").orElseThrow();
+    @DisplayName("구 없이 시만 적으면 격자는 그 시의 줄, 이름은 시까지다")
+    void cityWithoutDistrictKeepsItsName() {
+        WeatherArea area = areas.find("경기 성남시").orElseThrow();
 
-        assertThat(area.sigungu()).startsWith("수원시 ");
+        assertThat(area.displayName()).isEqualTo("경기 성남시");
+        assertThat(area.nx()).isEqualTo(areas.find("경기 성남시 분당구").orElseThrow().nx());
+        assertThat(area.midTaRegId())
+                .isEqualTo(areas.find("경기 성남시 분당구").orElseThrow().midTaRegId());
     }
 
     @Test
@@ -81,6 +89,44 @@ class WeatherAreasTest {
     void gwangjuAndJeonnamKeepTheirNames() {
         assertThat(areas.find("광주 북구").orElseThrow().displayName()).isEqualTo("광주 북구");
         assertThat(areas.find("전남 여수시").orElseThrow().displayName()).isEqualTo("전남 여수시");
+    }
+
+    /**
+     * 통합 명칭으로 적혀 온 글도 알아본다 — 자치구면 광주, 시·군이면 전남이다.
+     * 가를 수 없으면 전남 대표 지점으로 떨어진다.
+     */
+    @Test
+    @DisplayName("통합 명칭도 시군구 이름으로 광주/전남을 가른다")
+    void mergedProvinceNameIsSplitBySigungu() {
+        assertThat(areas.find("전남광주통합특별시 북구").orElseThrow().displayName())
+                .isEqualTo("광주 북구");
+        assertThat(areas.find("전남광주통합특별시 여수시").orElseThrow().displayName())
+                .isEqualTo("전남 여수시");
+        assertThat(areas.find("전남광주통합특별시").orElseThrow().displayName())
+                .isEqualTo("전남");
+    }
+
+    /**
+     * 중기 코드가 비어 있는 줄은 <b>울릉군 하나뿐</b>이다 (weather-area.csv 머리말).
+     * 울릉도·독도는 대구·경북과 다른 예보구역인데 공식 표에 그 광역 구역이 없다.
+     */
+    @Test
+    @DisplayName("중기 코드가 비어 있는 줄은 울릉군뿐이다")
+    void onlyUlleungLacksMidTermCodes() {
+        assertThat(areas.all())
+                .filteredOn(area -> !area.hasMidTerm())
+                .extracting(WeatherArea::displayName)
+                .containsExactly("경북 울릉군");
+    }
+
+    /** 강원만 시군별로 영서/영동이 갈린다 (계약서 §8-3). */
+    @Test
+    @DisplayName("강원은 영서와 영동이 다른 구역이다")
+    void gangwonSplitsIntoTwoZones() {
+        assertThat(areas.find("강원 춘천시").orElseThrow().midLandRegId())
+                .isEqualTo("11D10000");
+        assertThat(areas.find("강원 강릉시").orElseThrow().midLandRegId())
+                .isEqualTo("11D20000");
     }
 
     /**

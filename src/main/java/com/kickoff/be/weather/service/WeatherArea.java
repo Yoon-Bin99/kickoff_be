@@ -29,6 +29,17 @@ public record WeatherArea(
         return isProvinceFallback() ? sido : sido + " " + sigungu;
     }
 
+    /**
+     * 이름만 바꾼 같은 지점 (계약서 §8-3 `area`, v1.38.3).
+     *
+     * 글이 "경기 성남시"처럼 <b>구 없이</b> 적혀 있을 때 쓴다. 격자는 그 시의 한 줄을
+     * 쓰더라도 화면에는 글에 적힌 수준으로 보여야 한다 — "성남시 분당구 기준"이라고
+     * 뜨면 글과 다른 구의 예보처럼 읽힌다.
+     */
+    public WeatherArea renamedTo(String sigungu) {
+        return new WeatherArea(sido, sigungu, nx, ny, midLandRegId, midTaRegId);
+    }
+
     public String gridKey() {
         return nx + "," + ny;
     }

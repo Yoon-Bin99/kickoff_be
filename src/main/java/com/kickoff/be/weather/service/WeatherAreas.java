@@ -35,8 +35,20 @@ public class WeatherAreas {
      * 접미사를 떼는 규칙 하나로 줄이지 않는다. "전북특별자치도"에서 "특별자치도"를 떼면
      * "전북"이 되지만 "강원특별자치도"는 "강원"이고 "세종특별자치시"는 "세종"이라,
      * 규칙으로 쓰면 읽는 사람이 어느 경우가 되는지 머릿속으로 돌려 봐야 한다.
+     *
+     * 값이 <b>목록</b>인 것은 통합 명칭 때문이다(아래 참고). 대개는 한 개짜리다.
      */
-    private static final Map<String, String> SIDO = new LinkedHashMap<>();
+    private static final Map<String, List<String>> SIDO = new LinkedHashMap<>();
+
+    /**
+     * 2026년에 광주와 전남이 한 시/도로 합쳐졌다(기상청 지역 자료의 "전남광주통합특별시").
+     *
+     * <b>표는 짧은 이름 17개를 그대로 둔다</b> — 글의 {@code region} 은 FE 의 시/도
+     * 목록에서 고른 값이라 여전히 "광주 …"/"전남 …"으로 온다. 다만 통합 명칭으로 적혀
+     * 온 글도 알아볼 수 있어야 해서 별칭으로 받는다. 어느 쪽인지는 <b>시군구 이름으로
+     * 가르고</b>(광주는 자치구, 전남은 시·군), 가를 수 없으면 전남 대표 지점이다.
+     */
+    private static final List<String> GWANGJU_JEONNAM = List.of("광주", "전남");
 
     static {
         put("서울", "서울특별시", "서울시");
@@ -56,12 +68,14 @@ public class WeatherAreas {
         put("경북", "경상북도");
         put("경남", "경상남도");
         put("제주", "제주특별자치도", "제주도");
+        SIDO.put("전남광주통합특별시", GWANGJU_JEONNAM);
+        SIDO.put("전남광주통합시", GWANGJU_JEONNAM);
     }
 
     private static void put(String shortName, String... aliases) {
-        SIDO.put(shortName, shortName);
+        SIDO.put(shortName, List.of(shortName));
         for (String alias : aliases) {
-            SIDO.put(alias, shortName);
+            SIDO.put(alias, List.of(shortName));
         }
     }
 
@@ -76,8 +90,8 @@ public class WeatherAreas {
     }
 
     /**
-     * 표 파일을 바꿔 끼울 수 있게 열어 둔다 — <b>테스트가 중기 칸이 채워진 표를 쓰기
-     * 위해서다</b>. 운영에서 쓰는 파일은 기본값 하나뿐이다.
+     * 표 파일을 바꿔 끼울 수 있게 열어 둔다 — <b>테스트가 다른 표를 쓰기 위해서다</b>.
+     * 운영에서 쓰는 파일은 기본값 하나뿐이다.
      */
     WeatherAreas(String resource) {
         this.resource = resource;
@@ -102,16 +116,31 @@ public class WeatherAreas {
      * 찾는 순서: 두 토막짜리 시군구("수원시 장안구") → 한 토막("강서구") → 한 토막으로
      * 시작하는 줄("수원시" → "수원시 권선구", 같은 시의 구들은 격자가 사실상 같다) →
      * 시/도 대표 지점.
+     *
+     * 시/도 후보가 둘인 통합 명칭은 <b>시군구가 맞는 쪽</b>을 고르고, 어느 쪽에도 없으면
+     * 마지막 후보의 대표 지점으로 떨어진다.
      */
     public Optional<WeatherArea> find(String region) {
         if (region == null || region.isBlank()) {
             return Optional.empty();
         }
-        String[] tokens = region.trim().split("\s+");
-        String sido = SIDO.get(tokens[0]);
-        if (sido == null) {
+        String[] tokens = region.trim().split("\\s+");
+        List<String> candidates = SIDO.get(tokens[0]);
+        if (candidates == null) {
             return Optional.empty();
         }
+        for (String sido : candidates) {
+            Optional<WeatherArea> found = findIn(sido, tokens);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return Optional.ofNullable(
+                byName.get(key(candidates.get(candidates.size() - 1), "")));
+    }
+
+    /** 한 시/도 안에서 시군구를 찾는다. 못 찾으면 비어 있다 — 대표 지점은 호출부가 본다. */
+    private Optional<WeatherArea> findIn(String sido, String[] tokens) {
         if (tokens.length >= 3) {
             WeatherArea twoWord = byName.get(key(sido, tokens[1] + " " + tokens[2]));
             if (twoWord != null) {
@@ -123,16 +152,17 @@ public class WeatherAreas {
             if (exact != null) {
                 return Optional.of(exact);
             }
-            Optional<WeatherArea> prefixed = all.stream()
+            // 구 없이 "성남시"라고만 적힌 글이다. 격자는 그 시의 한 줄을 쓰되 이름은
+            // 글에 적힌 수준으로 돌려준다 (v1.38.3) — 화면에 "성남시 분당구 기준"으로
+            // 뜨면 글과 다른 구의 예보처럼 읽힌다.
+            return all.stream()
                     .filter(area -> area.sido().equals(sido))
                     .filter(area -> !area.isProvinceFallback())
                     .filter(area -> area.sigungu().startsWith(tokens[1] + " "))
-                    .findFirst();
-            if (prefixed.isPresent()) {
-                return prefixed;
-            }
+                    .findFirst()
+                    .map(area -> area.renamedTo(tokens[1]));
         }
-        return Optional.ofNullable(byName.get(key(sido, "")));
+        return Optional.empty();
     }
 
     private static String key(String sido, String sigungu) {
