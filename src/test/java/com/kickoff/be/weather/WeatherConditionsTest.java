@@ -60,6 +60,32 @@ class WeatherConditionsTest {
         assertThat(WeatherConditions.ofMidTerm("흐림")).isEqualTo(WeatherCondition.CLOUDY);
     }
 
+    /**
+     * 활용가이드가 적어 둔 <b>하늘상태 11가지 전부</b>다 (중기예보 조회서비스
+     * 오픈API활용가이드 2024-11판, "하늘상태" 절). UNKNOWN 이 하나도 없어야 한다 —
+     * 하나라도 UNKNOWN 이면 그 날씨의 이모지가 화면에서 사라진다.
+     */
+    @Test
+    @DisplayName("중기 — 가이드에 적힌 11가지를 모두 알아본다")
+    void everyDocumentedMidTermWord() {
+        assertThat(WeatherConditions.ofMidTerm("맑음")).isEqualTo(WeatherCondition.CLEAR);
+        assertThat(WeatherConditions.ofMidTerm("구름많음"))
+                .isEqualTo(WeatherCondition.PARTLY_CLOUDY);
+        assertThat(WeatherConditions.ofMidTerm("구름많고 비")).isEqualTo(WeatherCondition.RAIN);
+        assertThat(WeatherConditions.ofMidTerm("구름많고 눈")).isEqualTo(WeatherCondition.SNOW);
+        assertThat(WeatherConditions.ofMidTerm("구름많고 비/눈"))
+                .isEqualTo(WeatherCondition.RAIN_SNOW);
+        assertThat(WeatherConditions.ofMidTerm("구름많고 소나기"))
+                .isEqualTo(WeatherCondition.SHOWER);
+        assertThat(WeatherConditions.ofMidTerm("흐림")).isEqualTo(WeatherCondition.CLOUDY);
+        assertThat(WeatherConditions.ofMidTerm("흐리고 비")).isEqualTo(WeatherCondition.RAIN);
+        assertThat(WeatherConditions.ofMidTerm("흐리고 눈")).isEqualTo(WeatherCondition.SNOW);
+        assertThat(WeatherConditions.ofMidTerm("흐리고 비/눈"))
+                .isEqualTo(WeatherCondition.RAIN_SNOW);
+        assertThat(WeatherConditions.ofMidTerm("흐리고 소나기"))
+                .isEqualTo(WeatherCondition.SHOWER);
+    }
+
     @Test
     @DisplayName("중기 — 모르는 글자와 빈 값은 UNKNOWN 이다")
     void midTermUnknown() {

@@ -19,12 +19,12 @@ import org.junit.jupiter.api.Test;
 /**
  * 기상청 응답 해석 (계약서 §8-3).
  *
- * <b>이 픽스처는 아직 실제 응답으로 확인하지 않았다.</b> 인증키가 로컬에 없어 실호출을
- * 하지 못했고, 활용가이드 첨부는 로그인해야 받을 수 있다. 항목 이름(category·fcstDate·
- * fcstValue, wf3Am·rnSt3Am, taMin3·taMax3)은 공공데이터포털 서비스 설명과 응답 구조에
- * 맞춰 적은 것이라, <b>키가 들어오면 실제 응답으로 한 번 대조해야 한다</b>.
+ * <b>중기 픽스처는 활용가이드의 예시 응답을 그대로 옮긴 것이다</b>
+ * (중기예보 조회서비스 오픈API활용가이드 2024-11판). 단기 쪽은 아직 문서로 대조하지
+ * 못해, 항목 이름을 서비스 설명에 맞춰 적은 가정이다 — 키가 들어오면 실제 응답으로
+ * 한 번 대조해야 한다.
  *
- * 그래도 테스트를 먼저 두는 이유는, 항목 이름이 하나 바뀌면 에러 없이 빈 예보가 되는
+ * 테스트를 먼저 두는 이유는, 항목 이름이 하나 바뀌면 에러 없이 빈 예보가 되는
  * 자리이기 때문이다 — 지금 모양을 못박아 둬야 바뀐 것을 알아챌 수 있다.
  */
 class KmaResponseTest {
@@ -141,6 +141,53 @@ class KmaResponseTest {
 
         assertThat(KmaHttpClient.parseMidLand(List.of(item), BASE)).isEmpty();
         assertThat(KmaHttpClient.parseMidTemperature(List.of(item), BASE)).isEmpty();
+    }
+
+    /**
+     * 활용가이드의 getMidLandFcst 예시 응답 그대로다 — 18시 발표라 <b>5일부터</b> 오고,
+     * 8~10일은 하루 하나다. 가이드 표도 "예보일로부터 4일(18시 발표는 5일)에서 10일까지"로
+     * 적혀 있다.
+     */
+    @Test
+    @DisplayName("중기육상 — 가이드 예시 응답을 그대로 읽는다")
+    void midLandGuideSample() {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("regId", "11B00000");
+        for (int day = 5; day <= 7; day++) {
+            item.put("rnSt" + day + "Am", "30");
+            item.put("rnSt" + day + "Pm", "30");
+            item.put("wf" + day + "Am", "구름많음");
+            item.put("wf" + day + "Pm", "구름많음");
+        }
+        for (int day = 8; day <= 10; day++) {
+            item.put("rnSt" + day, "30");
+            item.put("wf" + day, "구름많음");
+        }
+
+        MidLandForecast forecast =
+                KmaHttpClient.parseMidLand(List.of(item), BASE).orElseThrow();
+
+        assertThat(forecast.days()).hasSize(6);
+        assertThat(forecast.days()).containsKeys(
+                LocalDate.of(2026, 11, 22), LocalDate.of(2026, 11, 27));
+        assertThat(forecast.days().get(LocalDate.of(2026, 11, 22)).amText())
+                .isEqualTo("구름많음");
+        assertThat(forecast.days().get(LocalDate.of(2026, 11, 22)).amPop()).isEqualTo(30);
+    }
+
+    /**
+     * <b>정상 코드가 두 가지다.</b> 가이드의 에러 코드 표는 {@code 00} 인데 같은 문서의
+     * 예시 응답 세 개가 모두 {@code 0} 으로 내려온다. 한쪽만 보면 모든 호출이 조용히
+     * 실패하고 날씨가 영영 null 이 된다.
+     */
+    @Test
+    @DisplayName("resultCode 는 00 과 0 둘 다 정상이다")
+    void bothNormalResultCodes() {
+        assertThat(KmaHttpClient.isNormal("00")).isTrue();
+        assertThat(KmaHttpClient.isNormal("0")).isTrue();
+        assertThat(KmaHttpClient.isNormal("03")).isFalse();
+        assertThat(KmaHttpClient.isNormal("22")).isFalse();
+        assertThat(KmaHttpClient.isNormal(null)).isFalse();
     }
 
     private static Map<String, Object> slot(String date, String time,

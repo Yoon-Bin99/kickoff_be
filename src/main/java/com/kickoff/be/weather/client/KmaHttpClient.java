@@ -206,7 +206,7 @@ public class KmaHttpClient implements KmaClient {
         }
         String resultCode = response.get("header") instanceof Map<?, ?> header
                 ? String.valueOf(header.get("resultCode")) : null;
-        if (!"00".equals(resultCode)) {
+        if (!isNormal(resultCode)) {
             // 03 자료 없음, 22 한도 초과, 30·31 키 문제. 어느 쪽이든 이 호출만 건너뛴다.
             logFirstFailure(path, "resultCode=" + resultCode);
             return null;
@@ -231,6 +231,18 @@ public class KmaHttpClient implements KmaClient {
         query.forEach((name, value) -> url.append('&').append(name).append('=')
                 .append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8)));
         return URI.create(url.toString());
+    }
+
+    /**
+     * 정상 응답인가.
+     *
+     * <b>"00" 하나로 보지 않는다.</b> 활용가이드의 에러 코드 표는 정상을 {@code 00} 으로
+     * 적어 두었는데, <b>같은 문서의 예시 응답은 {@code 0} 으로</b> 내려온다(중기전망·
+     * 중기육상·중기기온 세 예시 모두). 어느 쪽이 오든 정상으로 받아야 한다 — 한쪽만
+     * 보면 모든 호출이 조용히 실패하고 날씨가 영영 null 이 된다.
+     */
+    static boolean isNormal(String resultCode) {
+        return "00".equals(resultCode) || "0".equals(resultCode);
     }
 
     /**
