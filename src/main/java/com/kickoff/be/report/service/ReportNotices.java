@@ -63,9 +63,15 @@ public class ReportNotices {
         return format("reported.hidden", subject(targetType), DATE.format(until), reasonName);
     }
 
-    /** 게재자에게 — 신고 3건으로 자동 가림. "위반"이라고 단정하지 않는다. */
-    public String toReportedAutoHidden(ReportTargetType targetType) {
-        return format("reported.auto-hidden", targetName(targetType));
+    /**
+     * 게재자에게 — 신고 3건으로 자동 가림. "위반"이라고 단정하지 않는다.
+     *
+     * <b>기한 날짜를 함께 적는다</b> (법무 권고, v1.36.0). 운영자 조치로 가려졌을 때와
+     * 같은 양식이어야 한다 — "최대 30일"만 적으면 언제까지 이의를 낼 수 있는지가
+     * 받는 사람에게 날짜로 와닿지 않는다.
+     */
+    public String toReportedAutoHidden(ReportTargetType targetType, OffsetDateTime until) {
+        return format("reported.auto-hidden", targetName(targetType), DATE.format(until));
     }
 
     public String toReportedRemoved(ReportTargetType targetType, String reasonName) {

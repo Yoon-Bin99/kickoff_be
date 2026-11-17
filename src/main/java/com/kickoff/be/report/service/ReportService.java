@@ -5,6 +5,7 @@ import com.kickoff.be.chatlink.dto.ReportContext;
 import com.kickoff.be.common.BusinessException;
 import com.kickoff.be.common.ErrorCode;
 import com.kickoff.be.common.ErrorResponse;
+import com.kickoff.be.common.Moderation;
 import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.repository.MatchPostRepository;
 import com.kickoff.be.report.dto.ReportCreateRequest;
@@ -276,7 +277,8 @@ public class ReportService {
             reviewRepository.findById(targetId).ifPresent(review -> review.hide(now));
         }
         pending.forEach(Report::markAutoHidden);
-        notifyAutoHidden(pending, targetType);
+        // 통지에 적는 기한은 엔티티가 건 기한과 같아야 한다 — 같은 now 로 같은 계산을 한다.
+        notifyAutoHidden(pending, targetType, Moderation.hiddenFrom(now).getUntil());
     }
 
     /**
@@ -288,14 +290,15 @@ public class ReportService {
      *
      * 신고자에게는 이때 알리지 않는다 — 결과가 나온 것이 아니라 보류된 것이다.
      */
-    private void notifyAutoHidden(List<Report> pending, ReportTargetType targetType) {
+    private void notifyAutoHidden(List<Report> pending, ReportTargetType targetType,
+                                  OffsetDateTime until) {
         pending.stream()
                 .map(Report::getReportedUserId)
                 .filter(java.util.Objects::nonNull)
                 .findFirst()
                 .flatMap(userRepository::findById)
                 .ifPresent(reported -> supportService.notice(reported,
-                        notices.toReportedAutoHidden(targetType)));
+                        notices.toReportedAutoHidden(targetType, until)));
     }
 
     /** 팀이 있으면 팀 하나로, 없으면 계정 하나로 센다. */

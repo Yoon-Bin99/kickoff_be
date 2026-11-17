@@ -261,6 +261,29 @@ class ReportCreateTest extends IntegrationTestSupport {
                         .exists());
     }
 
+    /**
+     * 자동 가림 통지에도 <b>기한 날짜</b>가 들어간다 (법무 권고, v1.36.0).
+     *
+     * 운영자 조치의 통지와 같은 양식이어야 한다 — "최대 30일"만 적으면 받는 사람은
+     * 언제까지 이의를 낼 수 있는지 날짜로 알 수 없다.
+     */
+    @Test
+    @DisplayName("자동 가림 통지에 이의 기한 날짜가 들어간다")
+    void autoHideNoticeCarriesTheDeadline() throws Exception {
+        report(reporter, spamPost()).andExpect(status().isCreated());
+        report(secondReporter(), spamPost()).andExpect(status().isCreated());
+        report(thirdReporter(), spamPost()).andExpect(status().isCreated());
+
+        String deadline = java.time.OffsetDateTime.now().plusDays(30)
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy년 M월 d일"));
+        assertThat(noticesTo(author))
+                .singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+                .contains("여러 건의 신고가 접수되어")
+                .contains(deadline + "까지 이 고객센터로 알려 주세요")
+                .as("운영자 판단 전이라 위반이라고 단정하지 않는다")
+                .doesNotContain("위반");
+    }
+
     /** 팀을 통째로 가리면 그 팀과 매칭이 잡힌 상대까지 화면을 잃는다 (계약서 §7-2). */
     @Test
     @DisplayName("팀 신고는 셋이 쌓여도 자동으로 가리지 않는다")
@@ -427,6 +450,16 @@ class ReportCreateTest extends IntegrationTestSupport {
         User user = createUser("third@example.com", "세번째", "010-4444-4444");
         createTeam(user, "세번째 팀", "서울 노원구");
         return user;
+    }
+
+    /** 그 사람의 문의방에 쌓인 알림(NOTICE) 본문들. */
+    private java.util.List<String> noticesTo(User user) {
+        return supportMessageRepository.findAll().stream()
+                .filter(message -> message.getUser().getId().equals(user.getId()))
+                .filter(message -> message.getSender()
+                        == com.kickoff.be.support.entity.SupportSender.NOTICE)
+                .map(message -> message.getContent())
+                .toList();
     }
 
     private void joinTeam(Team team, User user) {
