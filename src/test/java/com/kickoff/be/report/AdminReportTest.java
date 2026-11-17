@@ -206,7 +206,7 @@ class AdminReportTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/posts/{id}", post.getId()))
                 .andExpect(status().isGone())
                 .andExpect(jsonPath("$.message")
-                        .value("권리침해 신고로 임시로 가려진 게시물입니다."));
+                        .value("신고로 임시로 가려진 게시물입니다."));
     }
 
     /** 30일 안에 다시 정해야 하는 미완의 건이라 목록에 남아야 한다. */
@@ -369,6 +369,46 @@ class AdminReportTest extends IntegrationTestSupport {
                 .allSatisfy(content -> assertThat(content).contains("조치했습니다"));
         assertThat(noticesTo(author)).hasSize(1)
                 .allSatisfy(content -> assertThat(content).contains("임시로 가려졌습니다"));
+    }
+
+    /**
+     * 임시 가림 통지는 <b>"권리침해"라고 단정하지 않는다</b> (v1.38.5, 법무 대조).
+     *
+     * 스팸 신고로 가려진 글에도 "권리침해 신고로"가 나가고 있었다 — 사실과 다르고,
+     * 받는 사람에게는 더 무거운 혐의로 읽힌다. 사유는 다음 줄의 "사유: …"가 말한다.
+     */
+    @Test
+    @DisplayName("임시 가림 통지에 '권리침해' 가 들어가지 않는다")
+    void hiddenNoticeDoesNotSayRightsInfringement() throws Exception {
+        resolve("{\"action\":\"HIDE\"}").andExpect(status().isOk());
+
+        assertThat(noticesTo(author)).singleElement(
+                        org.assertj.core.api.InstanceOfAssertFactories.STRING)
+                .contains("신고가 접수되어 임시로 가려졌습니다")
+                .doesNotContain("권리침해");
+    }
+
+    /**
+     * 이용 제한 통지에 <b>끝나는 날짜</b>가 들어간다 (v1.38.5).
+     *
+     * "7일 동안"만 적으면 언제부터 센 7일인지 받는 사람이 알 수 없다. 날짜는 그 계정에
+     * 실제로 걸린 기한과 같은 값이어야 한다 — 통지와 실제가 어긋나면 이의 기한을
+     * 잘못 계산하게 된다.
+     */
+    @Test
+    @DisplayName("이용 제한 통지의 날짜가 실제 제한 기한과 같다")
+    void suspensionNoticeCarriesTheEndDate() throws Exception {
+        resolve("{\"action\":\"SUSPEND_ONLY\",\"suspendDays\":7}").andExpect(status().isOk());
+
+        String until = userRepository.findById(author.getId()).orElseThrow()
+                .getSuspendedUntil()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy년 M월 d일"));
+        assertThat(noticesTo(author))
+                .filteredOn(content -> content.contains("이용이 제한됐습니다"))
+                .singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+                .contains(until + "까지(7일 동안) 이용이 제한됐습니다")
+                .as("무엇이 제한되는지는 적지 않는다 — 채팅 서버는 이용 제한을 보지 않는다")
+                .doesNotContain("채팅");
     }
 
     /** 어느 통지에도 신고자가 누구인지 적지 않는다 (계약서 §7-2). */

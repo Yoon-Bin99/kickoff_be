@@ -29,7 +29,7 @@ class SupportPushContentTest extends IntegrationTestSupport {
 
     /** 실제 제재 통지 문구 그대로다 (report-notice.properties 의 reported.suspended). */
     private static final String SUSPENSION_NOTICE = """
-            회원님의 계정이 운영 정책 위반으로 7일 동안 이용이 제한됐습니다.
+            회원님의 계정이 운영 정책 위반으로 2026년 11월 24일까지(7일 동안) 이용이 제한됐습니다.
             사유: 욕설·비방·괴롭힘
             이의가 있으면 14일 안에 이 고객센터로 알려 주세요.""";
 

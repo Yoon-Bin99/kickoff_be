@@ -88,7 +88,7 @@ class ModeratedContentTest extends IntegrationTestSupport {
                 .andExpect(status().isGone())
                 .andExpect(jsonPath("$.code").value("CONTENT_MODERATED"))
                 .andExpect(jsonPath("$.message")
-                        .value("권리침해 신고로 임시로 가려진 게시물입니다."));
+                        .value("신고로 임시로 가려진 게시물입니다."));
     }
 
     @Test

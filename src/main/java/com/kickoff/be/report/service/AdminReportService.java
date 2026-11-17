@@ -250,7 +250,9 @@ public class AdminReportService {
             supportService.notice(reported, notices.toReportedRestored(report.getTargetType()));
         }
         if (suspendDays != null) {
-            supportService.notice(reported, notices.toReportedSuspended(suspendDays,
+            // 날짜는 suspend() 가 건 기한과 같은 값이다 — 같은 now 로 같은 계산을 쓴다.
+            supportService.notice(reported, notices.toReportedSuspended(
+                    now.plusDays(suspendDays), suspendDays,
                     report.getReason().displayName()));
         }
     }

@@ -74,8 +74,17 @@ public class ReportNotices {
         return format("reported.removed", subject(targetType), reasonName);
     }
 
-    public String toReportedSuspended(int days, String reasonName) {
-        return format("reported.suspended", String.valueOf(days), reasonName);
+    /**
+     * 게재자에게 — 이용 제한 (v1.38.5).
+     *
+     * <b>끝나는 날짜를 함께 적는다</b> — "3일 동안"만 적으면 언제부터 센 3일인지
+     * 받는 사람이 알 수 없다. 날짜는 그 계정에 실제로 걸린 기한과 같은 값이어야 한다.
+     *
+     * <b>무엇이 제한되는지는 적지 않는다.</b> 채팅 서버는 이용 제한을 보지 않으므로
+     * "글쓰기·채팅이 제한된다"고 쓰면 사실과 달라진다.
+     */
+    public String toReportedSuspended(OffsetDateTime until, int days, String reasonName) {
+        return format("reported.suspended", DATE.format(until), String.valueOf(days), reasonName);
     }
 
     public String toReportedRestored(ReportTargetType targetType) {

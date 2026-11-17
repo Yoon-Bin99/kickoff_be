@@ -42,6 +42,6 @@ public record ModerationResponse(ModerationStatus status, OffsetDateTime until) 
         String what = review ? "리뷰" : "게시물";
         return status == ModerationStatus.REMOVED
                 ? "운영 정책에 따라 삭제된 %s입니다.".formatted(what)
-                : "권리침해 신고로 임시로 가려진 %s입니다.".formatted(what);
+                : "신고로 임시로 가려진 %s입니다.".formatted(what);
     }
 }
