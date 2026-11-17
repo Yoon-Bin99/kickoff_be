@@ -13,3 +13,6 @@
 # 원본(킥오프 루트의 docs), 이 저장소 사본, FE 저장소 사본. 계약서 동기화 규칙이
 # "세 벌이 byte 동일"을 전제로 하는데, 한쪽만 CRLF 로 체크아웃되면 그 전제가 깨진다.
 docs/** text eol=lf
+
+# docs 안의 그림은 글이 아니다 — 위 줄(docs/** text)이 줄바꿈을 바꾸면 그림이 깨진다.
+docs/assets/*.png binary
