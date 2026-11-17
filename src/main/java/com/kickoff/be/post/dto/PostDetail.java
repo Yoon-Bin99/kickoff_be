@@ -12,6 +12,7 @@ import com.kickoff.be.team.dto.RecordSummary;
 import com.kickoff.be.team.dto.TeamResponse;
 import com.kickoff.be.team.entity.TeamRole;
 import com.kickoff.be.team.entity.SkillLevel;
+import com.kickoff.be.weather.dto.Weather;
 import java.time.OffsetDateTime;
 
 /**
@@ -57,6 +58,8 @@ public record PostDetail(
         RequestStatus myRequestStatus,
         ContactInfo contact,
         PaymentInfo payment,
+        /** 경기 시각의 예상 날씨 (계약서 §8-3, v1.36.0). 없으면 null. */
+        Weather weather,
         OffsetDateTime createdAt
 ) {
 
@@ -64,7 +67,7 @@ public record PostDetail(
                                 RequestStatus myRequestStatus, ContactInfo contact,
                                 PaymentInfo payment, ReviewStats teamReviewStats,
                                 TeamRole teamRole, RecordSummary teamRecordSummary,
-                                boolean teamBlockedByMe) {
+                                boolean teamBlockedByMe, Weather weather) {
         return new PostDetail(
                 post.getId(),
                 post.getTitle(),
@@ -90,6 +93,7 @@ public record PostDetail(
                 myRequestStatus,
                 contact,
                 payment,
+                weather,
                 post.getCreatedAt()
         );
     }

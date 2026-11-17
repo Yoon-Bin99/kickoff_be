@@ -1,0 +1,10 @@
+# 테스트 전용 지역표 (계약서 §8-3).
+#
+# 중기 칸이 채워진 표가 필요해서 둔다 — 운영 표(weather-area.csv)는 공식 코드표를
+# 확인하지 못해 그 칸이 비어 있다. <b>여기 코드는 일부러 기상청 형식이 아니다</b>
+# (TEST-...): 베껴다 운영 표에 넣는 일이 없게 하려는 것이다.
+sido,sigungu,nx,ny,midLandRegId,midTaRegId
+서울,,60,127,TEST-LAND-SEOUL,TEST-TA-SEOUL
+서울,강서구,58,126,TEST-LAND-SEOUL,TEST-TA-SEOUL
+경기,수원시 장안구,60,121,TEST-LAND-GG,TEST-TA-GG
+강원,춘천시,73,134,,

@@ -37,6 +37,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import com.kickoff.be.weather.dto.Weather;
+import com.kickoff.be.weather.service.WeatherRegionEvent;
+import com.kickoff.be.weather.service.WeatherService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -67,6 +70,8 @@ public class PostService {
     private final com.kickoff.be.report.service.HiddenForViewer hiddenForViewer;
     private final com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
     private final ProfanityFilter profanityFilter;
+    private final WeatherService weatherService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     /**
      * 정렬은 matchAt 오름차순 고정 — 가까운 경기가 먼저 (계약서 §5).
@@ -142,6 +147,9 @@ public class PostService {
                 request.accountHolder())) {
             post.confirmPaymentShare(OffsetDateTime.now());
         }
+        // 새 지역이면 예보를 바로 받아 둔다 (계약서 §8-3). 커밋 뒤 비동기라
+        // 이 응답의 weather 는 null 일 수 있다.
+        eventPublisher.publishEvent(new WeatherRegionEvent(post.getRegion()));
         return toDetail(post, user);
     }
 
@@ -189,6 +197,9 @@ public class PostService {
                 Patchable.valueOf(request.accountHolder()))) {
             post.confirmPaymentShare(OffsetDateTime.now());
         }
+        // 날짜나 지역이 바뀌었을 수 있다 (계약서 §8-3). 보관분이 이미 있으면
+        // 받아 오기 쪽이 그냥 지나간다 — 수정할 때마다 부르지 않는다.
+        eventPublisher.publishEvent(new WeatherRegionEvent(post.getRegion()));
         return toDetail(post, user);
     }
 
@@ -515,6 +526,8 @@ public class PostService {
     }
 
     private PostDetail toDetail(MatchPost post, User viewer) {
+        // 보관된 예보만 읽는다 — 여기서 기상청을 부르면 글 조회가 바깥 호출에 묶인다 (§8-3).
+        Weather weather = weatherService.forMatch(post.getMatchAt(), post.getRegion());
         long requestCount = requestCounts(List.of(post)).getOrDefault(post.getId(), 0L);
         // 상세의 team 은 TeamResponse 라 평점까지 들어간다 (계약서 §2, v1.2.0).
         ReviewStats teamReviewStats = reviewRepository.statsOf(post.getTeam().getId());
@@ -523,7 +536,7 @@ public class PostService {
         RecordSummary teamRecordSummary = teamRecordRepository.summaryOf(post.getTeam().getId());
         if (viewer == null) {
             return PostDetail.of(post, requestCount, null, null, null, null, teamReviewStats,
-                    null, teamRecordSummary, false);
+                    null, teamRecordSummary, false, weather);
         }
 
         Long viewerId = viewer.getId();
@@ -545,7 +558,7 @@ public class PostService {
                         : paymentFor(post, accepted, viewerId, viewerTeamId),
                 teamReviewStats,
                 teamAuthz.roleOf(post.getTeam(), viewerId), teamRecordSummary,
-                hiddenForViewer.blockedTeamIdsFor(viewer).contains(post.getTeam().getId()));
+                hiddenForViewer.blockedTeamIdsFor(viewer).contains(post.getTeam().getId()), weather);
     }
 
     /**
@@ -637,7 +650,8 @@ public class PostService {
                 posts.getContent().stream().map(post -> post.getTeam().getId()).toList());
         return PageResponse.of(posts,
                 post -> PostSummary.of(post, counts.getOrDefault(post.getId(), 0L),
-                        teamStats.getOrDefault(post.getTeam().getId(), ReviewStats.EMPTY)));
+                        teamStats.getOrDefault(post.getTeam().getId(), ReviewStats.EMPTY),
+                        weatherService.forMatch(post.getMatchAt(), post.getRegion())));
     }
 
     /** 페이지에 실린 글들의 신청 수를 쿼리 한 번으로 모아온다. */

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import com.kickoff.be.weather.service.WeatherService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,7 @@ public class MatchRequestService {
     private final ChatOutboxRecorder chatOutboxRecorder;
     private final MatchContactProperties matchContactProperties;
     private final com.kickoff.be.block.repository.TeamBlockRepository blockRepository;
+    private final WeatherService weatherService;
 
     @Transactional
     public RequestResponse create(Long postId, User user, RequestCreateRequest request) {
@@ -82,7 +84,8 @@ public class MatchRequestService {
         // 방금 만든 신청이라 리뷰도 전적도 있을 수 없다. 팀 평점은 두 팀뿐이라 그대로 조회한다.
         return RequestResponse.of(saved, user.getId(), false, false,
                 reviewRepository.statsOf(myTeam.getId()),
-                reviewRepository.statsOf(post.getTeam().getId()), contactVisible(saved));
+                reviewRepository.statsOf(post.getTeam().getId()), contactVisible(saved),
+                weatherOf(saved));
     }
 
     /** 한 글에 온 신청 — 글 작성자만 볼 수 있다. */
@@ -303,7 +306,8 @@ public class MatchRequestService {
         Map<Long, ReviewStats> stats = teamStatsOf(List.of(request));
         return RequestResponse.of(request, viewer.getId(), reviewed, recorded,
                 statOf(stats, request.getApplicantTeam().getId()),
-                statOf(stats, request.getPost().getTeam().getId()), contactVisible(request));
+                statOf(stats, request.getPost().getTeam().getId()), contactVisible(request),
+                weatherOf(request));
     }
 
     private List<RequestResponse> toResponses(List<MatchRequest> requests, User viewer) {
@@ -317,8 +321,19 @@ public class MatchRequestService {
                         recorded.contains(r.getId()),
                         statOf(stats, r.getApplicantTeam().getId()),
                         statOf(stats, r.getPost().getTeam().getId()),
-                        contactVisible(r)))
+                        contactVisible(r), weatherOf(r)))
                 .toList();
+    }
+
+    /**
+     * 신청에 실을 날씨 — 글의 경기 시각·지역으로 구한다 (계약서 §8-3).
+     *
+     * 신청 상태와 무관하다. 보관된 예보만 읽으므로 목록에서 신청 수만큼 불러도
+     * 바깥 호출이 늘지 않는다.
+     */
+    private com.kickoff.be.weather.dto.Weather weatherOf(MatchRequest request) {
+        MatchPost post = request.getPost();
+        return weatherService.forMatch(post.getMatchAt(), post.getRegion());
     }
 
     private Long viewerTeamId(User viewer) {

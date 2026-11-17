@@ -9,6 +9,7 @@ import com.kickoff.be.post.entity.MatchPost;
 import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.dto.TeamSummary;
+import com.kickoff.be.weather.dto.Weather;
 import java.time.OffsetDateTime;
 
 public record RequestResponse(
@@ -30,6 +31,11 @@ public record RequestResponse(
          * myReviewWritten 과 같은 규칙 — 요청자의 팀 기준이라 양 팀이 서로 다른 값을 본다.
          */
         @JsonProperty("myRecordWritten") boolean myRecordWritten,
+        /**
+         * 경기 시각의 예상 날씨 (계약서 §8-3, v1.36.0). 글의 경기 시각·지역으로 구한다 —
+         * 신청 상태와 무관하게 같은 규칙이다. 없으면 null.
+         */
+        Weather weather,
         OffsetDateTime createdAt
 ) {
 
@@ -52,7 +58,7 @@ public record RequestResponse(
     public static RequestResponse of(MatchRequest request, Long viewerId,
                                      boolean myReviewWritten, boolean myRecordWritten,
                                      ReviewStats applicantTeamStats, ReviewStats postTeamStats,
-                                     boolean contactVisible) {
+                                     boolean contactVisible, Weather weather) {
         MatchPost post = request.getPost();
         return new RequestResponse(
                 request.getId(),
@@ -71,6 +77,7 @@ public record RequestResponse(
                 request.isDepositPaid(),
                 myReviewWritten,
                 myRecordWritten,
+                weather,
                 request.getCreatedAt()
         );
     }

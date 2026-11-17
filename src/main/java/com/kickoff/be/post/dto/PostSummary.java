@@ -6,6 +6,7 @@ import com.kickoff.be.post.entity.PostStatus;
 import com.kickoff.be.review.dto.ReviewStats;
 import com.kickoff.be.team.dto.TeamSummary;
 import com.kickoff.be.team.entity.SkillLevel;
+import com.kickoff.be.weather.dto.Weather;
 import java.time.OffsetDateTime;
 
 /**
@@ -32,11 +33,14 @@ public record PostSummary(
         ModerationResponse moderation,
         long requestCount,
         TeamSummary team,
+        /** 경기 시각의 예상 날씨 (계약서 §8-3, v1.36.0). 없으면 null — 화면은 아무것도 그리지 않는다. */
+        Weather weather,
         OffsetDateTime createdAt
 ) {
 
     /** teamStats 는 호출자가 배치로 모아 넘긴다 — 카드마다 조회하면 N+1 이다 (계약서 §2). */
-    public static PostSummary of(MatchPost post, long requestCount, ReviewStats teamStats) {
+    public static PostSummary of(MatchPost post, long requestCount, ReviewStats teamStats,
+                                 Weather weather) {
         return new PostSummary(
                 post.getId(),
                 post.getTitle(),
@@ -51,6 +55,7 @@ public record PostSummary(
                 ModerationResponse.of(post.getModeration()),
                 requestCount,
                 TeamSummary.of(post.getTeam(), teamStats),
+                weather,
                 post.getCreatedAt()
         );
     }
