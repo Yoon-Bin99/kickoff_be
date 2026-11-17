@@ -1,7 +1,12 @@
-# Kickoff API 계약 v1 (현재 v1.37.3)
+# Kickoff API 계약 v1 (현재 v1.38.0)
 
 조기축구 팀 매칭 앱. 이 문서가 FE/BE/채팅 서버 사이의 **단일 진실 공급원**이다.
 변경이 필요하면 임의로 고치지 말고 supervisor에게 보고할 것.
+
+> v1.38.0 (2026-11-17): **팀원 명단은 로그인한 사람에게만 보인다 (§4-1, YOON 결정 — 법무 권고 C-1)**. `GET /api/teams/{teamId}/members`가
+> "인증 불필요"에서 **"인증 필요"**로 바뀐다(토큰 없으면 401). 명단은 계정이 아니라 감독이 적은 다른 사람의 이름이라, 로그인하지
+> 않은 방문자·검색 수집기에 드러나지 않게 한다. 팀 정보·모집글·리뷰는 지금처럼 누구나 본다. FE는 로그인 전 팀 페이지에서 명단
+> 자리에 "로그인하면 팀원 명단을 볼 수 있어요"를 보인다.
 
 > v1.37.3 (2026-11-16): §7-2 — ① 운영자 계정에 이용 제한을 걸 때의 거절을 **409 `OPERATOR_NOT_SUSPENDABLE`**로 나눈다(v1.37.2의 400을
 > 바꿈 — 범위를 벗어난 `suspendDays`의 400과 FE가 구별할 수 없었다, FE 지적). ② 신고 상세 `target.messages`의 원소는 **다섯 필드만**
@@ -1241,8 +1246,13 @@ PATCH 지우기는 v1.5.1 규칙):
 ```
 
 - `name` 1~20자 필수 / `position` Position enum, nullable / `backNumber` 0~99, nullable
-- `GET /api/teams/{teamId}/members` — 인증 불필요. 200 → `TeamMember[]`
-  (등번호 오름차순, null 등번호는 뒤에 이름순)
+- `GET /api/teams/{teamId}/members` — **인증 필요 (v1.38.0 — 그 전에는 인증 불필요)**. 200 → `TeamMember[]`
+  (등번호 오름차순, null 등번호는 뒤에 이름순). 로그인한 계정이면 소속과 무관하게 볼 수 있다. 토큰이 없으면 401
+  `UNAUTHORIZED`이고, 다른 인증 필요 API와 같이 동의(403 `CONSENT_REQUIRED`)·이용 제한(403 `ACCOUNT_SUSPENDED`) 검사를 받는다.
+  없는 팀은 404 `TEAM_NOT_FOUND`(인증 검사 다음).
+- **FE (v1.38.0)**: 로그인하지 않은 방문자의 팀 페이지에서는 이 API를 부르지 않고, 명단 자리에 "로그인하면 팀원 명단을 볼 수
+  있어요"와 로그인으로 가는 길을 보인다(팀원 수 `memberCount`는 `TeamResponse`에 있으므로 그대로 보인다). 명단 입력 화면의 안내에
+  "명단은 로그인한 이용자에게 보입니다"를 한 줄 더한다. 공유 카드·미리보기(og) 등 로그인 없이 만들어지는 화면에 명단의 이름을 싣지 않는다.
 - `POST /api/teams/{teamId}/members` — 소유자만. 201 → `TeamMember`.
   30명 초과 시 400 `TEAM_MEMBER_LIMIT`
 - `PATCH /api/teams/{teamId}/members/{memberId}` — 소유자만. 전부 optional,
