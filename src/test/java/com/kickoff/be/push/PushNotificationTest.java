@@ -119,7 +119,8 @@ class PushNotificationTest extends IntegrationTestSupport {
         assertThat(sent.to()).isEqualTo(TOKEN_A);
         assertThat(sent.title()).isEqualTo("새 매칭 신청");
         assertThat(sent.body())
-                .isEqualTo("마포 유나이티드이(가) '토요일 아침 풋살 상대 구합니다'에 신청했습니다");
+                .as("받침이 없는 이름이라 '가' 다 (v1.38.3)")
+                .isEqualTo("마포 유나이티드가 '토요일 아침 풋살 상대 구합니다'에 신청했습니다");
         assertThat(sent.data().get("type")).isEqualTo("REQUEST_RECEIVED");
         assertThat(sent.data().get("postId")).isEqualTo(post.getId());
         assertThat(sent.data().get("requestId")).isNotNull();

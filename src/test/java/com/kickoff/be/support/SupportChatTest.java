@@ -179,7 +179,9 @@ class SupportChatTest extends IntegrationTestSupport {
 
         await().atMost(Duration.ofSeconds(5)).until(() -> !pushClient.sent().isEmpty());
         assertThat(pushClient.last().title()).isEqualTo("고객센터 문의");
-        assertThat(pushClient.last().body()).contains("김감독", "연락이 안 됩니다");
+        // 본문은 고정 문구다 — 문의 내용이 잠금 화면에 뜨면 안 된다 (v1.38.3).
+        assertThat(pushClient.last().body()).isEqualTo("김감독님의 새 문의가 있습니다");
+        assertThat(pushClient.last().body()).doesNotContain("연락이 안 됩니다");
         assertThat(pushClient.last().data()).containsEntry("type", "SUPPORT_MESSAGE");
         // 탭했을 때 열 방의 주인이다 — 수신자(운영자)가 아니다
         assertThat(pushClient.last().data()).containsEntry("userId", user.getId());
@@ -257,6 +259,8 @@ class SupportChatTest extends IntegrationTestSupport {
 
         await().atMost(Duration.ofSeconds(5)).until(() -> !pushClient.sent().isEmpty());
         assertThat(pushClient.last().title()).isEqualTo("킥오프 고객센터");
+        assertThat(pushClient.last().body()).isEqualTo("문의에 답변이 도착했습니다");
+        assertThat(pushClient.last().body()).doesNotContain("확인 후 안내드리겠습니다");
 
         // 운영자가 답했는데 다음 사용자 메시지에 AI 가 끼어들면, 사람이 보고 있는 방에
         // 기계가 대신 답한다. 에스컬레이트를 안 눌렀어도 그래서는 안 된다.

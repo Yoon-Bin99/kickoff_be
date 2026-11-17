@@ -1,5 +1,7 @@
 package com.kickoff.be.push.dto;
 
+import com.kickoff.be.common.Josa;
+
 /**
  * 알림 이벤트 5종 (계약서 §8). 이 값이 그대로 푸시 payload 의 {@code data.type} 으로 나가고,
  * FE 는 그걸 보고 어느 화면으로 이동할지 정한다 — 문자열을 바꾸면 딥링크가 깨진다.
@@ -9,8 +11,13 @@ package com.kickoff.be.push.dto;
  */
 public enum PushEventType {
 
-    /** 신청이 들어왔다 — 글 작성 팀에게. */
-    REQUEST_RECEIVED("새 매칭 신청", "%s이(가) '%s'에 신청했습니다"),
+    /**
+     * 신청이 들어왔다 — 글 작성 팀에게.
+     *
+     * 팀 이름 뒤의 조사는 받침을 보고 고른다 (v1.38.3) — "FC 새벽이", "고양 킥커스가".
+     * 통지 문구와 같은 규칙이다. 이용자가 읽는 문장에 "이(가)"를 두지 않는다.
+     */
+    REQUEST_RECEIVED("새 매칭 신청", "%s '%s'에 신청했습니다"),
 
     /** 수락됐다 — 신청 팀에게. */
     REQUEST_ACCEPTED("매칭 성사!", "'%s' 신청이 수락됐습니다. 연락처가 공개됐어요"),
@@ -46,7 +53,7 @@ public enum PushEventType {
      */
     public String body(String applicantTeamName, String postTitle) {
         return this == REQUEST_RECEIVED
-                ? bodyFormat.formatted(applicantTeamName, postTitle)
+                ? bodyFormat.formatted(Josa.subject(applicantTeamName), postTitle)
                 : bodyFormat.formatted(postTitle);
     }
 }

@@ -29,9 +29,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class SupportPushListener {
 
-    /** 계약서 §7-1 — "내용 앞 50자". */
-    private static final int BODY_LIMIT = 50;
-
     private final UserRepository userRepository;
     private final PushClient pushClient;
     private final PushProperties properties;
@@ -60,12 +57,9 @@ public class SupportPushListener {
         pushClient.send(List.of(new PushMessage(
                 recipient.getExpoPushToken(),
                 event.title(),
-                preview(event.content()),
+                // 고정 문구다 — 메시지 내용은 싣지 않는다 (v1.38.3, SupportPushEvent 주석).
+                event.body(),
                 data(event))));
-    }
-
-    private String preview(String content) {
-        return content.length() <= BODY_LIMIT ? content : content.substring(0, BODY_LIMIT);
     }
 
     /** 탭하면 그 문의방으로 간다 (계약서 §7-1). 키 이름을 바꾸면 FE 딥링크가 깨진다. */

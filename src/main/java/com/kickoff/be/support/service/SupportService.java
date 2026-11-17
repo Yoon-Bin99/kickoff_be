@@ -82,7 +82,7 @@ public class SupportService {
 
         if (room.isOperatorMode()) {
             // 운영자 모드에서는 AI 가 침묵하고 운영자에게 알림이 간다 (계약서 §7-1).
-            notifyOperator(user, request.content());
+            notifyOperator(user);
         } else {
             // AI 응대 중에는 운영자 푸시를 보내지 않는다 — 계약서 §7-1 표에 명시돼 있다.
             // 여기서 보내면 운영자가 AI 가 처리 중인 문의까지 전부 알림으로 받는다.
@@ -109,7 +109,7 @@ public class SupportService {
         if (!wasAlreadyOperatorMode) {
             // 전환 시점에 한 번 알린다. 두 번째부터 또 보내면 버튼을 누를 때마다
             // 운영자 알림이 쌓인다.
-            notifyOperator(user, "운영자 연결을 요청했습니다.");
+            notifyOperator(user);
         }
     }
 
@@ -166,8 +166,7 @@ public class SupportService {
         roomOf(owner).escalate();
 
         SupportMessage saved = save(owner, SupportSender.OPERATOR, request.content());
-        eventPublisher.publishEvent(
-                SupportPushEvent.toUser(owner.getId(), request.content()));
+        eventPublisher.publishEvent(SupportPushEvent.toUser(owner.getId()));
         return SupportMessageResponse.of(saved);
     }
 
@@ -196,12 +195,15 @@ public class SupportService {
      *
      * 푸시는 사용자 쪽 {@code SUPPORT_MESSAGE} 와 같은 모양으로 나간다 — 탭하면 자기
      * 문의방이 열려 통지를 읽고 바로 이의를 적을 수 있다.
+     *
+     * <b>통지 내용은 푸시에 싣지 않는다</b> (v1.38.3). 제재 사실이 잠금 화면에 뜨면
+     * 안 되고, 신고 결과를 그렇게 알리면 신고자를 숨겨 온 설계와 어긋난다.
      */
     @Transactional
     public void notice(User recipient, String content) {
         roomOf(recipient);
         save(recipient, SupportSender.NOTICE, content);
-        eventPublisher.publishEvent(SupportPushEvent.toUser(recipient.getId(), content));
+        eventPublisher.publishEvent(SupportPushEvent.notice(recipient.getId()));
     }
 
     private SupportRoom roomOf(User user) {
@@ -252,10 +254,11 @@ public class SupportService {
         }
     }
 
-    private void notifyOperator(User user, String content) {
+    /** 푸시에는 닉네임까지만 나간다 — 내용은 운영자가 그 방에서 본다 (v1.38.3). */
+    private void notifyOperator(User user) {
         operatorUserId().ifPresent(operatorId ->
                 eventPublisher.publishEvent(SupportPushEvent.toOperator(
-                        operatorId, user.getId(), user.getNickname(), content)));
+                        operatorId, user.getId(), user.getNickname())));
     }
 
     /**

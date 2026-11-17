@@ -1,5 +1,6 @@
 package com.kickoff.be.report.service;
 
+import com.kickoff.be.common.Josa;
 import com.kickoff.be.report.entity.ReportTargetType;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,11 +27,6 @@ public class ReportNotices {
 
     private static final String RESOURCE = "report-notice.properties";
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy년 M월 d일");
-
-    /** 한글 음절 영역과 종성 개수 — 받침이 있는지 보는 데 쓴다. */
-    private static final char HANGUL_FIRST = '가';
-    private static final char HANGUL_LAST = '힣';
-    private static final int HANGUL_FINALS = 28;
 
     private final Properties messages;
 
@@ -89,16 +85,11 @@ public class ReportNotices {
     /**
      * 대상 이름에 주격 조사를 붙인다 — "모집글이", "리뷰가", "팀 소개가".
      *
-     * <b>"이(가)"로 두지 않는다.</b> 개발자에게 보이는 로그가 아니라 이용자가 읽는
-     * 고객센터 메시지다. 받침이 있으면 "이", 없으면 "가"라는 규칙 하나면 되고, 대상
-     * 이름이 늘어도 따로 손볼 것이 없다.
+     * 규칙 자체는 {@link Josa} 에 있다 — 매칭 알림 문구도 같은 규칙을 쓰므로(v1.38.3)
+     * 두 벌로 두면 한쪽만 고쳐지는 날이 온다.
      */
     private String subject(ReportTargetType targetType) {
-        String noun = targetName(targetType);
-        char last = noun.charAt(noun.length() - 1);
-        boolean hasFinalConsonant = last >= HANGUL_FIRST && last <= HANGUL_LAST
-                && (last - HANGUL_FIRST) % HANGUL_FINALS != 0;
-        return noun + (hasFinalConsonant ? "이" : "가");
+        return Josa.subject(targetName(targetType));
     }
 
     /** 통지에 쓰는 대상 이름. 팀은 "팀 소개"다 — 조치가 닿는 것이 소개뿐이다(§7-2). */
